@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>COUNTER TIME 시나리오 보드</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  :root{
+    --bg:#f4f2ec; --panel:#ffffff; --line:#d8d3c8; --text:#23282e;
+    --dim:#6e7681; --accent:#a3781a; --blue:#2f6bad; --danger:#c9402f;
+  }
+  body{background:var(--bg);color:var(--text);font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;overflow:hidden;}
+
+  /* ── 툴바 ── */
+  .toolbar{
+    position:fixed;top:0;left:0;right:0;height:52px;background:var(--panel);
+    border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;
+    padding:0 14px;z-index:50;
+  }
+  .toolbar h1{font-size:1rem;font-weight:900;letter-spacing:.08em;color:var(--accent);margin-right:8px;}
+  .tb-btn{
+    background:#f2efe8;border:1px solid var(--line);border-radius:8px;padding:7px 13px;
+    font-family:inherit;font-size:.83rem;font-weight:700;color:var(--text);cursor:pointer;
+  }
+  .tb-btn:hover{border-color:var(--accent);}
+  .tb-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .save-status{margin-left:auto;font-size:.75rem;color:var(--dim);}
+  .hint{font-size:.72rem;color:var(--dim);margin-left:8px;}
+
+  /* ── 보드 ── */
+  .board-wrap{position:fixed;inset:52px 0 0 0;overflow:auto;}
+  .board{position:relative;width:4000px;height:2600px;
+    background-image:radial-gradient(#ddd8cc 1px,transparent 1px);background-size:24px 24px;}
+  svg.edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
+  svg.edges path.hit{stroke:transparent;stroke-width:14;fill:none;pointer-events:stroke;cursor:pointer;}
+  svg.edges path.vis{stroke:#7a7f87;stroke-width:2;fill:none;pointer-events:none;}
+  svg.edges g.selected path.vis{stroke:var(--danger);stroke-width:3;}
+  svg.edges path.temp{stroke:var(--blue);stroke-width:2;stroke-dasharray:6 5;fill:none;pointer-events:none;}
+
+  /* ── 노드 ── */
+  .node{
+    position:absolute;background:#fff;border:2px solid #000;border-radius:8px;
+    padding:8px 30px 8px 12px;cursor:grab;user-select:none;white-space:nowrap;
+    box-shadow:0 2px 6px rgba(0,0,0,.08);z-index:2;
+  }
+  .node:active{cursor:grabbing;}
+  .node.selected{box-shadow:0 0 0 3px rgba(163,120,26,.35);}
+  .node .ttl{font-weight:700;font-size:.9rem;pointer-events:none;}
+  .node .port{
+    position:absolute;right:-8px;top:50%;transform:translateY(-50%);
+    width:14px;height:14px;border-radius:50%;background:var(--blue);
+    border:2px solid #fff;cursor:crosshair;box-shadow:0 1px 3px rgba(0,0,0,.3);
+  }
+  .node .port:hover{transform:translateY(-50%) scale(1.25);}
+
+  /* ── 펼쳐진 노드(메모장) ── */
+  .node.open{white-space:normal;width:320px;cursor:default;padding:10px 12px;z-index:5;}
+  .node.open .ttl{display:none;}
+  .n-head{display:flex;gap:6px;margin-bottom:8px;cursor:grab;align-items:center;}
+  .n-head input{
+    flex:1;font-family:inherit;font-weight:700;font-size:.9rem;border:1px solid var(--line);
+    border-radius:6px;padding:5px 8px;min-width:0;
+  }
+  .n-close{background:none;border:none;font-size:1rem;cursor:pointer;color:var(--dim);padding:2px 6px;}
+  .fmt{display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap;align-items:center;}
+  .fmt button,.fmt select{
+    background:#f2efe8;border:1px solid var(--line);border-radius:5px;font-family:inherit;
+    font-size:.72rem;padding:3px 7px;cursor:pointer;
+  }
+  .fmt button:hover{border-color:var(--accent);}
+  .fmt .sw{width:16px;height:16px;border-radius:4px;border:1px solid var(--line);cursor:pointer;padding:0;}
+  .n-content{
+    border:1px solid var(--line);border-radius:6px;min-height:110px;padding:8px;
+    font-size:.84rem;line-height:1.6;background:#fdfcf9;cursor:text;user-select:text;
+    white-space:pre-wrap;word-break:break-word;outline:none;
+  }
+  .n-border-row{display:flex;gap:5px;margin-top:8px;align-items:center;font-size:.72rem;color:var(--dim);}
+  .n-border-row .sw{width:18px;height:18px;border-radius:5px;cursor:pointer;border:1px solid var(--line);}
+
+  /* ── 모달 ── */
+  .modal-bg{position:fixed;inset:0;background:rgba(40,42,46,.45);display:none;z-index:100;align-items:center;justify-content:center;}
+  .modal-bg.show{display:flex;}
+  .modal{background:var(--panel);border-radius:14px;padding:22px;width:440px;max-width:92vw;max-height:82vh;overflow:auto;}
+  .modal h2{font-size:1rem;font-weight:800;margin-bottom:14px;color:var(--accent);}
+  .modal h3{font-size:.8rem;font-weight:800;margin:16px 0 8px;color:var(--dim);}
+  .modal textarea{
+    width:100%;height:90px;font-family:inherit;font-size:.85rem;border:1px solid var(--line);
+    border-radius:8px;padding:8px;resize:vertical;
+  }
+  .modal .desc{font-size:.75rem;color:var(--dim);line-height:1.5;margin-bottom:6px;}
+  .sc-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:.83rem;}
+  .sc-row .sc-name{flex:1;}
+  .sc-key{
+    background:#f2efe8;border:1px solid var(--line);border-radius:6px;padding:4px 10px;
+    font-size:.78rem;font-weight:700;min-width:90px;text-align:center;
+  }
+  .sc-key.recording{border-color:var(--danger);color:var(--danger);}
+  .sc-btn{background:none;border:1px solid var(--line);border-radius:6px;padding:4px 9px;font-size:.72rem;cursor:pointer;font-family:inherit;}
+  .modal .foot{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;}
+
+  /* ── 휴지통 ── */
+  .trash-item{
+    display:flex;align-items:center;gap:10px;border:1px solid var(--line);
+    border-radius:8px;padding:9px 12px;margin-bottom:8px;font-size:.84rem;
+  }
+  .trash-item .ti-title{flex:1;font-weight:700;}
+  .trash-item .ti-date{font-size:.7rem;color:var(--dim);}
+  .trash-item button{font-family:inherit;font-size:.72rem;border-radius:6px;border:1px solid var(--line);background:#f2efe8;padding:4px 9px;cursor:pointer;}
+  .trash-item button.del{color:var(--danger);border-color:var(--danger);}
+  .empty-msg{font-size:.8rem;color:var(--dim);text-align:center;padding:20px 0;}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <h1>COUNTER TIME 보드</h1>
+  <button class="tb-btn primary" id="btn-add">+ 노드</button>
+  <button class="tb-btn" id="btn-settings">설정</button>
+  <button class="tb-btn" id="btn-trash">휴지통 <span id="trash-count"></span></button>
+  <button class="tb-btn" id="btn-export">내보내기</button>
+  <button class="tb-btn" id="btn-import">가져오기</button>
+  <input type="file" id="import-file" accept=".json" style="display:none">
+  <span class="hint">노드 더블클릭: 펼치기 · 오른쪽 파란 점 드래그: 간선 연결 · 간선 클릭: 선택</span>
+  <span class="save-status" id="save-status"></span>
+</div>
+
+<div class="board-wrap" id="board-wrap">
+  <div class="board" id="board">
+    <svg class="edges" id="edges"></svg>
+  </div>
+</div>
+
+<!-- 설정 모달 -->
+<div class="modal-bg" id="settings-modal">
+  <div class="modal">
+    <h2>설정</h2>
+    <h3>새 노드 기본 내용 (템플릿)</h3>
+    <div class="desc">새 노드를 만들면 아래 내용이 자동으로 채워집니다.</div>
+    <textarea id="tpl-input"></textarea>
+    <h3>단축키</h3>
+    <div class="desc">[변경]을 누른 뒤 원하는 키(조합)를 누르세요. 텍스트 입력 중에는 단축키가 작동하지 않습니다.</div>
+    <div id="sc-list"></div>
+    <div class="foot">
+      <button class="tb-btn primary" id="settings-save">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 휴지통 모달 -->
+<div class="modal-bg" id="trash-modal">
+  <div class="modal">
+    <h2>휴지통 <span style="font-size:.7rem;color:var(--dim);font-weight:400">— 7일이 지난 항목은 자동 삭제됩니다</span></h2>
+    <div id="trash-list"></div>
+    <div class="foot">
+      <button class="tb-btn" id="trash-close">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ════════════ 상태 ════════════ */
+let G = {
+  nodes: [],   // {id,title,content,x,y,border}
+  edges: [],   // {id,a,b}
+  template: '내 행위: \n상대 행위: ',
+  shortcuts: {
+    add:      {key:'n', ctrl:false, shift:false, alt:false},
+    delNode:  {key:'Delete', ctrl:false, shift:false, alt:false},
+    delEdge:  {key:'e', ctrl:false, shift:false, alt:false},
+    delNodeEdges:{key:'e', ctrl:false, shift:true, alt:false}
+  }
+};
+let TRASH = []; // {node, edges, deletedAt}
+let selNode = null, selEdge = null;
+let storageOK = true;
+let idSeq = 1;
+const uid = () => 'n' + (idSeq++) + '_' + Date.now().toString(36);
+
+const $ = id => document.getElementById(id);
+const board = $('board'), svg = $('edges');
+
+const SC_LABELS = {add:'노드 추가', delNode:'선택 노드 삭제(휴지통)', delEdge:'선택 간선 제거', delNodeEdges:'선택 노드의 모든 간선 제거'};
+const BORDER_COLORS = ['#000000','#c9402f','#2f6bad','#2e8b57','#d97c06','#7b4bbf'];
+
+/* ════════════ 저장/불러오기 (3단계 폴백) ════════════ */
+let saveTimer = null;
+let storageMode = null; // 'app' | 'local' | 'memory'
+
+async function detectStorage(){
+  // 1) 클로드 앱 내부 저장소
+  try{
+    if(window.storage && window.storage.set){
+      await window.storage.set('ct-probe', '1');
+      storageMode = 'app'; return;
+    }
+  }catch(e){}
+  // 2) 브라우저 localStorage
+  try{
+    localStorage.setItem('ct-probe','1'); localStorage.removeItem('ct-probe');
+    storageMode = 'local'; return;
+  }catch(e){}
+  storageMode = 'memory';
+}
+async function stSet(key, val){
+  if(storageMode==='app') await window.storage.set(key, val);
+  else if(storageMode==='local') localStorage.setItem(key, val);
+  else throw new Error('no storage');
+}
+async function stGet(key){
+  if(storageMode==='app'){
+    try{ const r = await window.storage.get(key); return r ? r.value : null; }
+    catch(e){ return null; }
+  }
+  if(storageMode==='local') return localStorage.getItem(key);
+  return null;
+}
+function persist(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async ()=>{
+    try{
+      await stSet('ct-board', JSON.stringify(G));
+      await stSet('ct-trash', JSON.stringify(TRASH));
+      const label = storageMode==='app' ? '앱 저장' : '브라우저 저장';
+      $('save-status').textContent = label + ' ' + new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
+    }catch(e){
+      $('save-status').textContent = '⚠ 저장 불가 — 파일을 다운로드해 브라우저에서 직접 열면 저장됩니다. 종료 전 [내보내기]로 백업하세요';
+    }
+  }, 400);
+}
+async function load(){
+  await detectStorage();
+  if(storageMode==='memory'){
+    $('save-status').textContent = '⚠ 저장 불가 — 파일을 다운로드해 브라우저에서 직접 열면 저장됩니다. 종료 전 [내보내기]로 백업하세요';
+  }
+  try{
+    const g = await stGet('ct-board');
+    if(g) G = Object.assign(G, JSON.parse(g));
+  }catch(e){ /* 저장된 보드 없음 */ }
+  try{
+    const t = await stGet('ct-trash');
+    if(t) TRASH = JSON.parse(t);
+  }catch(e){ /* 휴지통 비어있음 */ }
+  // 7일 지난 항목 자동 삭제
+  const WEEK = 7*24*60*60*1000;
+  const before = TRASH.length;
+  TRASH = TRASH.filter(t => Date.now() - t.deletedAt < WEEK);
+  if(TRASH.length !== before) persist();
+  // id 시퀀스 복원
+  idSeq = G.nodes.length + TRASH.length + 1;
+  renderAll();
+}
+
+/* ════════════ 노드 렌더 ════════════ */
+function renderAll(){
+  board.querySelectorAll('.node').forEach(n=>n.remove());
+  G.nodes.forEach(renderNode);
+  renderEdges();
+  updateTrashCount();
+}
+function renderNode(n){
+  const el = document.createElement('div');
+  el.className = 'node';
+  el.dataset.id = n.id;
+  el.style.left = n.x+'px'; el.style.top = n.y+'px';
+  el.style.borderColor = n.border || '#000';
+  el.innerHTML = `<span class="ttl"></span><span class="port" title="드래그해서 간선 연결"></span>`;
+  el.querySelector('.ttl').textContent = n.title || '(제목 없음)';
+  board.appendChild(el);
+  bindNode(el, n);
+}
+function nodeCenter(n){
+  const el = board.querySelector(`.node[data-id="${n.id}"]`);
+  if(!el) return {x:n.x, y:n.y};
+  return {x: el.offsetLeft + el.offsetWidth/2, y: el.offsetTop + el.offsetHeight/2};
+}
+
+/* ════════════ 간선 렌더 ════════════ */
+function renderEdges(){
+  svg.querySelectorAll('g.edge').forEach(e=>e.remove());
+  G.edges.forEach(e=>{
+    const a = G.nodes.find(n=>n.id===e.a), b = G.nodes.find(n=>n.id===e.b);
+    if(!a||!b) return;
+    const ca = nodeCenter(a), cb = nodeCenter(b);
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.classList.add('edge'); g.dataset.id = e.id;
+    if(selEdge===e.id) g.classList.add('selected');
+    const d = `M${ca.x},${ca.y} C${(ca.x+cb.x)/2},${ca.y} ${(ca.x+cb.x)/2},${cb.y} ${cb.x},${cb.y}`;
+    g.innerHTML = `<path class="hit" d="${d}"></path><path class="vis" d="${d}"></path>`;
+    g.querySelector('.hit').addEventListener('click', ev=>{
+      ev.stopPropagation();
+      selectEdge(e.id);
+    });
+    svg.appendChild(g);
+  });
+}
+
+/* ════════════ 선택 ════════════ */
+function selectNode(id){
+  selNode = id; selEdge = null;
+  board.querySelectorAll('.node').forEach(el=>el.classList.toggle('selected', el.dataset.id===id));
+  renderEdges();
+}
+function selectEdge(id){
+  selEdge = id; selNode = null;
+  board.querySelectorAll('.node').forEach(el=>el.classList.remove('selected'));
+  renderEdges();
+}
+$('board-wrap').addEventListener('mousedown', e=>{
+  if(e.target===board || e.target===$('board-wrap') || e.target===svg){
+    selNode=null; selEdge=null;
+    board.querySelectorAll('.node').forEach(el=>el.classList.remove('selected'));
+    renderEdges();
+  }
+});
+
+/* ════════════ 노드 상호작용 ════════════ */
+function bindNode(el, n){
+  // 드래그 이동 (접힌 상태: 노드 전체 / 펼친 상태: 헤더)
+  el.addEventListener('mousedown', e=>{
+    if(e.target.classList.contains('port')) return;
+    if(el.classList.contains('open') && !e.target.closest('.n-head')) { return; }
+    if(e.target.tagName==='INPUT'||e.target.tagName==='BUTTON'||e.target.isContentEditable) return;
+    e.preventDefault();
+    selectNode(n.id);
+    const startX = e.clientX, startY = e.clientY, ox = n.x, oy = n.y;
+    function mv(ev){
+      n.x = Math.max(0, ox + ev.clientX - startX);
+      n.y = Math.max(0, oy + ev.clientY - startY);
+      el.style.left = n.x+'px'; el.style.top = n.y+'px';
+      renderEdges();
+    }
+    function up(){ document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up); persist(); }
+    document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up);
+  });
+
+  // 더블클릭 → 펼치기/접기
+  el.addEventListener('dblclick', e=>{
+    if(e.target.classList.contains('port')) return;
+    if(el.classList.contains('open')) return; // 편집 중 더블클릭 무시
+    openNode(el, n);
+  });
+
+  // 간선 연결 드래그
+  el.querySelector('.port').addEventListener('mousedown', e=>{
+    e.preventDefault(); e.stopPropagation();
+    const from = n;
+    const temp = document.createElementNS('http://www.w3.org/2000/svg','path');
+    temp.setAttribute('class','temp'); svg.appendChild(temp);
+    const wrapRect = ()=>board.getBoundingClientRect();
+    function mv(ev){
+      const r = wrapRect();
+      const c = nodeCenter(from);
+      const mx = ev.clientX - r.left, my = ev.clientY - r.top;
+      temp.setAttribute('d', `M${c.x},${c.y} L${mx},${my}`);
+    }
+    function up(ev){
+      document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up);
+      temp.remove();
+      const target = ev.target.closest && ev.target.closest('.node');
+      if(target && target.dataset.id !== from.id){
+        const bId = target.dataset.id;
+        const dup = G.edges.some(ed=>(ed.a===from.id&&ed.b===bId)||(ed.a===bId&&ed.b===from.id));
+        if(!dup){
+          G.edges.push({id:uid(), a:from.id, b:bId});
+          renderEdges(); persist();
+        }
+      }
+    }
+    document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up);
+  });
+}
+
+/* ════════════ 노드 펼치기 (메모장) ════════════ */
+function openNode(el, n){
+  el.classList.add('open');
+  const editor = document.createElement('div');
+  editor.className = 'n-editor';
+  editor.innerHTML = `
+    <div class="n-head">
+      <input type="text" value="" placeholder="제목">
+      <button class="n-close" title="접기">▲</button>
+    </div>
+    <div class="fmt">
+      <button data-cmd="bold"><b>B</b></button>
+      <select data-size>
+        <option value="">글씨 크기</option>
+        <option value="2">작게</option>
+        <option value="3">보통</option>
+        <option value="5">크게</option>
+      </select>
+      <button class="sw" data-color="#c9402f" style="background:#c9402f" title="빨강 글씨"></button>
+      <button class="sw" data-color="#2f6bad" style="background:#2f6bad" title="파랑 글씨"></button>
+      <button class="sw" data-color="#2e8b57" style="background:#2e8b57" title="초록 글씨"></button>
+      <button class="sw" data-color="#23282e" style="background:#23282e" title="검정 글씨"></button>
+      <button class="sw" data-hl="#fff3a3" style="background:#fff3a3" title="노랑 형광펜"></button>
+      <button class="sw" data-hl="#c8f0d4" style="background:#c8f0d4" title="초록 형광펜"></button>
+      <button class="sw" data-hl="transparent" style="background:#fff;position:relative" title="형광펜 지우기">✕</button>
+    </div>
+    <div class="n-content" contenteditable="true"></div>
+    <div class="n-border-row">테두리:
+      ${BORDER_COLORS.map(c=>`<span class="sw" data-border="${c}" style="background:${c}"></span>`).join('')}
+    </div>`;
+  el.appendChild(editor);
+  const titleInput = editor.querySelector('input');
+  const content = editor.querySelector('.n-content');
+  titleInput.value = n.title;
+  content.innerHTML = n.content || '';
+
+  // 서식 버튼
+  editor.querySelector('[data-cmd="bold"]').addEventListener('click', e=>{e.preventDefault(); content.focus(); document.execCommand('bold');});
+  editor.querySelector('[data-size]').addEventListener('change', e=>{
+    if(e.target.value){ content.focus(); document.execCommand('fontSize', false, e.target.value); e.target.value=''; }
+  });
+  editor.querySelectorAll('[data-color]').forEach(b=>b.addEventListener('click', e=>{
+    e.preventDefault(); content.focus(); document.execCommand('foreColor', false, b.dataset.color);
+  }));
+  editor.querySelectorAll('[data-hl]').forEach(b=>b.addEventListener('click', e=>{
+    e.preventDefault(); content.focus(); document.execCommand('hiliteColor', false, b.dataset.hl);
+  }));
+  editor.querySelectorAll('[data-border]').forEach(b=>b.addEventListener('click', ()=>{
+    n.border = b.dataset.border; el.style.borderColor = n.border; persist();
+  }));
+
+  const save = ()=>{
+    n.title = titleInput.value;
+    n.content = content.innerHTML;
+    persist();
+  };
+  titleInput.addEventListener('input', save);
+  content.addEventListener('input', save);
+
+  editor.querySelector('.n-close').addEventListener('click', ()=>{
+    save();
+    el.classList.remove('open');
+    editor.remove();
+    el.querySelector('.ttl').textContent = n.title || '(제목 없음)';
+    renderEdges();
+  });
+  renderEdges();
+  titleInput.focus();
+}
+
+/* ════════════ 노드/간선 조작 ════════════ */
+function addNode(){
+  const wrap = $('board-wrap');
+  const n = {
+    id: uid(),
+    title: '새 노드',
+    content: (G.template||'').replace(/\n/g,'<br>'),
+    x: wrap.scrollLeft + 120 + Math.random()*80,
+    y: wrap.scrollTop + 120 + Math.random()*80,
+    border: '#000000'
+  };
+  G.nodes.push(n);
+  renderNode(n);
+  selectNode(n.id);
+  persist();
+}
+function deleteSelectedNode(){
+  if(!selNode) return;
+  const n = G.nodes.find(x=>x.id===selNode);
+  if(!n) return;
+  const connected = G.edges.filter(e=>e.a===n.id||e.b===n.id);
+  TRASH.push({node:n, edges:connected, deletedAt:Date.now()});
+  G.nodes = G.nodes.filter(x=>x.id!==n.id);
+  G.edges = G.edges.filter(e=>e.a!==n.id&&e.b!==n.id);
+  selNode = null;
+  renderAll(); persist();
+}
+function deleteSelectedEdge(){
+  if(!selEdge) return;
+  G.edges = G.edges.filter(e=>e.id!==selEdge);
+  selEdge = null;
+  renderEdges(); persist();
+}
+function deleteNodeEdges(){
+  if(!selNode) return;
+  G.edges = G.edges.filter(e=>e.a!==selNode&&e.b!==selNode);
+  renderEdges(); persist();
+}
+
+/* ════════════ 휴지통 ════════════ */
+function updateTrashCount(){
+  $('trash-count').textContent = TRASH.length ? `(${TRASH.length})` : '';
+}
+function renderTrash(){
+  const box = $('trash-list');
+  if(!TRASH.length){ box.innerHTML = '<div class="empty-msg">휴지통이 비어 있습니다.</div>'; return; }
+  box.innerHTML = '';
+  TRASH.slice().reverse().forEach(t=>{
+    const daysLeft = Math.max(0, 7 - Math.floor((Date.now()-t.deletedAt)/86400000));
+    const d = document.createElement('div');
+    d.className='trash-item';
+    d.innerHTML = `<span class="ti-title"></span>
+      <span class="ti-date">${new Date(t.deletedAt).toLocaleDateString('ko-KR')} 삭제 · ${daysLeft}일 후 영구삭제</span>
+      <button class="restore">복원</button><button class="del">영구삭제</button>`;
+    d.querySelector('.ti-title').textContent = t.node.title || '(제목 없음)';
+    d.querySelector('.restore').addEventListener('click', ()=>{
+      G.nodes.push(t.node);
+      t.edges.forEach(e=>{
+        const ok = G.nodes.some(n=>n.id===e.a) && G.nodes.some(n=>n.id===e.b);
+        if(ok && !G.edges.some(x=>x.id===e.id)) G.edges.push(e);
+      });
+      TRASH = TRASH.filter(x=>x!==t);
+      renderAll(); renderTrash(); persist();
+    });
+    d.querySelector('.del').addEventListener('click', ()=>{
+      TRASH = TRASH.filter(x=>x!==t);
+      renderTrash(); updateTrashCount(); persist();
+    });
+    box.appendChild(d);
+  });
+}
+
+/* ════════════ 설정 (템플릿 + 단축키) ════════════ */
+function fmtShortcut(s){
+  const parts = [];
+  if(s.ctrl) parts.push('Ctrl'); if(s.shift) parts.push('Shift'); if(s.alt) parts.push('Alt');
+  parts.push(s.key.length===1 ? s.key.toUpperCase() : s.key);
+  return parts.join(' + ');
+}
+function renderShortcutList(){
+  const box = $('sc-list');
+  box.innerHTML = '';
+  Object.entries(SC_LABELS).forEach(([act,label])=>{
+    const row = document.createElement('div');
+    row.className='sc-row';
+    row.innerHTML = `<span class="sc-name">${label}</span>
+      <span class="sc-key" data-act="${act}">${fmtShortcut(G.shortcuts[act])}</span>
+      <button class="sc-btn">변경</button>`;
+    row.querySelector('.sc-btn').addEventListener('click', ()=>{
+      const keyEl = row.querySelector('.sc-key');
+      keyEl.classList.add('recording'); keyEl.textContent = '키 입력...';
+      function rec(e){
+        e.preventDefault(); e.stopPropagation();
+        if(['Control','Shift','Alt','Meta'].includes(e.key)) return;
+        G.shortcuts[act] = {key:e.key, ctrl:e.ctrlKey, shift:e.shiftKey, alt:e.altKey};
+        keyEl.classList.remove('recording');
+        keyEl.textContent = fmtShortcut(G.shortcuts[act]);
+        document.removeEventListener('keydown', rec, true);
+        persist();
+      }
+      document.addEventListener('keydown', rec, true);
+    });
+    box.appendChild(row);
+  });
+}
+
+/* ════════════ 전역 단축키 ════════════ */
+document.addEventListener('keydown', e=>{
+  const t = e.target;
+  if(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable) return;
+  if($('settings-modal').classList.contains('show')||$('trash-modal').classList.contains('show')) return;
+  const match = s => e.key.toLowerCase()===s.key.toLowerCase() && e.ctrlKey===s.ctrl && e.shiftKey===s.shift && e.altKey===s.alt;
+  if(match(G.shortcuts.add)){ e.preventDefault(); addNode(); }
+  else if(match(G.shortcuts.delNode)){ e.preventDefault(); deleteSelectedNode(); }
+  else if(match(G.shortcuts.delNodeEdges)){ e.preventDefault(); deleteNodeEdges(); }
+  else if(match(G.shortcuts.delEdge)){ e.preventDefault(); deleteSelectedEdge(); }
+});
+
+/* ════════════ 툴바/모달 바인딩 ════════════ */
+$('btn-add').addEventListener('click', addNode);
+$('btn-settings').addEventListener('click', ()=>{
+  $('tpl-input').value = G.template;
+  renderShortcutList();
+  $('settings-modal').classList.add('show');
+});
+$('settings-save').addEventListener('click', ()=>{
+  G.template = $('tpl-input').value;
+  $('settings-modal').classList.remove('show');
+  persist();
+});
+$('btn-trash').addEventListener('click', ()=>{ renderTrash(); $('trash-modal').classList.add('show'); });
+
+/* ── 내보내기: 노드+간선 JSON 다운로드 (Claude에게 업로드해 파싱 가능) ── */
+$('btn-export').addEventListener('click', ()=>{
+  const data = {
+    exported: new Date().toISOString(),
+    app: 'counter-time-scenario-board',
+    nodes: G.nodes.map(n=>({
+      id:n.id, title:n.title,
+      content: n.content.replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,''), // 순수 텍스트
+      contentHtml: n.content, // 서식 보존본
+      x:n.x, y:n.y, border:n.border
+    })),
+    edges: G.edges.map(e=>({from:e.a, to:e.b}))
+  };
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'counter-time-scenario-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+/* ── 가져오기 ── */
+$('btn-import').addEventListener('click', ()=>$('import-file').click());
+$('import-file').addEventListener('change', e=>{
+  const f = e.target.files[0];
+  if(!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{
+    try{
+      const data = JSON.parse(r.result);
+      if(!Array.isArray(data.nodes)) throw new Error('형식 오류');
+      G.nodes = data.nodes.map(n=>({
+        id:n.id, title:n.title||'', content:n.contentHtml||n.content||'',
+        x:n.x||100, y:n.y||100, border:n.border||'#000000'
+      }));
+      G.edges = (data.edges||[]).map((ed,i)=>({id:'e'+i+'_'+Date.now().toString(36), a:ed.from, b:ed.to}));
+      renderAll(); persist();
+    }catch(err){ alert('가져오기 실패: 올바른 보드 JSON 파일이 아닙니다.'); }
+  };
+  r.readAsText(f);
+  e.target.value='';
+});
+$('trash-close').addEventListener('click', ()=>$('trash-modal').classList.remove('show'));
+[$('settings-modal'),$('trash-modal')].forEach(m=>m.addEventListener('mousedown', e=>{ if(e.target===m) m.classList.remove('show'); }));
+
+/* ════════════ 시작 ════════════ */
+load();
+</script>
+</body>
+</html>
