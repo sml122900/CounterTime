@@ -2,7 +2,9 @@
     "name": "CounterTime.Game",
     "rootNamespace": "CounterTime.Game",
     "references": [
-        "CounterTime.Core"
+        "CounterTime.Core",
+        "UnityEngine.UI",
+        "Unity.TextMeshPro"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
