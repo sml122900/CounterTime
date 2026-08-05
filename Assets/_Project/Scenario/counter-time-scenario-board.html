@@ -26,17 +26,22 @@
   .tb-btn:hover{border-color:var(--accent);}
   .tb-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
   .save-status{margin-left:auto;font-size:.75rem;color:var(--dim);}
-  .hint{font-size:.72rem;color:var(--dim);margin-left:8px;}
+  .hint{font-size:.72rem;color:var(--dim);margin-left:8px;max-width:340px;line-height:1.4;}
 
   /* ── 보드 ── */
   .board-wrap{position:fixed;inset:52px 0 0 0;overflow:auto;}
   .board{position:relative;width:4000px;height:2600px;
-    background-image:radial-gradient(#ddd8cc 1px,transparent 1px);background-size:24px 24px;}
-  svg.edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
+    background-image:radial-gradient(#ddd8cc 1px,transparent 1px);background-size:24px 24px;
+    transform-origin:0 0;}
+  .board.panning{cursor:grabbing;}
+  svg.edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;}
   svg.edges path.hit{stroke:transparent;stroke-width:14;fill:none;pointer-events:stroke;cursor:pointer;}
   svg.edges path.vis{stroke:#7a7f87;stroke-width:2;fill:none;pointer-events:none;}
   svg.edges g.selected path.vis{stroke:var(--danger);stroke-width:3;}
   svg.edges path.temp{stroke:var(--blue);stroke-width:2;stroke-dasharray:6 5;fill:none;pointer-events:none;}
+
+  /* ── 선택 영역 박스 ── */
+  .marquee{position:absolute;border:1.5px dashed var(--accent);background:rgba(163,120,26,.08);z-index:40;pointer-events:none;display:none;}
 
   /* ── 노드 ── */
   .node{
@@ -45,7 +50,7 @@
     box-shadow:0 2px 6px rgba(0,0,0,.08);z-index:2;
   }
   .node:active{cursor:grabbing;}
-  .node.selected{box-shadow:0 0 0 3px rgba(163,120,26,.35);}
+  .node.selected{box-shadow:0 0 0 3px rgba(163,120,26,.45);}
   .node .ttl{font-weight:700;font-size:.9rem;pointer-events:none;}
   .node .port{
     position:absolute;right:-8px;top:50%;transform:translateY(-50%);
@@ -121,13 +126,23 @@
   <button class="tb-btn" id="btn-export">내보내기</button>
   <button class="tb-btn" id="btn-import">가져오기</button>
   <input type="file" id="import-file" accept=".json" style="display:none">
-  <span class="hint">노드 더블클릭: 펼치기 · 오른쪽 파란 점 드래그: 간선 연결 · 간선 클릭: 선택</span>
+  <span class="hint">더블클릭: 펼치기 · 파란 점 드래그: 화살표 연결 · 빈 곳 드래그: 영역선택 · Space+드래그(또는 휠클릭): 화면 이동 · 간선 클릭: 선택</span>
   <span class="save-status" id="save-status"></span>
 </div>
 
 <div class="board-wrap" id="board-wrap">
   <div class="board" id="board">
-    <svg class="edges" id="edges"></svg>
+    <svg class="edges" id="edges">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#7a7f87"></path>
+        </marker>
+        <marker id="arrow-sel" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#c9402f"></path>
+        </marker>
+      </defs>
+    </svg>
+    <div class="marquee" id="marquee"></div>
   </div>
 </div>
 
@@ -161,58 +176,46 @@
 <script>
 /* ════════════ 상태 ════════════ */
 let G = {
-  nodes: [],   // {id,title,content,x,y,border}
-  edges: [],   // {id,a,b}
+  nodes: [],   // {id,title,content,x,y,border,collapsed}
+  edges: [],   // {id,a,b}  (a=시작 → b=끝, 화살표 방향)
   template: '내 행위: \n상대 행위: ',
   shortcuts: {
-    add:      {key:'n', ctrl:false, shift:false, alt:false},
-    delNode:  {key:'Delete', ctrl:false, shift:false, alt:false},
-    delEdge:  {key:'e', ctrl:false, shift:false, alt:false},
-    delNodeEdges:{key:'e', ctrl:false, shift:true, alt:false}
+    add:         {key:'n', ctrl:false, shift:false, alt:false},
+    delNode:     {key:'Delete', ctrl:false, shift:false, alt:false},
+    delEdge:     {key:'e', ctrl:false, shift:false, alt:false},
+    delNodeEdges:{key:'e', ctrl:false, shift:true, alt:false},
+    selectAll:   {key:'a', ctrl:true, shift:false, alt:false},
+    toggleOpen:  {key:'Tab', ctrl:false, shift:false, alt:false}
   }
 };
-let TRASH = []; // {node, edges, deletedAt}
-let selNode = null, selEdge = null;
-let storageOK = true;
+let TRASH = [];
+let selNodes = new Set();   // 다중 선택
+let selEdge = null;
+let storageMode = null;
 let idSeq = 1;
+let lastMouse = {x:200, y:200};  // 보드 좌표 기준 최근 마우스 위치
 const uid = () => 'n' + (idSeq++) + '_' + Date.now().toString(36);
 
 const $ = id => document.getElementById(id);
-const board = $('board'), svg = $('edges');
+const board = $('board'), svg = $('edges'), wrap = $('board-wrap'), marquee = $('marquee');
 
-const SC_LABELS = {add:'노드 추가', delNode:'선택 노드 삭제(휴지통)', delEdge:'선택 간선 제거', delNodeEdges:'선택 노드의 모든 간선 제거'};
+const SC_LABELS = {
+  add:'노드 추가', delNode:'선택 노드 삭제(휴지통)', delEdge:'선택 간선 제거',
+  delNodeEdges:'선택 노드의 모든 간선 제거', selectAll:'전체 노드 선택', toggleOpen:'노드 펼치기/최소화'
+};
 const BORDER_COLORS = ['#000000','#c9402f','#2f6bad','#2e8b57','#d97c06','#7b4bbf'];
 
 /* ════════════ 저장/불러오기 (3단계 폴백) ════════════ */
 let saveTimer = null;
-let storageMode = null; // 'app' | 'local' | 'memory'
-
 async function detectStorage(){
-  // 1) 클로드 앱 내부 저장소
-  try{
-    if(window.storage && window.storage.set){
-      await window.storage.set('ct-probe', '1');
-      storageMode = 'app'; return;
-    }
-  }catch(e){}
-  // 2) 브라우저 localStorage
-  try{
-    localStorage.setItem('ct-probe','1'); localStorage.removeItem('ct-probe');
-    storageMode = 'local'; return;
-  }catch(e){}
-  storageMode = 'memory';
+  try{ if(window.storage && window.storage.set){ await window.storage.set('ct-probe','1'); storageMode='app'; return; } }catch(e){}
+  try{ localStorage.setItem('ct-probe','1'); localStorage.removeItem('ct-probe'); storageMode='local'; return; }catch(e){}
+  storageMode='memory';
 }
-async function stSet(key, val){
-  if(storageMode==='app') await window.storage.set(key, val);
-  else if(storageMode==='local') localStorage.setItem(key, val);
-  else throw new Error('no storage');
-}
-async function stGet(key){
-  if(storageMode==='app'){
-    try{ const r = await window.storage.get(key); return r ? r.value : null; }
-    catch(e){ return null; }
-  }
-  if(storageMode==='local') return localStorage.getItem(key);
+async function stSet(k,v){ if(storageMode==='app') await window.storage.set(k,v); else if(storageMode==='local') localStorage.setItem(k,v); else throw new Error('no storage'); }
+async function stGet(k){
+  if(storageMode==='app'){ try{ const r=await window.storage.get(k); return r?r.value:null; }catch(e){ return null; } }
+  if(storageMode==='local') return localStorage.getItem(k);
   return null;
 }
 function persist(){
@@ -234,24 +237,30 @@ async function load(){
     $('save-status').textContent = '⚠ 저장 불가 — 파일을 다운로드해 브라우저에서 직접 열면 저장됩니다. 종료 전 [내보내기]로 백업하세요';
   }
   try{
-    const g = await stGet('ct-board');
-    if(g) G = Object.assign(G, JSON.parse(g));
-  }catch(e){ /* 저장된 보드 없음 */ }
-  try{
-    const t = await stGet('ct-trash');
-    if(t) TRASH = JSON.parse(t);
-  }catch(e){ /* 휴지통 비어있음 */ }
-  // 7일 지난 항목 자동 삭제
-  const WEEK = 7*24*60*60*1000;
-  const before = TRASH.length;
-  TRASH = TRASH.filter(t => Date.now() - t.deletedAt < WEEK);
-  if(TRASH.length !== before) persist();
-  // id 시퀀스 복원
+    const g=await stGet('ct-board');
+    if(g){
+      const saved = JSON.parse(g);
+      const defaultShortcuts = G.shortcuts;
+      G = Object.assign(G, saved);
+      // 저장 데이터에 없는 단축키는 기본값으로 보완 (구버전 데이터 호환)
+      G.shortcuts = Object.assign({}, defaultShortcuts, saved.shortcuts || {});
+    }
+  }catch(e){}
+  try{ const t=await stGet('ct-trash'); if(t) TRASH=JSON.parse(t); }catch(e){}
+  const WEEK=7*24*60*60*1000, before=TRASH.length;
+  TRASH = TRASH.filter(t=>Date.now()-t.deletedAt<WEEK);
+  if(TRASH.length!==before) persist();
   idSeq = G.nodes.length + TRASH.length + 1;
   renderAll();
 }
 
-/* ════════════ 노드 렌더 ════════════ */
+/* ════════════ 좌표 변환 ════════════ */
+function toBoardCoords(clientX, clientY){
+  const r = board.getBoundingClientRect();
+  return { x: clientX - r.left, y: clientY - r.top };
+}
+
+/* ════════════ 렌더 ════════════ */
 function renderAll(){
   board.querySelectorAll('.node').forEach(n=>n.remove());
   G.nodes.forEach(renderNode);
@@ -264,8 +273,9 @@ function renderNode(n){
   el.dataset.id = n.id;
   el.style.left = n.x+'px'; el.style.top = n.y+'px';
   el.style.borderColor = n.border || '#000';
-  el.innerHTML = `<span class="ttl"></span><span class="port" title="드래그해서 간선 연결"></span>`;
+  el.innerHTML = `<span class="ttl"></span><span class="port" title="드래그해서 화살표 연결"></span>`;
   el.querySelector('.ttl').textContent = n.title || '(제목 없음)';
+  if(selNodes.has(n.id)) el.classList.add('selected');
   board.appendChild(el);
   bindNode(el, n);
 }
@@ -274,85 +284,100 @@ function nodeCenter(n){
   if(!el) return {x:n.x, y:n.y};
   return {x: el.offsetLeft + el.offsetWidth/2, y: el.offsetTop + el.offsetHeight/2};
 }
-
-/* ════════════ 간선 렌더 ════════════ */
+// 노드 사각형 경계에서 선이 나가도록 교점 계산 (화살표가 노드 안에 묻히지 않게)
+function edgePoint(from, to){
+  const el = board.querySelector(`.node[data-id="${from.id}"]`);
+  const c = nodeCenter(from);
+  if(!el) return c;
+  const w = el.offsetWidth/2, h = el.offsetHeight/2;
+  const dx = to.x - c.x, dy = to.y - c.y;
+  if(dx===0 && dy===0) return c;
+  const sx = dx!==0 ? w/Math.abs(dx) : Infinity;
+  const sy = dy!==0 ? h/Math.abs(dy) : Infinity;
+  const s = Math.min(sx, sy);
+  return { x: c.x + dx*s, y: c.y + dy*s };
+}
 function renderEdges(){
   svg.querySelectorAll('g.edge').forEach(e=>e.remove());
   G.edges.forEach(e=>{
     const a = G.nodes.find(n=>n.id===e.a), b = G.nodes.find(n=>n.id===e.b);
     if(!a||!b) return;
     const ca = nodeCenter(a), cb = nodeCenter(b);
+    const pa = edgePoint(a, cb), pb = edgePoint(b, ca);  // 양 끝을 노드 경계로
     const g = document.createElementNS('http://www.w3.org/2000/svg','g');
     g.classList.add('edge'); g.dataset.id = e.id;
-    if(selEdge===e.id) g.classList.add('selected');
-    const d = `M${ca.x},${ca.y} C${(ca.x+cb.x)/2},${ca.y} ${(ca.x+cb.x)/2},${cb.y} ${cb.x},${cb.y}`;
-    g.innerHTML = `<path class="hit" d="${d}"></path><path class="vis" d="${d}"></path>`;
-    g.querySelector('.hit').addEventListener('click', ev=>{
-      ev.stopPropagation();
-      selectEdge(e.id);
-    });
+    const sel = selEdge===e.id;
+    if(sel) g.classList.add('selected');
+    const mx = (pa.x+pb.x)/2;
+    const d = `M${pa.x},${pa.y} C${mx},${pa.y} ${mx},${pb.y} ${pb.x},${pb.y}`;
+    const vis = `<path class="vis" d="${d}" marker-end="url(#${sel?'arrow-sel':'arrow'})"></path>`;
+    g.innerHTML = `<path class="hit" d="${d}"></path>${vis}`;
+    g.querySelector('.hit').addEventListener('click', ev=>{ ev.stopPropagation(); selectEdge(e.id); });
     svg.appendChild(g);
   });
 }
 
 /* ════════════ 선택 ════════════ */
-function selectNode(id){
-  selNode = id; selEdge = null;
-  board.querySelectorAll('.node').forEach(el=>el.classList.toggle('selected', el.dataset.id===id));
+function clearSel(){ selNodes.clear(); selEdge=null; syncSelClass(); }
+function syncSelClass(){
+  board.querySelectorAll('.node').forEach(el=>el.classList.toggle('selected', selNodes.has(el.dataset.id)));
   renderEdges();
 }
-function selectEdge(id){
-  selEdge = id; selNode = null;
-  board.querySelectorAll('.node').forEach(el=>el.classList.remove('selected'));
-  renderEdges();
+function selectNode(id, additive){
+  selEdge=null;
+  if(!additive) selNodes.clear();
+  if(additive && selNodes.has(id)) selNodes.delete(id); else selNodes.add(id);
+  syncSelClass();
 }
-$('board-wrap').addEventListener('mousedown', e=>{
-  if(e.target===board || e.target===$('board-wrap') || e.target===svg){
-    selNode=null; selEdge=null;
-    board.querySelectorAll('.node').forEach(el=>el.classList.remove('selected'));
-    renderEdges();
-  }
-});
+function selectEdge(id){ selNodes.clear(); selEdge=id; syncSelClass(); }
+function selectAll(){ selEdge=null; selNodes = new Set(G.nodes.map(n=>n.id)); syncSelClass(); }
 
 /* ════════════ 노드 상호작용 ════════════ */
 function bindNode(el, n){
-  // 드래그 이동 (접힌 상태: 노드 전체 / 펼친 상태: 헤더)
   el.addEventListener('mousedown', e=>{
     if(e.target.classList.contains('port')) return;
-    if(el.classList.contains('open') && !e.target.closest('.n-head')) { return; }
+    if(el.classList.contains('open') && !e.target.closest('.n-head')) return;
     if(e.target.tagName==='INPUT'||e.target.tagName==='BUTTON'||e.target.isContentEditable) return;
+    if(spaceDown) return; // 팬 모드 우선
     e.preventDefault();
-    selectNode(n.id);
-    const startX = e.clientX, startY = e.clientY, ox = n.x, oy = n.y;
+    // 선택 처리: 이미 선택된 뭉텅이면 유지, 아니면 새로 선택
+    const additive = e.shiftKey || e.ctrlKey || e.metaKey;
+    if(!selNodes.has(n.id)) selectNode(n.id, additive);
+    else if(additive){ selectNode(n.id, true); return; }
+    // 선택된 모든 노드를 함께 드래그
+    const startX = e.clientX, startY = e.clientY;
+    const moving = [...selNodes].map(id=>{ const nn=G.nodes.find(x=>x.id===id); return {nn, ox:nn.x, oy:nn.y}; });
+    let dragged=false;
     function mv(ev){
-      n.x = Math.max(0, ox + ev.clientX - startX);
-      n.y = Math.max(0, oy + ev.clientY - startY);
-      el.style.left = n.x+'px'; el.style.top = n.y+'px';
+      dragged=true;
+      const dx = ev.clientX-startX, dy = ev.clientY-startY;
+      moving.forEach(({nn,ox,oy})=>{
+        nn.x = Math.max(0, ox+dx); nn.y = Math.max(0, oy+dy);
+        const ne = board.querySelector(`.node[data-id="${nn.id}"]`);
+        if(ne){ ne.style.left=nn.x+'px'; ne.style.top=nn.y+'px'; }
+      });
       renderEdges();
     }
-    function up(){ document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up); persist(); }
+    function up(){ document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up); if(dragged) persist(); }
     document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up);
   });
 
-  // 더블클릭 → 펼치기/접기
   el.addEventListener('dblclick', e=>{
     if(e.target.classList.contains('port')) return;
-    if(el.classList.contains('open')) return; // 편집 중 더블클릭 무시
+    if(el.classList.contains('open')) return;
     openNode(el, n);
   });
 
-  // 간선 연결 드래그
   el.querySelector('.port').addEventListener('mousedown', e=>{
     e.preventDefault(); e.stopPropagation();
     const from = n;
     const temp = document.createElementNS('http://www.w3.org/2000/svg','path');
-    temp.setAttribute('class','temp'); svg.appendChild(temp);
-    const wrapRect = ()=>board.getBoundingClientRect();
+    temp.setAttribute('class','temp'); temp.setAttribute('marker-end','url(#arrow)'); svg.appendChild(temp);
     function mv(ev){
-      const r = wrapRect();
+      const p = toBoardCoords(ev.clientX, ev.clientY);
       const c = nodeCenter(from);
-      const mx = ev.clientX - r.left, my = ev.clientY - r.top;
-      temp.setAttribute('d', `M${c.x},${c.y} L${mx},${my}`);
+      const start = edgePoint(from, p);
+      temp.setAttribute('d', `M${start.x},${start.y} L${p.x},${p.y}`);
     }
     function up(ev){
       document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up);
@@ -360,11 +385,9 @@ function bindNode(el, n){
       const target = ev.target.closest && ev.target.closest('.node');
       if(target && target.dataset.id !== from.id){
         const bId = target.dataset.id;
-        const dup = G.edges.some(ed=>(ed.a===from.id&&ed.b===bId)||(ed.a===bId&&ed.b===from.id));
-        if(!dup){
-          G.edges.push({id:uid(), a:from.id, b:bId});
-          renderEdges(); persist();
-        }
+        // 같은 방향 중복만 방지 (역방향은 허용 — 회귀 시나리오용)
+        const dup = G.edges.some(ed=>ed.a===from.id && ed.b===bId);
+        if(!dup){ G.edges.push({id:uid(), a:from.id, b:bId}); renderEdges(); persist(); }
       }
     }
     document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up);
@@ -374,12 +397,13 @@ function bindNode(el, n){
 /* ════════════ 노드 펼치기 (메모장) ════════════ */
 function openNode(el, n){
   el.classList.add('open');
+  n.collapsed = false;
   const editor = document.createElement('div');
   editor.className = 'n-editor';
   editor.innerHTML = `
     <div class="n-head">
       <input type="text" value="" placeholder="제목">
-      <button class="n-close" title="접기">▲</button>
+      <button class="n-close" title="최소화 (Tab)">▲</button>
     </div>
     <div class="fmt">
       <button data-cmd="bold"><b>B</b></button>
@@ -395,7 +419,7 @@ function openNode(el, n){
       <button class="sw" data-color="#23282e" style="background:#23282e" title="검정 글씨"></button>
       <button class="sw" data-hl="#fff3a3" style="background:#fff3a3" title="노랑 형광펜"></button>
       <button class="sw" data-hl="#c8f0d4" style="background:#c8f0d4" title="초록 형광펜"></button>
-      <button class="sw" data-hl="transparent" style="background:#fff;position:relative" title="형광펜 지우기">✕</button>
+      <button class="sw" data-hl="transparent" style="background:#fff" title="형광펜 지우기">✕</button>
     </div>
     <div class="n-content" contenteditable="true"></div>
     <div class="n-border-row">테두리:
@@ -407,89 +431,141 @@ function openNode(el, n){
   titleInput.value = n.title;
   content.innerHTML = n.content || '';
 
-  // 서식 버튼
   editor.querySelector('[data-cmd="bold"]').addEventListener('click', e=>{e.preventDefault(); content.focus(); document.execCommand('bold');});
-  editor.querySelector('[data-size]').addEventListener('change', e=>{
-    if(e.target.value){ content.focus(); document.execCommand('fontSize', false, e.target.value); e.target.value=''; }
-  });
-  editor.querySelectorAll('[data-color]').forEach(b=>b.addEventListener('click', e=>{
-    e.preventDefault(); content.focus(); document.execCommand('foreColor', false, b.dataset.color);
-  }));
-  editor.querySelectorAll('[data-hl]').forEach(b=>b.addEventListener('click', e=>{
-    e.preventDefault(); content.focus(); document.execCommand('hiliteColor', false, b.dataset.hl);
-  }));
-  editor.querySelectorAll('[data-border]').forEach(b=>b.addEventListener('click', ()=>{
-    n.border = b.dataset.border; el.style.borderColor = n.border; persist();
-  }));
+  editor.querySelector('[data-size]').addEventListener('change', e=>{ if(e.target.value){ content.focus(); document.execCommand('fontSize',false,e.target.value); e.target.value=''; }});
+  editor.querySelectorAll('[data-color]').forEach(b=>b.addEventListener('click', e=>{ e.preventDefault(); content.focus(); document.execCommand('foreColor',false,b.dataset.color); }));
+  editor.querySelectorAll('[data-hl]').forEach(b=>b.addEventListener('click', e=>{ e.preventDefault(); content.focus(); document.execCommand('hiliteColor',false,b.dataset.hl); }));
+  editor.querySelectorAll('[data-border]').forEach(b=>b.addEventListener('click', ()=>{ n.border=b.dataset.border; el.style.borderColor=n.border; persist(); }));
 
-  const save = ()=>{
-    n.title = titleInput.value;
-    n.content = content.innerHTML;
-    persist();
-  };
+  const save = ()=>{ n.title=titleInput.value; n.content=content.innerHTML; persist(); };
   titleInput.addEventListener('input', save);
   content.addEventListener('input', save);
-
-  editor.querySelector('.n-close').addEventListener('click', ()=>{
-    save();
-    el.classList.remove('open');
-    editor.remove();
-    el.querySelector('.ttl').textContent = n.title || '(제목 없음)';
-    renderEdges();
-  });
+  editor.querySelector('.n-close').addEventListener('click', ()=>closeNode(el, n));
   renderEdges();
   titleInput.focus();
 }
+function closeNode(el, n){
+  const editor = el.querySelector('.n-editor');
+  if(editor){ n.title = editor.querySelector('input').value; n.content = editor.querySelector('.n-content').innerHTML; }
+  el.classList.remove('open');
+  if(editor) editor.remove();
+  el.querySelector('.ttl').textContent = n.title || '(제목 없음)';
+  n.collapsed = true;
+  renderEdges(); persist();
+}
+function toggleOpenSelected(){
+  // 선택된 노드가 있으면 그것들, 없으면 열려있는 노드 처리
+  const targets = selNodes.size ? [...selNodes] : [];
+  if(!targets.length) return;
+  targets.forEach(id=>{
+    const el = board.querySelector(`.node[data-id="${id}"]`);
+    const n = G.nodes.find(x=>x.id===id);
+    if(!el||!n) return;
+    if(el.classList.contains('open')) closeNode(el, n);
+    else openNode(el, n);
+  });
+}
 
 /* ════════════ 노드/간선 조작 ════════════ */
-function addNode(){
-  const wrap = $('board-wrap');
+function addNode(atBoardXY){
+  const pos = atBoardXY || lastMouse;
   const n = {
-    id: uid(),
-    title: '새 노드',
+    id: uid(), title:'새 노드',
     content: (G.template||'').replace(/\n/g,'<br>'),
-    x: wrap.scrollLeft + 120 + Math.random()*80,
-    y: wrap.scrollTop + 120 + Math.random()*80,
-    border: '#000000'
+    x: Math.max(0, pos.x - 40), y: Math.max(0, pos.y - 16),
+    border:'#000000', collapsed:true
   };
   G.nodes.push(n);
   renderNode(n);
-  selectNode(n.id);
+  selectNode(n.id, false);
   persist();
 }
-function deleteSelectedNode(){
-  if(!selNode) return;
-  const n = G.nodes.find(x=>x.id===selNode);
-  if(!n) return;
-  const connected = G.edges.filter(e=>e.a===n.id||e.b===n.id);
-  TRASH.push({node:n, edges:connected, deletedAt:Date.now()});
-  G.nodes = G.nodes.filter(x=>x.id!==n.id);
-  G.edges = G.edges.filter(e=>e.a!==n.id&&e.b!==n.id);
-  selNode = null;
+function deleteSelectedNodes(){
+  if(!selNodes.size) return;
+  [...selNodes].forEach(id=>{
+    const n = G.nodes.find(x=>x.id===id);
+    if(!n) return;
+    const connected = G.edges.filter(e=>e.a===id||e.b===id);
+    TRASH.push({node:n, edges:connected, deletedAt:Date.now()});
+  });
+  const ids = new Set(selNodes);
+  G.nodes = G.nodes.filter(x=>!ids.has(x.id));
+  G.edges = G.edges.filter(e=>!ids.has(e.a)&&!ids.has(e.b));
+  selNodes.clear();
   renderAll(); persist();
 }
 function deleteSelectedEdge(){
   if(!selEdge) return;
   G.edges = G.edges.filter(e=>e.id!==selEdge);
-  selEdge = null;
-  renderEdges(); persist();
+  selEdge=null; renderEdges(); persist();
 }
 function deleteNodeEdges(){
-  if(!selNode) return;
-  G.edges = G.edges.filter(e=>e.a!==selNode&&e.b!==selNode);
+  if(!selNodes.size) return;
+  const ids = new Set(selNodes);
+  G.edges = G.edges.filter(e=>!ids.has(e.a)&&!ids.has(e.b));
   renderEdges(); persist();
 }
 
+/* ════════════ 화면 팬(이동) + 영역선택 ════════════ */
+let spaceDown=false;
+document.addEventListener('keydown', e=>{ if(e.code==='Space' && !isTyping(e.target)){ spaceDown=true; board.classList.add('panning'); }});
+document.addEventListener('keyup', e=>{ if(e.code==='Space'){ spaceDown=false; board.classList.remove('panning'); }});
+
+wrap.addEventListener('mousedown', e=>{
+  const onNode = e.target.closest('.node');
+  const onEdge = e.target.closest('.edge');
+  // 팬: Space+드래그 또는 휠(가운데) 버튼
+  if((spaceDown || e.button===1)){
+    e.preventDefault();
+    const sx=e.clientX, sy=e.clientY, sl=wrap.scrollLeft, st=wrap.scrollTop;
+    function mv(ev){ wrap.scrollLeft = sl-(ev.clientX-sx); wrap.scrollTop = st-(ev.clientY-sy); }
+    function up(){ document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up); }
+    document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up);
+    return;
+  }
+  // 빈 곳 좌클릭 → 영역 선택 시작
+  if(e.button===0 && !onNode && !onEdge){
+    clearSel();
+    const start = toBoardCoords(e.clientX, e.clientY);
+    marquee.style.display='block';
+    marquee.style.left=start.x+'px'; marquee.style.top=start.y+'px';
+    marquee.style.width='0px'; marquee.style.height='0px';
+    function mv(ev){
+      const p = toBoardCoords(ev.clientX, ev.clientY);
+      const x=Math.min(p.x,start.x), y=Math.min(p.y,start.y), w=Math.abs(p.x-start.x), h=Math.abs(p.y-start.y);
+      marquee.style.left=x+'px'; marquee.style.top=y+'px'; marquee.style.width=w+'px'; marquee.style.height=h+'px';
+    }
+    function up(ev){
+      document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up);
+      const p = toBoardCoords(ev.clientX, ev.clientY);
+      const x1=Math.min(p.x,start.x), y1=Math.min(p.y,start.y), x2=Math.max(p.x,start.x), y2=Math.max(p.y,start.y);
+      marquee.style.display='none';
+      if(Math.abs(x2-x1)>4 || Math.abs(y2-y1)>4){
+        selNodes.clear();
+        G.nodes.forEach(n=>{
+          const el = board.querySelector(`.node[data-id="${n.id}"]`);
+          if(!el) return;
+          const nx=el.offsetLeft, ny=el.offsetTop, nw=el.offsetWidth, nh=el.offsetHeight;
+          if(nx<x2 && nx+nw>x1 && ny<y2 && ny+nh>y1) selNodes.add(n.id);
+        });
+        syncSelClass();
+      }
+    }
+    document.addEventListener('mousemove',mv); document.addEventListener('mouseup',up);
+  }
+});
+
+// 마우스 위치 추적 (노드 추가 위치용)
+wrap.addEventListener('mousemove', e=>{ lastMouse = toBoardCoords(e.clientX, e.clientY); });
+
 /* ════════════ 휴지통 ════════════ */
-function updateTrashCount(){
-  $('trash-count').textContent = TRASH.length ? `(${TRASH.length})` : '';
-}
+function updateTrashCount(){ $('trash-count').textContent = TRASH.length ? `(${TRASH.length})` : ''; }
 function renderTrash(){
   const box = $('trash-list');
-  if(!TRASH.length){ box.innerHTML = '<div class="empty-msg">휴지통이 비어 있습니다.</div>'; return; }
-  box.innerHTML = '';
+  if(!TRASH.length){ box.innerHTML='<div class="empty-msg">휴지통이 비어 있습니다.</div>'; return; }
+  box.innerHTML='';
   TRASH.slice().reverse().forEach(t=>{
-    const daysLeft = Math.max(0, 7 - Math.floor((Date.now()-t.deletedAt)/86400000));
+    const daysLeft = Math.max(0, 7-Math.floor((Date.now()-t.deletedAt)/86400000));
     const d = document.createElement('div');
     d.className='trash-item';
     d.innerHTML = `<span class="ti-title"></span>
@@ -498,125 +574,101 @@ function renderTrash(){
     d.querySelector('.ti-title').textContent = t.node.title || '(제목 없음)';
     d.querySelector('.restore').addEventListener('click', ()=>{
       G.nodes.push(t.node);
-      t.edges.forEach(e=>{
-        const ok = G.nodes.some(n=>n.id===e.a) && G.nodes.some(n=>n.id===e.b);
-        if(ok && !G.edges.some(x=>x.id===e.id)) G.edges.push(e);
-      });
+      t.edges.forEach(e=>{ const ok=G.nodes.some(n=>n.id===e.a)&&G.nodes.some(n=>n.id===e.b); if(ok&&!G.edges.some(x=>x.id===e.id)) G.edges.push(e); });
       TRASH = TRASH.filter(x=>x!==t);
       renderAll(); renderTrash(); persist();
     });
-    d.querySelector('.del').addEventListener('click', ()=>{
-      TRASH = TRASH.filter(x=>x!==t);
-      renderTrash(); updateTrashCount(); persist();
-    });
+    d.querySelector('.del').addEventListener('click', ()=>{ TRASH=TRASH.filter(x=>x!==t); renderTrash(); updateTrashCount(); persist(); });
     box.appendChild(d);
   });
 }
 
-/* ════════════ 설정 (템플릿 + 단축키) ════════════ */
+/* ════════════ 설정 ════════════ */
 function fmtShortcut(s){
-  const parts = [];
-  if(s.ctrl) parts.push('Ctrl'); if(s.shift) parts.push('Shift'); if(s.alt) parts.push('Alt');
-  parts.push(s.key.length===1 ? s.key.toUpperCase() : s.key);
-  return parts.join(' + ');
+  if(!s || !s.key) return '(미설정)';
+  const p=[]; if(s.ctrl)p.push('Ctrl'); if(s.shift)p.push('Shift'); if(s.alt)p.push('Alt');
+  p.push(s.key.length===1?s.key.toUpperCase():s.key); return p.join(' + ');
 }
 function renderShortcutList(){
-  const box = $('sc-list');
-  box.innerHTML = '';
+  const box=$('sc-list'); box.innerHTML='';
+  if(!G.shortcuts) G.shortcuts={};
   Object.entries(SC_LABELS).forEach(([act,label])=>{
-    const row = document.createElement('div');
-    row.className='sc-row';
+    const row=document.createElement('div'); row.className='sc-row';
     row.innerHTML = `<span class="sc-name">${label}</span>
       <span class="sc-key" data-act="${act}">${fmtShortcut(G.shortcuts[act])}</span>
       <button class="sc-btn">변경</button>`;
     row.querySelector('.sc-btn').addEventListener('click', ()=>{
-      const keyEl = row.querySelector('.sc-key');
-      keyEl.classList.add('recording'); keyEl.textContent = '키 입력...';
+      const keyEl=row.querySelector('.sc-key'); keyEl.classList.add('recording'); keyEl.textContent='키 입력...';
       function rec(e){
         e.preventDefault(); e.stopPropagation();
         if(['Control','Shift','Alt','Meta'].includes(e.key)) return;
-        G.shortcuts[act] = {key:e.key, ctrl:e.ctrlKey, shift:e.shiftKey, alt:e.altKey};
-        keyEl.classList.remove('recording');
-        keyEl.textContent = fmtShortcut(G.shortcuts[act]);
-        document.removeEventListener('keydown', rec, true);
-        persist();
+        G.shortcuts[act]={key:e.key, ctrl:e.ctrlKey, shift:e.shiftKey, alt:e.altKey};
+        keyEl.classList.remove('recording'); keyEl.textContent=fmtShortcut(G.shortcuts[act]);
+        document.removeEventListener('keydown',rec,true); persist();
       }
-      document.addEventListener('keydown', rec, true);
+      document.addEventListener('keydown',rec,true);
     });
     box.appendChild(row);
   });
 }
 
 /* ════════════ 전역 단축키 ════════════ */
+function isTyping(t){ return t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable; }
 document.addEventListener('keydown', e=>{
-  const t = e.target;
-  if(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable) return;
+  if(isTyping(e.target)) return;
   if($('settings-modal').classList.contains('show')||$('trash-modal').classList.contains('show')) return;
   const match = s => e.key.toLowerCase()===s.key.toLowerCase() && e.ctrlKey===s.ctrl && e.shiftKey===s.shift && e.altKey===s.alt;
-  if(match(G.shortcuts.add)){ e.preventDefault(); addNode(); }
-  else if(match(G.shortcuts.delNode)){ e.preventDefault(); deleteSelectedNode(); }
+  if(match(G.shortcuts.selectAll)){ e.preventDefault(); selectAll(); }
+  else if(match(G.shortcuts.toggleOpen)){ e.preventDefault(); toggleOpenSelected(); }
+  else if(match(G.shortcuts.add)){ e.preventDefault(); addNode(); }
+  else if(match(G.shortcuts.delNode)){ e.preventDefault(); deleteSelectedNodes(); }
   else if(match(G.shortcuts.delNodeEdges)){ e.preventDefault(); deleteNodeEdges(); }
   else if(match(G.shortcuts.delEdge)){ e.preventDefault(); deleteSelectedEdge(); }
 });
 
 /* ════════════ 툴바/모달 바인딩 ════════════ */
-$('btn-add').addEventListener('click', addNode);
+$('btn-add').addEventListener('click', ()=>addNode());
 $('btn-settings').addEventListener('click', ()=>{
-  $('tpl-input').value = G.template;
-  renderShortcutList();
-  $('settings-modal').classList.add('show');
+  try{ $('tpl-input').value=G.template||''; renderShortcutList(); }
+  catch(err){ console.error('설정 목록 렌더 오류:', err); }
+  $('settings-modal').classList.add('show');  // 오류가 나도 모달은 연다
 });
-$('settings-save').addEventListener('click', ()=>{
-  G.template = $('tpl-input').value;
-  $('settings-modal').classList.remove('show');
-  persist();
-});
+$('settings-save').addEventListener('click', ()=>{ G.template=$('tpl-input').value; $('settings-modal').classList.remove('show'); persist(); });
 $('btn-trash').addEventListener('click', ()=>{ renderTrash(); $('trash-modal').classList.add('show'); });
+$('trash-close').addEventListener('click', ()=>$('trash-modal').classList.remove('show'));
+[$('settings-modal'),$('trash-modal')].forEach(m=>m.addEventListener('mousedown', e=>{ if(e.target===m) m.classList.remove('show'); }));
 
-/* ── 내보내기: 노드+간선 JSON 다운로드 (Claude에게 업로드해 파싱 가능) ── */
+/* ── 내보내기 ── */
 $('btn-export').addEventListener('click', ()=>{
   const data = {
-    exported: new Date().toISOString(),
-    app: 'counter-time-scenario-board',
-    nodes: G.nodes.map(n=>({
-      id:n.id, title:n.title,
-      content: n.content.replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,''), // 순수 텍스트
-      contentHtml: n.content, // 서식 보존본
-      x:n.x, y:n.y, border:n.border
-    })),
+    exported:new Date().toISOString(), app:'counter-time-scenario-board',
+    nodes: G.nodes.map(n=>({ id:n.id, title:n.title,
+      content:n.content.replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,''),
+      contentHtml:n.content, x:n.x, y:n.y, border:n.border })),
     edges: G.edges.map(e=>({from:e.a, to:e.b}))
   };
   const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'counter-time-scenario-' + new Date().toISOString().slice(0,10) + '.json';
-  a.click();
-  URL.revokeObjectURL(a.href);
+  a.download = 'counter-time-scenario-'+new Date().toISOString().slice(0,10)+'.json';
+  a.click(); URL.revokeObjectURL(a.href);
 });
-
 /* ── 가져오기 ── */
 $('btn-import').addEventListener('click', ()=>$('import-file').click());
 $('import-file').addEventListener('change', e=>{
-  const f = e.target.files[0];
-  if(!f) return;
-  const r = new FileReader();
-  r.onload = ()=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{
     try{
-      const data = JSON.parse(r.result);
+      const data=JSON.parse(r.result);
       if(!Array.isArray(data.nodes)) throw new Error('형식 오류');
-      G.nodes = data.nodes.map(n=>({
-        id:n.id, title:n.title||'', content:n.contentHtml||n.content||'',
-        x:n.x||100, y:n.y||100, border:n.border||'#000000'
-      }));
+      G.nodes = data.nodes.map(n=>({ id:n.id, title:n.title||'', content:n.contentHtml||n.content||'', x:n.x||100, y:n.y||100, border:n.border||'#000000', collapsed:true }));
       G.edges = (data.edges||[]).map((ed,i)=>({id:'e'+i+'_'+Date.now().toString(36), a:ed.from, b:ed.to}));
-      renderAll(); persist();
+      clearSel(); renderAll(); persist();
     }catch(err){ alert('가져오기 실패: 올바른 보드 JSON 파일이 아닙니다.'); }
   };
-  r.readAsText(f);
-  e.target.value='';
+  r.readAsText(f); e.target.value='';
 });
-$('trash-close').addEventListener('click', ()=>$('trash-modal').classList.remove('show'));
-[$('settings-modal'),$('trash-modal')].forEach(m=>m.addEventListener('mousedown', e=>{ if(e.target===m) m.classList.remove('show'); }));
 
 /* ════════════ 시작 ════════════ */
 load();

@@ -108,6 +108,7 @@ HTML 프로토타입에서 검증한 시스템을 Unity(C#)로 이식하는 단�
       Scripts/Core/   → CounterTime.Core.asmdef (Combat / AI / Model)
       Scripts/Game/   → CounterTime.Game.asmdef (UI / Managers)
       Scenes/Main.unity
+      Scenario/            시나리오 원본 (JSON, 시나리오 보드 HTML 등) — 시나리오 파일은 전부 여기
       ScriptableObjects/   상대 성향 데이터 에셋
       Art/ Audio/ Prefabs/ Settings/
 
