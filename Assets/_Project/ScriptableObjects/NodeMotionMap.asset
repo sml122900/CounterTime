@@ -1,0 +1,123 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a7cf7054b592c07408bea3f9b0d5eb4c, type: 3}
+  m_Name: NodeMotionMap
+  m_EditorClassIdentifier: CounterTime.Game::CounterTime.Game.Scenario.NodeMotionMap
+  entries:
+  - nodeId: n3
+    stateA: Standing Melee Punch
+    stateB: Reaction
+  - nodeId: n4
+    stateA: Reaction
+    stateB: Standing Melee Punch
+  - nodeId: n5
+    stateA: Standing Melee Punch
+    stateB: Reaction
+  - nodeId: n6
+    stateA: Taunt
+    stateB: Fight Idle
+  - nodeId: n7
+    stateA: Taunt
+    stateB: Stumble Backwards
+  - nodeId: n8
+    stateA: Reaction
+    stateB: Standing Melee Punch
+  - nodeId: n9
+    stateA: Standing Melee Punch
+    stateB: Reaction
+  - nodeId: n10
+    stateA: Jumping
+    stateB: Reaction
+  - nodeId: n11
+    stateA: Standing Melee Punch
+    stateB: Reaction
+  - nodeId: n12
+    stateA: Fight Idle
+    stateB: Shoved Reaction With Spin
+  - nodeId: n13
+    stateA: Stumble Backwards
+    stateB: Stumble Backwards
+  - nodeId: n14
+    stateA: Victory Idle
+    stateB: Dying
+  - nodeId: n15
+    stateA: Shoved Reaction With Spin
+    stateB: Standing Melee Punch
+  - nodeId: n16
+    stateA: Standing Melee Punch
+    stateB: Stumble Backwards
+  - nodeId: n17
+    stateA: Taunt
+    stateB: Reaction
+  - nodeId: n18
+    stateA: Victory Idle
+    stateB: Dying
+  - nodeId: n19
+    stateA: Reaction
+    stateB: Standing Melee Punch
+  - nodeId: n20
+    stateA: Victory Idle
+    stateB: Dying
+  - nodeId: n21
+    stateA: Reaction
+    stateB: Standing Melee Punch
+  - nodeId: n22
+    stateA: Taunt
+    stateB: Stumble Backwards
+  - nodeId: n23
+    stateA: Shoved Reaction With Spin
+    stateB: Standing Melee Punch
+  - nodeId: n24
+    stateA: Standing Melee Punch
+    stateB: Reaction
+  - nodeId: n25
+    stateA: Standing Melee Punch
+    stateB: Reaction
+  - nodeId: n26
+    stateA: Victory Idle
+    stateB: Defeated
+  - nodeId: n28
+    stateA: Victory Idle
+    stateB: Defeated
+  - nodeId: n30
+    stateA: Fight Idle
+    stateB: Taunt
+  - nodeId: n31
+    stateA: Fight Idle
+    stateB: Taunt
+  - nodeId: n32
+    stateA: Fight Idle
+    stateB: Taunt
+  - nodeId: n33
+    stateA: Fight Idle
+    stateB: Taunt
+  - nodeId: n34
+    stateA: Victory Idle
+    stateB: Dying
+  - nodeId: n35
+    stateA: Stumble Backwards
+    stateB: Standing Melee Punch
+  - nodeId: n36
+    stateA: Victory Idle
+    stateB: Dying
+  - nodeId: n37
+    stateA: Shoved Reaction With Spin
+    stateB: Standing Melee Punch
+  - nodeId: n38
+    stateA: Standing Melee Punch
+    stateB: Reaction
+  - nodeId: n41
+    stateA: Dying
+    stateB: Victory Idle
+  - nodeId: n42
+    stateA: Taunt
+    stateB: Reaction

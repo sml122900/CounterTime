@@ -561,6 +561,11 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 211cd32c7fdc4b14794dd57a01140c3d, type: 3}
+--- !u!95 &67487759 stripped
+Animator:
+  m_CorrespondingSourceObject: {fileID: 5866666021909216657, guid: 211cd32c7fdc4b14794dd57a01140c3d, type: 3}
+  m_PrefabInstance: {fileID: 67487758}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &369879070
 GameObject:
   m_ObjectHideFlags: 0
@@ -786,6 +791,7 @@ GameObject:
   - component: {fileID: 490128771}
   - component: {fileID: 490128770}
   - component: {fileID: 490128769}
+  - component: {fileID: 490128772}
   m_Layer: 0
   m_Name: ScenarioSystem
   m_TagString: Untagged
@@ -838,6 +844,23 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &490128772
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 490128768}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9dc2bf0a430f5ad4c825d447245cc577, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: CounterTime.Game::CounterTime.Game.Scenario.ScenarioMotionBinder
+  loader: {fileID: 490128770}
+  motionMap: {fileID: 11400000, guid: 62e00a3ad478aeb45b104515ac197aea, type: 2}
+  fighterA: {fileID: 67487759}
+  fighterB: {fileID: 1301451477}
+  crossFadeSeconds: 0.25
 --- !u!1 &682445222
 GameObject:
   m_ObjectHideFlags: 0
@@ -1187,6 +1210,11 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 7db79d26f47b78844b1025dfd4054174, type: 3}
+--- !u!95 &1301451477 stripped
+Animator:
+  m_CorrespondingSourceObject: {fileID: 5866666021909216657, guid: 7db79d26f47b78844b1025dfd4054174, type: 3}
+  m_PrefabInstance: {fileID: 1301451476}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1638860437
 GameObject:
   m_ObjectHideFlags: 0
