@@ -53,3 +53,10 @@ desktop.ini
 
 # Asset Store Tools
 /[Aa]ssets/[Aa]sset[Ss]tore[Tt]ools*
+
+# AI Toolkit — 패키지 캐시 (Unity 가 재생성)
+/[Aa]ssets/AI Toolkit/
+/[Aa]ssets/AI Toolkit.meta
+
+# AI 에셋 생성 중간산물 (클립 guid 별 작업 폴더)
+/GeneratedAssets/
