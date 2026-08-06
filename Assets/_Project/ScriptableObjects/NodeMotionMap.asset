@@ -30,31 +30,31 @@ MonoBehaviour:
     stateB: Stumble Backwards
   - nodeId: n8
     stateA: Reaction
-    stateB: Standing Melee Punch
+    stateB: ai_seoinage_entry
   - nodeId: n9
-    stateA: Standing Melee Punch
+    stateA: ai_osotogari_entry
     stateB: Reaction
   - nodeId: n10
-    stateA: Jumping
+    stateA: ai_osotogari_entry
     stateB: Reaction
   - nodeId: n11
     stateA: Standing Melee Punch
     stateB: Reaction
   - nodeId: n12
-    stateA: Fight Idle
-    stateB: Shoved Reaction With Spin
+    stateA: ai_osotogari_entry
+    stateB: ai_ukemi_back
   - nodeId: n13
-    stateA: Stumble Backwards
+    stateA: ai_osotogari_entry
     stateB: Stumble Backwards
   - nodeId: n14
     stateA: Victory Idle
-    stateB: Dying
+    stateB: ai_ukemi_back
   - nodeId: n15
-    stateA: Shoved Reaction With Spin
-    stateB: Standing Melee Punch
+    stateA: ai_ukemi_back
+    stateB: ai_ground_pin
   - nodeId: n16
-    stateA: Standing Melee Punch
-    stateB: Stumble Backwards
+    stateA: ai_ground_pin
+    stateB: ai_ukemi_back
   - nodeId: n17
     stateA: ai_ground_pin
     stateB: ai_ground_pin
@@ -71,11 +71,11 @@ MonoBehaviour:
     stateA: Reaction
     stateB: Standing Melee Punch
   - nodeId: n22
-    stateA: Taunt
-    stateB: Stumble Backwards
+    stateA: ai_ground_pin
+    stateB: ai_seoinage_entry
   - nodeId: n23
-    stateA: Shoved Reaction With Spin
-    stateB: Standing Melee Punch
+    stateA: ai_ukemi_back
+    stateB: ai_seoinage_entry
   - nodeId: n24
     stateA: ai_ground_pin
     stateB: ai_ground_pin
@@ -101,23 +101,23 @@ MonoBehaviour:
     stateA: Fight Idle
     stateB: Taunt
   - nodeId: n34
-    stateA: Victory Idle
-    stateB: Dying
+    stateA: ai_ground_pin
+    stateB: ai_ground_pin
   - nodeId: n35
-    stateA: Stumble Backwards
-    stateB: Standing Melee Punch
+    stateA: ai_ukemi_back
+    stateB: ai_ground_pin
   - nodeId: n36
     stateA: Victory Idle
-    stateB: Dying
+    stateB: ai_ukemi_back
   - nodeId: n37
-    stateA: Shoved Reaction With Spin
-    stateB: Standing Melee Punch
+    stateA: ai_ukemi_back
+    stateB: ai_seoinage_entry
   - nodeId: n38
     stateA: Standing Melee Punch
-    stateB: Reaction
+    stateB: ai_ground_pin
   - nodeId: n41
-    stateA: Dying
-    stateB: Victory Idle
+    stateA: ai_ground_pin
+    stateB: ai_ground_pin
   - nodeId: n42
     stateA: Taunt
     stateB: Reaction
