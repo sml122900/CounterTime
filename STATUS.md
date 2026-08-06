@@ -38,6 +38,7 @@ Jumping.fbx 클립 이름이 mixamo.com 이라 "Jumping" 으로 바꿨다 — �
 Y Bot renders white and Ch30 renders teal because neither FBX brought textures in; fine for greyboxing
 Docs scaffolding created: docs/daily/, docs/decisions/, docs/troubleshooting/, docs/par-materials.md
 2026-08-05 세션 문서: docs/daily/2026-08-05.md · decisions/scenario-runner-core-game-boundary.md · decisions/korean-font-tmp.md · troubleshooting/mcp-play-mode-verification.md · troubleshooting/tmp-text-overflow.md · par-materials.md 항목 4~8
+2026-08-07 세션 문서: docs/daily/2026-08-07.md · decisions/ai-generated-motion-clips.md · troubleshooting/unity-asset-commit-boundary.md · par-materials.md 항목 9~10
 
 Next Up (in priority order)
 결정 대기 (내가 판단 안 하고 남겨둔 취향 문제) — 선택지 버튼 높이가 111px → 82px 로 줄었다. 텍스트가 넘쳐서 TextPanel 을 키우느라 ChoiceRow 에서 떼어온 결과다. 라벨(26px)에는 충분하지만 버튼이 얇아 보이면 하단 패널을 1/3보다 키우거나 타이틀 34pt / 본문 24pt 를 줄이는 쪽으로 조정해야 한다
@@ -49,6 +50,7 @@ Design the opponent tendency data structure: POCO in CounterTime.Core + Scriptab
 알려진 공백 (인지하고 남겨둔 것 — 버그 아님)
 n10 허리후리기 = ai_osotogari_entry 임시 대체. 기술 상이(하라이고시 ≠ 오소토가리), 모캡 대상
 n27/n29/n39/n40 = NodeMotionMap 미등록
+AI 클립 4종 전부 Loop ON + 8개 State(4클립 × 2컨트롤러) 전부 나가는 트랜지션 없음. 08-05 규칙(원샷은 Loop OFF + exitTime 0.9 자동 복귀)에 비추면 ai_ground_pin 만 맞고 나머지 셋은 원샷인데 유지로 설정돼 있다 — 업어치기 진입이 무한 반복된다. 2026-08-07 문서 작업 중 파일 읽다 발견, Play 미확인, 수정은 지시 대기
 
 Resolved Questions (2026-08-03)
 Why Assets/Editor/HubForceResolve.cs disappeared — nobody deleted it. It is Unity Hub's bootstrap script that calls Client.Resolve() and then removes itself and the empty Assets/Editor folder via AssetDatabase.DeleteAsset. The three deleted files match CleanupEmptyEditorFolder() exactly. Not a real incident, not resume material.
