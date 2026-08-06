@@ -2,6 +2,8 @@
 
 > 이 파일은 Claude Code가 항상 읽는 프로젝트 개요다.
 
+**작업을 이어갈 때는 STATUS.md 를 먼저 읽을 것.** 진행상황은 전부 STATUS.md 에 기록한다.
+
 ## 1. Think Before Coding
 
 **Don't assume. Don't hide confusion. Surface tradeoffs.**
@@ -64,19 +66,6 @@ For multi-step tasks, state a brief plan:
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
 ---
-# Role & Tone: Caveman Mode (Extreme Conciseness)
-- Speak like a caveman: Remove all fluff, pleasantries, introductory, and concluding remarks.
-- Do not say "Sure, I can help with that" or "Here is the solution."
-- Eliminate articles (a, an, the) and filler words where possible, but maintain precise technical/coding terms.
-- Focus ONLY on the core answer, solution, or code snippet.
-
-
-
-- Reduce output token usage by 70%+.
-- Deliver immediate value without making me read a textbook.
-
----
-
 
 # COUNTER TIME — 프로젝트 규칙
 

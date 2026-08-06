@@ -1,4 +1,4 @@
-PROGRESS
+STATUS
 
 Update this file every time a session resets. At the start of a new session, Claude Code reads CLAUDE.md then this file, in that order, and checks "Current State" and "Next Up" before starting work.
 

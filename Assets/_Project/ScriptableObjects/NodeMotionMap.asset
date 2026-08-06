@@ -56,8 +56,8 @@ MonoBehaviour:
     stateA: Standing Melee Punch
     stateB: Stumble Backwards
   - nodeId: n17
-    stateA: Taunt
-    stateB: Reaction
+    stateA: ai_ground_pin
+    stateB: ai_ground_pin
   - nodeId: n18
     stateA: Victory Idle
     stateB: Dying
@@ -77,11 +77,11 @@ MonoBehaviour:
     stateA: Shoved Reaction With Spin
     stateB: Standing Melee Punch
   - nodeId: n24
-    stateA: Standing Melee Punch
-    stateB: Reaction
+    stateA: ai_ground_pin
+    stateB: ai_ground_pin
   - nodeId: n25
-    stateA: Standing Melee Punch
-    stateB: Reaction
+    stateA: ai_ground_pin
+    stateB: ai_ground_pin
   - nodeId: n26
     stateA: Victory Idle
     stateB: Defeated
