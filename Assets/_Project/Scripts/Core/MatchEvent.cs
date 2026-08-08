@@ -31,14 +31,15 @@ namespace CounterTime.Core
         }
     }
 
-    /// §4.2 — emitted when a CounterReady declaration actually bit.
-    public sealed class CounterReadyRaised : MatchEvent
+    /// §4.2 — emitted when a CounterReady declaration actually bit. `Who` is the
+    /// fighter who declared it; the read that moved is the ATTACKER's, downward.
+    public sealed class CounterReadyApplied : MatchEvent
     {
         public readonly FighterId Who;
         public readonly ReadLevel AttackerReadBefore;
         public readonly ReadLevel AttackerReadAfter;
 
-        public CounterReadyRaised(FighterId who, ReadLevel before, ReadLevel after)
+        public CounterReadyApplied(FighterId who, ReadLevel before, ReadLevel after)
         {
             Who = who; AttackerReadBefore = before; AttackerReadAfter = after;
         }

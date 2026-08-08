@@ -1,4 +1,4 @@
-# MATCH_RULES.md — COUNTER TIME judo match system (v3)
+# MATCH_RULES.md — COUNTER TIME judo match system (v3.1)
 
 Single source of truth for match logic. `CounterTime.Core` implements THIS file;
 if code and this file disagree, this file wins. All numbers are v1 tunables unless
@@ -20,10 +20,11 @@ its `[판정식]` lines are computed with the formulas below and double as test 
   has a waza-ari, 10 s ⇒ cumulative ippon.
 - **Shido(지도) 3 = hansoku-make** (loss). Shido never awards points to the opponent
   before that.
-- **Time expiry**: an exchange already in progress is **resolved in full** and its score
-  counts; regulation then ends and the overflow is discarded. (Mirrors IJF — a technique
-  begun before time expires is scored.)
 - Win resolution at 4:00: ippon > waza-ari count > yuko count > **golden score**.
+- **Time-up is checked AFTER an exchange fully resolves** (judgment, score,
+  stamina, shido). An exchange that began before 4:00 is played out and its score
+  counts — this matches IJF, where a technique started before time is valid.
+  Overshoot past 240 s is discarded, not carried into golden score.
 - **Golden score**: unlimited time, first score of any kind (yuko included) wins
   immediately; third shido loses.
 - 2025-legal techniques exist in the pool: 소매 안쪽 잡기, 말아업어치기, head-assisted
@@ -44,6 +45,14 @@ commit by both fighters. Per-turn choice =
 **극단적 방어** = hand 회피 + core 수비 + legs 수비 (all-in defense). Special
 handling in referee (§6) and stamina (§5).
 
+**카운터 준비 (counter-ready)** — legs slot only, and the point where the player
+*decides* to counter rather than receiving one by accident. Gate: that fighter
+cannot enter a technique this turn — no 기술 진입, no judgment fired by them, and
+no technique of their own resolved this exchange. Costs no stamina. If the
+opponent does not attack, the turn is spent for nothing and the passivity
+accumulator takes +2 (§6.1); that risk is the price of the gamble. Judgment
+effect: see §4.2.
+
 Time cost per action (clock only advances on actions; matte = stop):
 
 | Action | Seconds |
@@ -53,8 +62,9 @@ Time cost per action (clock only advances on actions; matte = stop):
 | Tear attempt (뜯기) | 3 |
 | Osaekomi | real time held |
 
-An exchange advances the clock by **max(cost of A's action, cost of B's action)**. Both
-fighters always exit an exchange at the same timestamp; the slower action sets the length.
+Both fighters commit simultaneously, so the clock advances by
+**max(cost_A, cost_B)** per exchange — the slower commitment sets the length of
+the exchange. (Grip turn 5 vs technique 3 ⇒ the exchange costs 5.)
 
 Target feel: one hajime→matte sequence = 30–60 s; 6–8 sequences per regulation match.
 
@@ -75,10 +85,9 @@ Perspective flips sign for B.
   - Opponent did NOT pick `잡기 유지` ⇒ tear succeeds ⇒ Free.
   - Opponent picked `잡기 유지` (they read you) ⇒ tear fails ⇒ connection becomes
     **Locked**.
-- **Locked**: tear is impossible. **If either of your hands is Locked**, your *effective*
-  grip score for judgment and stamina is `min(gripScore, −1)`.
-  (v1 deliberately ignores which hand is the leading one — with one hand slot per turn the
-  distinction is marginal, and "lead-side hand" was never defined.)
+- **Locked**: tear is impossible. While **either** of your hands is Locked, your
+  *effective* grip score for judgment and stamina is `min(gripScore, −1)`.
+  Harsh but not a dead end: 위장 공격 (§6.3) always remains as the exit.
 - Only escape from Locked: **feint attack** (§6.3) forcing matte — all grips reset
   to Free on matte.
 - Training can unlock special tear moves (higher tear success vs `잡기 유지`);
@@ -105,6 +114,12 @@ Evaluated at the moment a throw attempt resolves. Sum five terms
 | ≥ 7 | Ippon |
 | **≤ −3** | **Counter (되치기)**: judgment goes to the opponent with score \|sum\| on the same brackets |
 
+**Counter settlement.** The countered attacker has ALREADY paid the big-throw
+cost including the grip multiplier — force spent, thrown anyway, which is the
+real sensation. The countering side pays the flat counter cost (2, never
+multiplied, §5.1) only once the counter judgment is confirmed. A counter with
+|sum| ≤ 1 is `None`: nobody scores and nobody pays.
+
 Reading levels, operationally: *full read* = you predicted the opponent's exact
 commitment and they were mid-commitment into you (e.g. reaching for a grip, mid
 rotation); *read* = correct anticipation; *got read* = your attempt was predicted.
@@ -117,23 +132,40 @@ v1: the scenario/AI layer supplies the ReadLevel; Core only consumes it.
    ⇒ **2 ⇒ Yuko**.
 3. **Signature 틀어잡고 밭다리 on opponent reaching for a grip**: grip +2, full
    read +3, stam 0, signature +2 ⇒ **7 ⇒ Ippon** (no stamina bonus needed).
+4. **Counter-ready lands**: opponent attacks at grip −1 into counter-ready.
+   grip −1, read Neutral→**GotRead −3**, stam 0, standard +1, posture open
+   (counter-ready is NOT a defensive stance, no −2) ⇒ **−3 ⇒ counter, |3| ⇒
+   Yuko to the defender**.
+5. **Counter-ready alone is not enough**: same exchange at grip 0
+   ⇒ **−2 ⇒ None**. Counter-ready must be paired with a grip edge to break −3.
+   Reading and gripping both have to be true for 되치기 to fire.
 
-### 4.2 CounterReady (카운터 준비)
+### 4.2 CounterReady and the read term
 
-Declaring counter-ready for the turn:
+- Legs slot `카운터 준비` is declared like any other action and resolves before
+  the judgment. The fighter who declared it cannot have a technique of their own
+  resolved this exchange (§2).
+- If the opponent commits a **big throw** this turn, **the attacker's** ReadLevel drops
+  **one step** (FullRead→Read→Neutral→GotRead, floored at GotRead).
+  The judgment formula is attacker-relative and single-term, so a defender's read is
+  expressed as a reduction of the attacker's — there is no defender read term to raise.
+- CounterReady is not a defensive stance: the opponent-posture term (−2, §4) does
+  NOT apply to a fighter who declared it.
 
-- You **cannot** attempt a technique this turn.
-- If the opponent commits a **big throw** this turn, your ReadLevel is raised **one step**
-  (Neutral→Read, Read→FullRead), **capped at FullRead**.
-- If the opponent does not attack, nothing happens — you have spent the turn.
-- Referee passivity **+2** (category 2 in §6.1).
+**The ladder is intentionally uneven** (−1 / −2 / −3 in score terms). A fully-read attack
+(FullRead) bottoms out at Read and can NOT be countered by CounterReady alone; a careless
+attack (Neutral) drops all the way to GotRead. Reading can only be beaten by reading —
+a turn invested in reading the opponent's habit must not be erased by their single
+defensive pick.
 
-Counters therefore have two sources: an **earned** one (this choice) and an **accidental**
-one (sum ≤ −3, §4). Both resolve identically.
-
-Design note — this is what makes the 대파열 layer a decision rather than an accident.
-Without it, counters only ever happen to you, and the middle tier of the three-tier payoff
-design is pure luck.
+**Counter ignition threshold is deliberately high (option ⓐ).** CounterReady alone
+reaches −2 at grip 0; a counter needs read AND grip advantage together. This matches judo
+(counters come off a grip) but may fire too rarely for the 대파열 tier. Revisit ONLY after
+the 42-node scenario audit, and judge by the *distribution* of ignition conditions, not
+the raw count: if every counter fires on the same "grip advantage + read" pattern,
+CounterReady is an accessory to signature techniques rather than an independent choice,
+and option ⓒ (flat −1 modifier on CounterReady) becomes necessary. Check the 대파열
+presentation weight before touching any number.
 
 ## 5. Stamina (체력, 0–100 each)
 
@@ -186,26 +218,23 @@ Phase-1 spam sequence (grip +2): 밭다리 3 + 발목받치기 1 + 밭다리 3 +
 ## 6. Referee & shido (심판)
 
 ### 6.1 Hidden passivity accumulator — one per fighter, NEVER shown as a number
-Per turn:
-| Behavior | Points |
+Evaluated once per turn as an **EXCLUSIVE ladder: the first matching rung
+applies, and only that one.** Never sum rungs.
+
+| Rung (checked in this order) | Points |
 |---|---|
+| Real technique attempt (judgment fired) | −4 |
+| Attack entry motion (기술 진입) | −2 |
 | 극단적 방어 | +3 |
 | Core AND legs defensive | +2 |
 | Hand = 회피 | +2 |
-| 카운터 준비 (§4.2) | +2 |
+| Legs = 카운터 준비 | +2 |
 | Everything neutral | +1 |
-| Attack entry motion (기술 진입) | −2 |
-| Real technique attempt (judgment fired) | −4 |
-Floor at 0.
+| anything else | 0 |
 
-**Exactly one positive category applies per turn — the highest that matches:**
-극단적 방어 (3) > 이중수비 = 회피 = 카운터 준비 (2) > 전체중립 (1).
-Categories never stack. `Attack entry (−2)` and `real attempt (−4)` REPLACE any positive
-category rather than adding to it.
-Rationale: the accumulator measures how passive a fighter *looks*, not how many defensive
-flags are set. Stacking would give a turtled fighter 7/turn and a shido in 2 turns.
-Result: a fully turtled fighter draws a shido from a standard referee in **4 turns**,
-matching the §5.2 drain pacing.
+Floor at 0. Sanity: sustained 극단적 방어 against a standard referee (12) is
+**4 turns to shido**, which is the same length as the −1/turn stamina drain in
+§5.2 — the two pressures are meant to arrive together.
 
 ### 6.2 Thresholds & profiles
 Reaching threshold ⇒ matte ⇒ shido ⇒ accumulator resets to 0 and
@@ -252,6 +281,10 @@ it implicit in the animation.
 
 ## 8. Open questions / tunables (not blocking implementation)
 - Exact tear success math before training modifiers (v1: pure read-based, §3.2).
+- RESOLVED v3.1: lock cap trigger (either hand), passivity ladder exclusivity,
+  counter-ready effect and its sign (§4.2), simultaneous clock cost, time-up boundary.
+- DEFERRED to the 42-node audit: counter ignition threshold (option ⓐ vs ⓒ), judged
+  by distribution of ignition conditions, after the 대파열 presentation is checked.
 - Osaekomi escape resolution (v1: scripted by scenario nodes).
 - Whether Locked should also raise big-throw cost beyond the grip-cap effect (v1: no).
 - Golden-score fatigue floor (v1: none — both <25 stamina makes any yuko end it).

@@ -86,10 +86,12 @@ public sealed class MatchRulesConfig {
     public int MatteRecovery = 3; public int StallRecoveryPer10s = 2;
     public float MasteryCostReductionPerLevel = 0.08f;
     public float MasteryReadReductionPerLevel = 0.05f;
-    // §6 referee — categories are EXCLUSIVE (highest match only), NEVER summed
+    // §4.2 counter-ready
+    public int CounterReadyReadSteps = 1;   // rungs the ATTACKER's read drops
+    // §6.1 ladder is EXCLUSIVE — first matching rung only, never summed.
     public int PassExtremeDefense = 3, PassDoubleDefensive = 2, PassHandEvade = 2,
-               PassCounterReady = 2, PassAllNeutral = 1,
-               PassAttackEntry = -2, PassRealAttempt = -4;
+               PassCounterReady = 2,
+               PassAllNeutral = 1, PassAttackEntry = -2, PassRealAttempt = -4;
     public int ThresholdStrict = 9, ThresholdStandard = 12, ThresholdLenient = 16;
     public int ThresholdJitter = 1;            // ±1 at match start
     public int ThresholdEscalation = 2;        // after each shido
@@ -100,8 +102,6 @@ public sealed class MatchRulesConfig {
     public ExchangeDurationRule DurationRule = ExchangeDurationRule.Max;
     // §1 expiry
     public bool ResolveExchangeOnExpiry = true;
-    // §4.2 counter-ready
-    public int CounterReadyReadSteps = 1;   // capped at FullRead
 }
 ```
 
@@ -132,6 +132,19 @@ public static class JudgementCalculator {
             return new JudgementResult(Bracket(-sum, cfg), Opp(attacker), true, sum);
         return new JudgementResult(Bracket(sum, cfg), attacker, false, sum);
     }
+    /// §4.2 counter-ready: the ATTACKER's read drops `steps` rungs, floored at
+    /// GotRead. The ladder is uneven BY DESIGN — Neutral→GotRead is a 3-point
+    /// fall, Read→Neutral is 2, FullRead→Read is only 1. A fully-read attack
+    /// cannot be countered by CounterReady alone. Reading is beaten only by reading.
+    public static ReadLevel StepDownRead(ReadLevel r, int steps = 1) {
+        for (int i = 0; i < steps; i++)
+            r = r switch {
+                ReadLevel.FullRead => ReadLevel.Read,
+                ReadLevel.Read     => ReadLevel.Neutral,
+                _                  => ReadLevel.GotRead,   // Neutral and GotRead floor
+            };
+        return r;
+    }
     static Judgement Bracket(int s, MatchRulesConfig cfg) =>
         s <= cfg.NoPointMax ? Judgement.None
       : s <= cfg.YukoMax    ? Judgement.Yuko
@@ -146,7 +159,9 @@ badly isn't automatically a score against you.
 **GripSystem** — owns both fighters' hand connections.
 ```csharp
 int GripScore(FighterId who);                       // raw, from holds (cap ±2)
-int EffectiveGrip(FighterId who);                   // min(raw, −1) if EITHER own hand Locked (§3.2)
+// EffectiveGrip: AnyHandLocked(who) ? Math.Min(GripScore(who), -1) : GripScore(who)
+int EffectiveGrip(FighterId who);
+bool AnyHandLocked(FighterId who);
 bool CanUseConversion(FighterId who);               // 틀어잡기/등싸잡기 gate (§2)
 TearOutcome ResolveTear(FighterId who, Hand hand, bool opponentChoseMaintain);
 void OnMatte();                                     // all → Free
@@ -157,6 +172,8 @@ void OnMatte();                                     // all → Free
 ```csharp
 int  Get(FighterId who);
 void PayAttack(FighterId who, TechniqueSpec spec, int effectiveGrip); // multiplier on big throws only
+void PayCounter(FighterId who);   // flat CounterCost, no grip multiplier,
+                                  // called only after the counter judgment confirms
 void PayDefense(FighterId who, DefenseQuality q);
 void DrainExtremeDefense(FighterId who);
 void RecoverMatte(FighterId who);
@@ -182,6 +199,10 @@ implements priority ippon > wazaari > yuko > null(→golden). In golden score, a
 
 **MatchClock** — advances by action costs; `Matte` freezes; osaekomi real-time;
 emits `RegulationExpired` ⇒ engine flips to GoldenScore (or decides winner).
+```csharp
+void AdvanceExchange(int costA, int costB);  // elapsed += Math.Max(costA, costB)
+bool RegulationExpired { get; }              // checked AFTER the exchange resolves
+```
 
 **MatchEngine.ResolveExchange(TurnChoice a, TurnChoice b, ExchangeScript script)**
 Orchestrates one simultaneous exchange:
@@ -190,9 +211,10 @@ Orchestrates one simultaneous exchange:
    the habit-AI replaces it later behind the same parameter)
 
 3.5 **CounterReady adjustment** — after ReadLevel is determined and BEFORE
-    JudgementCalculator runs: if this fighter declared CounterReady and the opponent
-    committed a big throw, raise ReadLevel by `CounterReadyReadSteps`, capped at FullRead.
-    A CounterReady fighter cannot have a technique of their own resolved this exchange.
+    JudgementCalculator runs: if the DEFENDER declared CounterReady and the attacker
+    committed a big throw, lower the ATTACKER's ReadLevel by `CounterReadyReadSteps`,
+    floored at GotRead. A CounterReady fighter cannot have a technique of their own
+    resolved this exchange.
 
 4. stamina payments — attacker pays on commit; a countering fighter pays the counter cost
    only AFTER the judgment is confirmed; a countered attacker does NOT get a refund.
@@ -227,23 +249,30 @@ assert the recorded checkpoints: stamina 90 after phase 1, B shido 1, A yuko at
 2:50, A feint-shido at 2:30, final ippon sum 7.
 
 ```
-RefereeSystemTests
-  ExtremeDefense_IsThreeNotSeven              // 1 turn = 3, not 3+2+2
-  ExtremeDefense_StandardRef_ShidoAtFourTurns
-  CounterReady_CountsAsTwo
-  AttackEntry_ReplacesPositiveCategory_NotAdded
 JudgementCalculatorTests
-  CounterReady_RaisesReadOneStep
-  CounterReady_CappedAtFullRead
-  CounterReady_NoOpponentAttack_NoChange
+  CounterReady_LowersAttackerReadOneStep
+  CounterReady_FlooredAtGotRead
+  CounterReady_CannotCounterFullRead      // FullRead→Read(+2), sum stays above −3
+  (−1, Neutral→StepDown, 100, Standard, open) → sum −3 → counter, Yuko to defender
+  ( 0, Neutral→StepDown, 100, Standard, open) → sum −2 → None
+
+RefereeSystemTests
+  sustained 극단적 방어 = +3/turn (NOT 7) → standard ref shidos on turn 4
+  core Aggressive + legs CounterReady → +2 (was falling through to 0)
+  ladder never sums: exactly one rung applies per turn
+
+GripSystemTests
+  left hand Locked, right Free, raw grip +2 → effective −1
+  either-hand rule symmetric (right Locked gives the same)
+
+MatchClockTests
+  grip turn (5) vs technique (3) → exchange advances 5
+  exchange begun at 238 s resolves fully and its score counts; elapsed clamps
+  to 240 for the time-up decision
+
 StaminaSystemTests
   Counter_PaidByCounteringFighter_AfterConfirm
   Attacker_KeepsBigThrowCost_WhenCountered
-GripSystemTests
-  EitherHandLocked_CapsEffectiveGripAtMinusOne
-MatchClockTests
-  Exchange_AdvancesByMaxCost                  // 5s grip vs 3s technique → 5s
-  ExpiryDuringExchange_ResolvesAndScores_ThenEnds
 ```
 
 ## Implementation order for Claude Code

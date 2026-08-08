@@ -98,31 +98,60 @@ namespace CounterTime.Core.Tests
             Assert.AreEqual(1, r.Sum);   // 0 + 0 + 0 + 1
         }
 
-        // ---- §4.2 CounterReady ----
+        // ---- §4.2 CounterReady: the ATTACKER's read drops ----
 
         [Test]
-        public void CounterReady_RaisesReadOneStep()
+        public void CounterReady_LowersAttackerReadOneStep()
         {
-            Assert.AreEqual(ReadLevel.Read,
-                JudgementCalculator.ApplyCounterReady(ReadLevel.Neutral, true, _cfg));
-            Assert.AreEqual(ReadLevel.FullRead,
-                JudgementCalculator.ApplyCounterReady(ReadLevel.Read, true, _cfg));
+            Assert.AreEqual(ReadLevel.Read, JudgementCalculator.StepDownRead(ReadLevel.FullRead));
+            Assert.AreEqual(ReadLevel.Neutral, JudgementCalculator.StepDownRead(ReadLevel.Read));
+            Assert.AreEqual(ReadLevel.GotRead, JudgementCalculator.StepDownRead(ReadLevel.Neutral));
         }
 
         [Test]
-        public void CounterReady_CappedAtFullRead()
+        public void CounterReady_FlooredAtGotRead()
         {
-            Assert.AreEqual(ReadLevel.FullRead,
-                JudgementCalculator.ApplyCounterReady(ReadLevel.FullRead, true, _cfg));
+            Assert.AreEqual(ReadLevel.GotRead, JudgementCalculator.StepDownRead(ReadLevel.GotRead));
+            Assert.AreEqual(ReadLevel.GotRead, JudgementCalculator.StepDownRead(ReadLevel.Neutral, 5));
         }
 
         [Test]
-        public void CounterReady_NoOpponentAttack_NoChange()
+        public void CounterReady_CannotCounterFullRead()
         {
-            Assert.AreEqual(ReadLevel.Neutral,
-                JudgementCalculator.ApplyCounterReady(ReadLevel.Neutral, false, _cfg));
-            Assert.AreEqual(ReadLevel.Read,
-                JudgementCalculator.ApplyCounterReady(ReadLevel.Read, false, _cfg));
+            // The rung is uneven on purpose: FullRead bottoms out at Read (+2), so a
+            // fully-read attack keeps a positive read term and cannot reach −3.
+            var dropped = JudgementCalculator.StepDownRead(ReadLevel.FullRead);
+            Assert.AreEqual(ReadLevel.Read, dropped);
+
+            var r = Eval(-1, dropped, 100, TechniqueClass.Standard, false);
+            Assert.AreEqual(2, r.Sum, "−1 + 2 + 0 + 1 = 2");
+            Assert.IsFalse(r.IsCounter, "reading is beaten only by reading");
+        }
+
+        // ---- §4.1 canonical validations 4 and 5 ----
+
+        [Test]
+        public void CounterReadyLands_AtGripMinusOne_IsCounterYuko()
+        {
+            var dropped = JudgementCalculator.StepDownRead(ReadLevel.Neutral);
+            Assert.AreEqual(ReadLevel.GotRead, dropped);
+
+            // posture open — counter-ready is NOT a defensive stance, so no −2
+            var r = Eval(-1, dropped, 100, TechniqueClass.Standard, false);
+            Assert.AreEqual(-3, r.Sum, "−1 −3 + 0 + 1 = −3");
+            Assert.IsTrue(r.IsCounter);
+            Assert.AreEqual(FighterId.B, r.ScoredBy, "Yuko to the defender");
+            Assert.AreEqual(Judgement.Yuko, r.Judgement);
+        }
+
+        [Test]
+        public void CounterReadyAlone_AtGripZero_IsNotEnough()
+        {
+            var dropped = JudgementCalculator.StepDownRead(ReadLevel.Neutral);
+            var r = Eval(0, dropped, 100, TechniqueClass.Standard, false);
+            Assert.AreEqual(-2, r.Sum, "0 −3 + 0 + 1 = −2");
+            Assert.IsFalse(r.IsCounter, "read AND grip must both be true for 되치기");
+            Assert.AreEqual(Judgement.None, r.Judgement);
         }
     }
 }

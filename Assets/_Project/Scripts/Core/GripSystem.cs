@@ -42,10 +42,10 @@ namespace CounterTime.Core
         public int EffectiveGrip(FighterId who)
         {
             int raw = GripScore(who);
-            return HasLockedHand(who) ? Math.Min(raw, -1) : raw;
+            return AnyHandLocked(who) ? Math.Min(raw, -1) : raw;
         }
 
-        public bool HasLockedHand(FighterId who) =>
+        public bool AnyHandLocked(FighterId who) =>
             _lockOn[(int)who, Ix(Hand.Left)] == GripLock.Locked ||
             _lockOn[(int)who, Ix(Hand.Right)] == GripLock.Locked;
 

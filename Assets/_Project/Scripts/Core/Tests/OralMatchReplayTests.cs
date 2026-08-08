@@ -261,12 +261,78 @@ namespace CounterTime.Core.Tests
                     Read = ReadLevel.Neutral,
                 });
 
-            Assert.IsNotNull(ev.OfType<CounterReadyRaised>().SingleOrDefault(),
+            Assert.IsNotNull(ev.OfType<CounterReadyApplied>().SingleOrDefault(),
                 "the declaration bit");
             var scored = ev.OfType<JudgementScored>().Single();
             Assert.AreEqual(-3, scored.Sum);
             Assert.IsTrue(scored.IsCounter);
             Assert.AreEqual(FighterId.B, scored.ScoredBy);
+        }
+
+        /// §2 gate — a counter-ready fighter cannot have a technique of their own
+        /// resolved, even if the script names them as the attacker.
+        [Test]
+        public void CounterReady_GatesTheDeclarersOwnTechnique()
+        {
+            var ev = _e.ResolveExchange(
+                new TurnChoice(HandTarget.None, CoreStance.Aggressive, LegAction.CounterReady),
+                Idle,
+                new ExchangeScript
+                {
+                    Attacker = FighterId.A,
+                    Technique = BigThrow("batadari"),
+                    Read = ReadLevel.FullRead,
+                    AttackEntryA = true,
+                });
+
+            Assert.IsEmpty(ev.OfType<JudgementScored>(),
+                "the declarer cannot fire a judgment this exchange");
+            Assert.AreEqual(100, _e.Stamina.Get(FighterId.A), "and pays nothing for it");
+        }
+
+        /// §4.2 — a fully-read attack bottoms out at Read and survives counter-ready.
+        [Test]
+        public void CounterReady_CannotCounterAFullRead()
+        {
+            _e.ResolveExchange(
+                Idle,
+                new TurnChoice(HandTarget.RightSleeve, CoreStance.Neutral, LegAction.Neutral, Hand.Left),
+                new ExchangeScript { DurationA = _cfg.GripTurnSec, DurationB = _cfg.GripTurnSec });
+            Assert.AreEqual(-1, _e.Grip.EffectiveGrip(FighterId.A));
+
+            var ev = _e.ResolveExchange(
+                Idle,
+                new TurnChoice(HandTarget.None, CoreStance.Neutral, LegAction.CounterReady),
+                new ExchangeScript
+                {
+                    Attacker = FighterId.A,
+                    Technique = BigThrow("batadari"),
+                    Read = ReadLevel.FullRead,
+                });
+
+            var scored = ev.OfType<JudgementScored>().Single();
+            Assert.AreEqual(2, scored.Sum, "−1 + 2 + 0 + 1 = 2");
+            Assert.IsFalse(scored.IsCounter, "reading is beaten only by reading");
+        }
+
+        /// §4.2 — counter-ready is not a defensive stance, so it draws no −2 even
+        /// when the fighter also picked a defensive core.
+        [Test]
+        public void CounterReady_DrawsNoDefensivePosturePenalty()
+        {
+            var ev = _e.ResolveExchange(
+                Idle,
+                new TurnChoice(HandTarget.None, CoreStance.Defensive, LegAction.CounterReady),
+                new ExchangeScript
+                {
+                    Attacker = FighterId.A,
+                    Technique = BigThrow("batadari"),
+                    Read = ReadLevel.Read,
+                });
+
+            var scored = ev.OfType<JudgementScored>().Single();
+            Assert.AreEqual(0, scored.Terms[4], "no −2 posture term for a counter-ready fighter");
+            Assert.AreEqual(1, scored.Sum, "0 + 0 + 0 + 1 + 0 — Read stepped down to Neutral");
         }
 
         [Test]
@@ -282,7 +348,7 @@ namespace CounterTime.Core.Tests
                     Read = ReadLevel.Neutral,
                 });
 
-            Assert.IsEmpty(ev.OfType<CounterReadyRaised>(), "only a big throw feeds a counter");
+            Assert.IsEmpty(ev.OfType<CounterReadyApplied>(), "only a big throw feeds a counter");
         }
 
         [Test]

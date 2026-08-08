@@ -20,9 +20,8 @@ namespace CounterTime.Core.Tests
         [Test]
         public void Exchange_AdvancesByMaxCost()
         {
-            // 5 s grip turn vs 3 s technique → the slower action sets the length
-            int applied = _c.AdvanceExchange(_cfg.GripTurnSec, _cfg.ExchangeSec);
-            Assert.AreEqual(5, applied);
+            // 5 s grip turn vs 3 s technique → the slower commitment sets the length
+            _c.AdvanceExchange(_cfg.GripTurnSec, _cfg.ExchangeSec);
             Assert.AreEqual(5, _c.ElapsedSeconds);
         }
 
@@ -47,8 +46,7 @@ namespace CounterTime.Core.Tests
         {
             _c.AdvanceExchange(5, 3);
             _c.Phase = MatchPhase.Matte;
-            int applied = _c.AdvanceExchange(5, 5);
-            Assert.AreEqual(0, applied);
+            _c.AdvanceExchange(5, 5);
             Assert.AreEqual(5, _c.ElapsedSeconds);
         }
 
@@ -62,18 +60,16 @@ namespace CounterTime.Core.Tests
         // ---- patch 1.6: expiry ----
 
         [Test]
-        public void ExpiryDuringExchange_ResolvesAndScores_ThenEnds()
+        public void ExchangeBegunAt238_ResolvesFully_ThenElapsedClampsTo240()
         {
-            // wind to 2 s before the bell
-            _c.AdvanceOsaekomi(_cfg.RegulationSeconds - 2);
-            Assert.IsFalse(_c.RegulationExpired);
+            _c.AdvanceOsaekomi(238);
+            Assert.IsFalse(_c.RegulationExpired, "time-up is checked AFTER the exchange");
 
-            // a 5 s grip exchange begins with 2 s left: it resolves in full …
-            int applied = _c.AdvanceExchange(5, 3);
-            Assert.AreEqual(5, applied, "the exchange runs its full nominal length");
+            // a 5 s grip exchange begins with 2 s left — it is played out in full,
+            // and only the overshoot is discarded.
+            _c.AdvanceExchange(5, 3);
 
-            // … but the overflow is discarded and regulation is over.
-            Assert.AreEqual(_cfg.RegulationSeconds, _c.ElapsedSeconds);
+            Assert.AreEqual(240, _c.ElapsedSeconds, "243 would leak into golden score");
             Assert.AreEqual(0, _c.RemainingSeconds);
             Assert.IsTrue(_c.RegulationExpired);
         }

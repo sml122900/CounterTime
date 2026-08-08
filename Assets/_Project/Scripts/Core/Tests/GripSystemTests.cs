@@ -82,22 +82,38 @@ namespace CounterTime.Core.Tests
             Assert.AreEqual(GripLock.Locked, _g.LockState(FighterId.B, Hand.Right));
         }
 
-        // ---- §3.2 lock cap (patch 1.4) ----
+        // ---- §3.2 lock cap: either hand ----
 
         [Test]
-        public void EitherHandLocked_CapsEffectiveGripAtMinusOne()
+        public void LeftHandLocked_RightFree_RawPlusTwo_IsEffectiveMinusOne()
         {
             // B is dominant on the score sheet …
+            _g.Grab(FighterId.B, Hand.Right, Hand.None, GripKind.Dominant);
+            Assert.AreEqual(2, _g.GripScore(FighterId.B));
+
+            // … but A has locked B's LEFT hand.
+            _g.Grab(FighterId.A, Hand.Right, Hand.Left, GripKind.Normal);
+            _g.ResolveTear(FighterId.B, Hand.Left, opponentChoseMaintain: true);
+
+            Assert.AreEqual(GripLock.Locked, _g.LockState(FighterId.B, Hand.Left));
+            Assert.AreEqual(GripLock.Free, _g.LockState(FighterId.B, Hand.Right));
+            Assert.IsTrue(_g.AnyHandLocked(FighterId.B));
+            Assert.AreEqual(-1, _g.EffectiveGrip(FighterId.B),
+                "a locked hand caps effective grip regardless of raw score");
+        }
+
+        [Test]
+        public void EitherHandRule_IsSymmetric()
+        {
             _g.Grab(FighterId.B, Hand.Left, Hand.None, GripKind.Dominant);
             Assert.AreEqual(2, _g.GripScore(FighterId.B));
 
-            // … but A has locked B's right hand.
             _g.Grab(FighterId.A, Hand.Right, Hand.Right, GripKind.Normal);
             _g.ResolveTear(FighterId.B, Hand.Right, opponentChoseMaintain: true);
 
-            Assert.IsTrue(_g.HasLockedHand(FighterId.B));
+            Assert.IsTrue(_g.AnyHandLocked(FighterId.B));
             Assert.AreEqual(-1, _g.EffectiveGrip(FighterId.B),
-                "a locked hand caps effective grip regardless of raw score");
+                "the right hand gives the same result as the left");
         }
 
         [Test]
@@ -133,11 +149,11 @@ namespace CounterTime.Core.Tests
         {
             _g.Grab(FighterId.A, Hand.Left, Hand.Right, GripKind.Dominant);
             _g.ResolveTear(FighterId.B, Hand.Right, opponentChoseMaintain: true);
-            Assert.IsTrue(_g.HasLockedHand(FighterId.B));
+            Assert.IsTrue(_g.AnyHandLocked(FighterId.B));
 
             _g.OnMatte();
 
-            Assert.IsFalse(_g.HasLockedHand(FighterId.B));
+            Assert.IsFalse(_g.AnyHandLocked(FighterId.B));
             Assert.AreEqual(GripLock.Free, _g.LockState(FighterId.B, Hand.Right));
             Assert.AreEqual(0, _g.GripScore(FighterId.A));
             Assert.AreEqual(0, _g.EffectiveGrip(FighterId.B));

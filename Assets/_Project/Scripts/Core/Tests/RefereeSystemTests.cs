@@ -59,6 +59,31 @@ namespace CounterTime.Core.Tests
         }
 
         [Test]
+        public void CoreAggressive_PlusLegsCounterReady_IsTwo()
+        {
+            // No rung above it matches, so this must not fall through to 0.
+            var r = Ref();
+            var aggressiveCounterReady =
+                new TurnChoice(HandTarget.None, CoreStance.Aggressive, LegAction.CounterReady);
+            for (int i = 0; i < 5; i++)
+                r.ObserveTurn(FighterId.A, aggressiveCounterReady, false, false);
+            Assert.IsNull(r.ConsumeShidoIfDue(FighterId.A), "5 × 2 = 10, under 12");
+            r.ObserveTurn(FighterId.A, aggressiveCounterReady, false, false);   // 12
+            Assert.IsNotNull(r.ConsumeShidoIfDue(FighterId.A), "+2 per turn, not 0");
+        }
+
+        [Test]
+        public void Ladder_NeverSums_ExactlyOneRungApplies()
+        {
+            // 극단적 방어 matches three rungs at once (+3, +2, +2). Only the first counts.
+            var r = Ref();
+            for (int i = 0; i < 3; i++) r.ObserveTurn(FighterId.A, Turtle, false, false);
+            Assert.AreEqual(RefereeTell.Minor, r.CurrentTell(FighterId.A),
+                "3 turns = 9/12 = .75 → Minor. Summed rungs would be 21/12 and long past shido.");
+            Assert.IsNull(r.ConsumeShidoIfDue(FighterId.A));
+        }
+
+        [Test]
         public void CounterReady_CountsAsTwo()
         {
             var r = Ref();

@@ -23,6 +23,10 @@ namespace CounterTime.Core
             Spend(who, Round(cost));
         }
 
+        /// §4 counter settlement — flat cost, never multiplied. Called only once the
+        /// counter judgment is confirmed; the countered attacker gets no refund.
+        public void PayCounter(FighterId who) => Spend(who, _cfg.CounterCost);
+
         public void PayDefense(FighterId who, DefenseQuality q) => Spend(who, q switch
         {
             DefenseQuality.Clean   => _cfg.DefendCleanCost,

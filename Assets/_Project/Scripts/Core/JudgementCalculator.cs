@@ -1,5 +1,3 @@
-using System;
-
 namespace CounterTime.Core
 {
     public readonly struct JudgementContext
@@ -39,11 +37,6 @@ namespace CounterTime.Core
 
     public static class JudgementCalculator
     {
-        /// Ordered weakest→strongest. The enum values are not evenly spaced, so
-        /// "one step" (§4.2) means one position here, not an arithmetic delta.
-        static readonly ReadLevel[] ReadLadder =
-            { ReadLevel.GotRead, ReadLevel.Neutral, ReadLevel.Read, ReadLevel.FullRead };
-
         public static JudgementResult Evaluate(FighterId attacker, in JudgementContext c,
                                                MatchRulesConfig cfg)
         {
@@ -56,27 +49,20 @@ namespace CounterTime.Core
             return new JudgementResult(Bracket(sum, cfg), attacker, false, sum);
         }
 
-        /// §4.2 — a fighter who declared CounterReady has their own ReadLevel raised
-        /// one step when the opponent commits a big throw. No-op otherwise.
-        public static ReadLevel ApplyCounterReady(ReadLevel own, bool opponentCommittedBigThrow,
-                                                  MatchRulesConfig cfg)
+        /// §4.2 counter-ready: the ATTACKER's read drops `steps` rungs, floored at
+        /// GotRead. The ladder is uneven BY DESIGN — Neutral→GotRead is a 3-point
+        /// fall, Read→Neutral is 2, FullRead→Read is only 1. A fully-read attack
+        /// cannot be countered by CounterReady alone. Reading is beaten only by reading.
+        public static ReadLevel StepDownRead(ReadLevel r, int steps = 1)
         {
-            if (!opponentCommittedBigThrow) return own;
-            int i = Array.IndexOf(ReadLadder, own);
-            if (i < 0) return own;
-            int raised = i + cfg.CounterReadyReadSteps;
-            if (raised > ReadLadder.Length - 1) raised = ReadLadder.Length - 1;
-            return ReadLadder[raised];
-        }
-
-        /// §4.2 seen from the other side. The formula only ever evaluates the
-        /// ATTACKER's sum, so a defender reading the attack better is expressed as the
-        /// attacker's Reading term stepping DOWN the same ladder. Floored at GotRead.
-        public static ReadLevel MirrorCounterReady(ReadLevel attackerRead, int steps)
-        {
-            int i = Array.IndexOf(ReadLadder, attackerRead);
-            if (i < 0) return attackerRead;
-            return ReadLadder[Math.Max(0, i - steps)];
+            for (int i = 0; i < steps; i++)
+                r = r switch
+                {
+                    ReadLevel.FullRead => ReadLevel.Read,
+                    ReadLevel.Read     => ReadLevel.Neutral,
+                    _                  => ReadLevel.GotRead,   // Neutral and GotRead floor
+                };
+            return r;
         }
 
         static Judgement Bracket(int s, MatchRulesConfig cfg) =>

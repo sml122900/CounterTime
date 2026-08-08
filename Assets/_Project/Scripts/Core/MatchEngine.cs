@@ -18,9 +18,6 @@ namespace CounterTime.Core
 
     public sealed class MatchEngine
     {
-        static readonly TechniqueSpec CounterAction =
-            new TechniqueSpec("counter", ActionCost.Counter, TechniqueClass.Standard);
-
         readonly MatchRulesConfig _cfg;
         readonly IRandomSource _rng;
         readonly RefereeTell[] _lastTell = new RefereeTell[2];
@@ -47,17 +44,28 @@ namespace CounterTime.Core
             var ev = new List<MatchEvent>();
             if (Board.IsFinished) return ev;
 
+            // §2 counter-ready gate: a fighter who declared it cannot enter a technique
+            // this turn — no 기술 진입, no judgment fired by them. Enforced here rather
+            // than trusted to the script, so the gate cannot be scripted away.
+            bool crA = a.Legs == LegAction.CounterReady;
+            bool crB = b.Legs == LegAction.CounterReady;
+            FighterId? attacker = script.Attacker;
+            if ((attacker == FighterId.A && crA) || (attacker == FighterId.B && crB))
+                attacker = null;
+            bool entryA = script.AttackEntryA && !crA;
+            bool entryB = script.AttackEntryB && !crB;
+
             // 1. referee observes both commits
-            Referee.ObserveTurn(FighterId.A, a, script.AttackEntryA, script.Attacker == FighterId.A);
-            Referee.ObserveTurn(FighterId.B, b, script.AttackEntryB, script.Attacker == FighterId.B);
+            Referee.ObserveTurn(FighterId.A, a, entryA, attacker == FighterId.A);
+            Referee.ObserveTurn(FighterId.B, b, entryB, attacker == FighterId.B);
 
             // 2. grip resolution
             ResolveGrip(FighterId.A, a, b, ev);
             ResolveGrip(FighterId.B, b, a, ev);
 
             // 3 / 3.5 / 4 / 5 — technique
-            if (script.Attacker.HasValue && script.Technique != null)
-                ResolveTechnique(script, a, b, ev);
+            if (attacker.HasValue && script.Technique != null)
+                ResolveTechnique(attacker.Value, script, a, b, ev);
 
             // 4 (cont.) §5.2 turtling drain
             if (a.IsExtremeDefense) Stamina.DrainExtremeDefense(FighterId.A);
@@ -104,39 +112,40 @@ namespace CounterTime.Core
             }
         }
 
-        void ResolveTechnique(ExchangeScript script, in TurnChoice a, in TurnChoice b, List<MatchEvent> ev)
+        void ResolveTechnique(FighterId attacker, ExchangeScript script,
+                              in TurnChoice a, in TurnChoice b, List<MatchEvent> ev)
         {
-            FighterId attacker = script.Attacker.Value;
             FighterId defender = Opp(attacker);
             TurnChoice defenderChoice = attacker == FighterId.A ? b : a;
+            bool defenderCounterReady = defenderChoice.Legs == LegAction.CounterReady;
 
             // 3. ReadLevel comes from the script in v1.
             ReadLevel read = script.Read;
 
-            // 3.5 CounterReady — a defender who declared it and is facing a big throw
-            // reads the attack better, which shows up as the ATTACKER's Reading term
-            // stepping down (the formula only ever evaluates the attacker's sum).
-            if (defenderChoice.Legs == LegAction.CounterReady
-                && script.Technique.Cost == ActionCost.BigThrow)
+            // 3.5 §4.2 — the formula is attacker-relative and single-term, so a
+            // defender's read is expressed as a reduction of the ATTACKER's. The rungs
+            // are uneven by design: FullRead only falls to Read, so a fully-read attack
+            // cannot be countered by CounterReady alone.
+            if (defenderCounterReady && script.Technique.Cost == ActionCost.BigThrow)
             {
-                ReadLevel lowered = JudgementCalculator.MirrorCounterReady(read, _cfg.CounterReadyReadSteps);
-                if (lowered != read) ev.Add(new CounterReadyRaised(defender, read, lowered));
+                ReadLevel lowered = JudgementCalculator.StepDownRead(read, _cfg.CounterReadyReadSteps);
+                if (lowered != read) ev.Add(new CounterReadyApplied(defender, read, lowered));
                 read = lowered;
             }
 
             int grip = Grip.EffectiveGrip(attacker);
             int defenderStamina = Stamina.Get(defender);
-            bool defensive = defenderChoice.Core == CoreStance.Defensive;
+            // §4.2 — counter-ready is not a defensive stance, so it draws no −2.
+            bool defensive = defenderChoice.Core == CoreStance.Defensive && !defenderCounterReady;
             var ctx = new JudgementContext(grip, read, defenderStamina, script.Technique.Class, defensive);
             var result = JudgementCalculator.Evaluate(attacker, ctx, _cfg);
 
             // 4. stamina — attacker pays for the commit …
             Stamina.PayAttack(attacker, script.Technique, grip);
             Stamina.PayDefense(defender, script.DefenseQuality);
-            // … and the COUNTERING fighter pays its own cost only after the judgment
-            // is confirmed. The countered attacker gets no refund (patch 1.3).
-            if (result.IsCounter)
-                Stamina.PayAttack(result.ScoredBy, CounterAction, Grip.EffectiveGrip(result.ScoredBy));
+            // … and the COUNTERING fighter pays the flat counter cost only once the
+            // judgment is confirmed. The countered attacker gets no refund (§4).
+            if (result.IsCounter) Stamina.PayCounter(result.ScoredBy);
 
             int stamTerm = defenderStamina < _cfg.StaminaBonusExhaustedThreshold ? 3
                          : defenderStamina < _cfg.StaminaBonusTiredThreshold ? 2 : 0;
