@@ -40,7 +40,32 @@ Docs scaffolding created: docs/daily/, docs/decisions/, docs/troubleshooting/, d
 2026-08-05 세션 문서: docs/daily/2026-08-05.md · decisions/scenario-runner-core-game-boundary.md · decisions/korean-font-tmp.md · troubleshooting/mcp-play-mode-verification.md · troubleshooting/tmp-text-overflow.md · par-materials.md 항목 4~8
 2026-08-07 세션 문서: docs/daily/2026-08-07.md · decisions/ai-generated-motion-clips.md · troubleshooting/unity-asset-commit-boundary.md · par-materials.md 항목 9~10
 
+Match engine core — steps 1–6 done (2026-08-09, branch feat/match-engine, not merged)
+MATCH_RULES.md / CORE_DESIGN_MatchEngine.md live in md/ (untracked before today, now committed). The 2026-08-09 patch set is applied — exclusive referee categories, CounterReady, counter cost ownership, either-hand lock cap, exchange duration, time expiry, grip HUD as a requirement
+Assets/_Project/Scripts/Core/ (NOT Assets/_Project/Core/ — the design doc said the latter, but that path is outside the asmdef and would compile into Assembly-CSharp with engine references; the doc was corrected)
+Files: Enums · MatchRulesConfig · TechniqueSpec · TurnChoice · IRandomSource · JudgementCalculator · StaminaSystem · GripSystem · RefereeSystem · ScoreBoard · MatchClock · MatchEvent · MatchEngine (+ ExchangeScript)
+Tests: Assets/_Project/Scripts/Core/Tests/ with CounterTime.Core.Tests.asmdef. 93 EditMode tests, all passing. Run them in Unity via Window > General > Test Runner > EditMode > Run All
+Core stayed pure — zero UnityEngine references. That is load-bearing, not cosmetic: it lets the whole suite run outside Unity, which is how these 93 were actually executed (see below)
+
+결정한 것 (문서가 안 정해둬서 사람에게 물어본 것)
+CounterReady 가 판정식에 어떻게 들어가는가 — §4 는 공격자 기준 합 하나만 계산한다. 되치기는 그 합의 부호를 뒤집은 것이다. 그런데 패치 1.2 는 "카운터 준비를 선언한 쪽의 ReadLevel 이 올라간다" 고 쓴다. 선언한 쪽은 정의상 공격자가 아니라서(그 턴에 기술을 못 건다) 올라간 수치가 들어갈 자리가 없었다
+채택: 방어자의 읽기 상승을 공격자의 수싸움 항이 같은 사다리에서 한 칸 내려가는 것으로 표현한다 (Read→Neutral→GotRead). 되치기가 "나는" 일이 아니라 "하는" 일이 되게 하는 유일한 선택지였다. 자동은 아니다 — 잡기 0, 중립 읽기에서는 합이 −2 까지만 가서 되치기가 안 난다. 잡기 −1 이면 −3 이 되어 되치기
+
+발견한 불일치 (양쪽 다 테스트로 고정해둠)
+m15 노드는 A 체력 90 으로 기록돼 있는데 엔진은 93 이 나온다. 그 교환에서 지도가 나오고 → 그쳐 → §5.3 이 +3 을 준다. 문서 우선순위상 MATCH_RULES 가 보드 JSON 을 이긴다 — 93 이 맞고 m15 의 90 은 회복 적용 전 스냅샷이다
+극단적 방어 4턴 = 지도는 임계가 정확히 12 일 때만 성립한다. §6.2 의 ±1 지터가 +1 이면 5턴이 된다. 테스트는 지터 0 으로 고정한다
+CORE_DESIGN 에 남아 있던 모순 2개도 고쳤다 — EffectiveGrip 주석이 아직 "lead hand" 였고, 대상 폴더가 asmdef 밖이었다
+
+테스트 실행 경로 (중요)
+Unity MCP 로는 EditMode 테스트를 못 돌린다. TestRunnerApi.Execute 가 "User interactions are not supported for MCP tool calls" 로 막힌다
+대신 Core 가 순수 C# 이라는 점을 이용해 scratchpad 에 dotnet 콘솔 하니스를 만들어 커밋된 NUnit 테스트 파일을 그대로 컴파일·실행했다 (nunit.framework.dll 은 Library/PackageCache/com.unity.ext.nunit@.../net40/unity-custom/ 에 있다). 하니스는 리포에 안 들어간다 — 커밋된 산출물은 NUnit 테스트 쪽이다
+사람이 확인할 때는 Unity 에서 Window > General > Test Runner 를 열고 EditMode 탭 > Run All
+
 Next Up (in priority order)
+step 7 은 이 항목이다 (완료). 남은 것은 아래 우선순위대로
+MatchEngine 을 시나리오 러너에 연결 — 지금은 ExchangeScript 가 v1 seam 이고, 42노드 보드 JSON 이 reads/outcomes 를 공급해야 한다. 이번 패스에서는 CounterTime.Game / NodeMotionMap / 시나리오 러너를 일부러 안 건드렸다
+잡기 HUD (패치 1.7 로 필수가 됐다) — Core 는 이미 GripChanged 에 부위를 실어 보낸다. Game 쪽에서 RenderTexture 바깥 풀해상도 레이어로 받아야 한다
+
 결정 대기 (내가 판단 안 하고 남겨둔 취향 문제) — 선택지 버튼 높이가 111px → 82px 로 줄었다. 텍스트가 넘쳐서 TextPanel 을 키우느라 ChoiceRow 에서 떼어온 결과다. 라벨(26px)에는 충분하지만 버튼이 얇아 보이면 하단 패널을 1/3보다 키우거나 타이틀 34pt / 본문 24pt 를 줄이는 쪽으로 조정해야 한다
 Play 로 시나리오를 실제로 굴려보며 매핑을 다듬어라. 매핑은 title/content 만 읽고 정한 초안이라, 클립이 상황에 맞는지는 사람 눈으로 봐야 안다 — 특히 2026-08-07 에 AI 클립으로 교체한 19개 노드는 아직 Play 확인 전이다
 Port the combat logic from the HTML prototype (counter-time-v03.html) into pure C# classes under CounterTime.Core — the two-phase turn (grip-fighting → scoring techniques), matchup judgment, opponent habit-reading system
