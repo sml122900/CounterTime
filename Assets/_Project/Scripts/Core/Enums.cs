@@ -15,4 +15,6 @@ namespace CounterTime.Core
     public enum RefereeProfile { Strict, Standard, Lenient }
     public enum MatchPhase { Standing, Osaekomi, Matte, GoldenScore, Finished }
     public enum ExchangeDurationRule { Max }   // Sum/Fixed reserved for later tuning
+    public enum ActionCost { BigThrow, Poke, Counter, Tear }   // §5.1 cost rows
+    public enum DefenseQuality { Clean, Neutral, Pushed }      // §5.2
 }
