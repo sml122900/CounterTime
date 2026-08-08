@@ -137,6 +137,10 @@ HTML 프로토타입에서 검증한 시스템을 Unity(C#)로 이식하는 단�
 - The hash is `git hash-object` over the file WITHOUT line 1, with CR stripped,
   so writing the stamp never changes what the stamp measures.
 - Maintained by `tools/githooks/pre-commit`. Never edit the stamp by hand.
+- The hook keeps no list of paths. Any staged `*.md` whose line 1 already matches
+  the stamp format is maintained; everything else is ignored. Adding the
+  placeholder `<!-- vX.Y | body:0000000 -->` to a doc IS the registration step,
+  and deleting the line deregisters it. Moving a doc therefore cannot break it.
 - Enable once per clone: `git config core.hooksPath tools/githooks`
 - Verify any copy: `sh tools/stamp.sh --check <file>`
 - Purpose: a doc pasted into a chat or copied anywhere else can be checked
