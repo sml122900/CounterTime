@@ -2,7 +2,11 @@
 
 > 이 파일은 Claude Code가 항상 읽는 프로젝트 개요다.
 
-**작업을 이어갈 때는 STATUS.md 를 먼저 읽을 것.** 진행상황은 전부 STATUS.md 에 기록한다.
+**작업을 이어갈 때는 진행상황부터 확인할 것.** 진행상황은 전부 `md/STATUS.md`
+**한 곳에만** 기록한다 — 루트나 다른 폴더에 사본을 만들지 마라. 아래 임포트로
+매 세션 자동으로 읽힌다.
+
+@md/STATUS.md
 
 ## 1. Think Before Coding
 
@@ -100,6 +104,9 @@ HTML 프로토타입에서 검증한 시스템을 Unity(C#)로 이식하는 단�
       Scenario/            시나리오 원본 (JSON, 시나리오 보드 HTML 등) — 시나리오 파일은 전부 여기
       ScriptableObjects/   상대 성향 데이터 에셋
       Art/ Audio/ Prefabs/ Settings/
+
+    md/                    설계 문서. STATUS.md · MATCH_RULES.md · CORE_DESIGN_MatchEngine.md
+    CLAUDE.md              프로젝트 루트 (이 파일)
 
 ## 컨벤션
 
