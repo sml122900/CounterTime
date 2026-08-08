@@ -141,7 +141,7 @@ HTML 프로토타입에서 검증한 시스템을 Unity(C#)로 이식하는 단�
   the stamp format is maintained; everything else is ignored. Adding the
   placeholder `<!-- vX.Y | body:0000000 -->` to a doc IS the registration step,
   and deleting the line deregisters it. Moving a doc therefore cannot break it.
-- Enable once per clone: `git config core.hooksPath tools/githooks`
+- Enabling the hook is a per-clone step — see **Fresh clone** below.
 - Verify any copy: `sh tools/stamp.sh --check <file>`
 - Purpose: a doc pasted into a chat or copied anywhere else can be checked
   against the repo. If a copy's stamp does not match its own body, that copy was
@@ -150,3 +150,16 @@ HTML 프로토타입에서 검증한 시스템을 Unity(C#)로 이식하는 단�
 - Conventions belong in this file, in the repo. A rule kept only in an
   assistant's session memory is not a rule: it is invisible to diffs, to other
   tools, and to future sessions.
+
+## Fresh clone
+
+Run once: `git config core.hooksPath tools/githooks`
+
+At session start, verify it: `git config core.hooksPath` must print `tools/githooks`.
+If it prints nothing, the stamp hook is inert — set it before committing any
+stamped doc, and run `sh tools/stamp.sh --check md/*.md` to catch stamps that
+went stale while it was off.
+
+A missing hook makes a stamp **stale, never wrong**, and a stale stamp is caught
+the next time the doc is read. That is a delay surfaced at point of use, not a
+silent error — so this check is the whole mitigation it needs.

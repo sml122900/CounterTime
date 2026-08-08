@@ -19,6 +19,10 @@ for f in "$@"; do
   line1=$(head -n 1 "$f" | tr -d '\r')
   ver=$(printf '%s' "$line1" | sed -n 's/^<!-- \(v[^ ]*\) | body:[0-9a-f]* -->$/\1/p')
   if [ -z "$ver" ]; then
+    # Line 1 decides membership, same rule as the hook. In --check, an unstamped
+    # file is simply not managed, so skip it — that keeps `--check md/*.md` usable.
+    # Naming one explicitly for a rewrite is still a real mistake.
+    if [ $check -eq 1 ]; then continue; fi
     echo "stamp: $f has no stamp on line 1 (expected '<!-- vX.Y | body:xxxxxxx -->')" >&2
     exit 2
   fi
