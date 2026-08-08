@@ -17,4 +17,5 @@ namespace CounterTime.Core
     public enum ExchangeDurationRule { Max }   // Sum/Fixed reserved for later tuning
     public enum ActionCost { BigThrow, Poke, Counter, Tear }   // §5.1 cost rows
     public enum DefenseQuality { Clean, Neutral, Pushed }      // §5.2
+    public enum TearOutcome { Freed, Locked, Impossible }      // §3.2
 }
