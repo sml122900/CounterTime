@@ -1,3 +1,4 @@
+<!-- v3.1 | 33ecd10 -->
 # MATCH_RULES.md — COUNTER TIME judo match system (v3.1)
 
 Single source of truth for match logic. `CounterTime.Core` implements THIS file;

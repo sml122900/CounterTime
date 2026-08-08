@@ -1,3 +1,4 @@
+<!-- v3.1 | 33ecd10 -->
 # CORE_DESIGN_MatchEngine.md — CounterTime.Core implementation design
 
 Implements `MATCH_RULES.md` (that file wins on any conflict). Target:
