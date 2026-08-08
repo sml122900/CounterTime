@@ -40,6 +40,26 @@ Docs scaffolding created: docs/daily/, docs/decisions/, docs/troubleshooting/, d
 2026-08-05 세션 문서: docs/daily/2026-08-05.md · decisions/scenario-runner-core-game-boundary.md · decisions/korean-font-tmp.md · troubleshooting/mcp-play-mode-verification.md · troubleshooting/tmp-text-overflow.md · par-materials.md 항목 4~8
 2026-08-07 세션 문서: docs/daily/2026-08-07.md · decisions/ai-generated-motion-clips.md · troubleshooting/unity-asset-commit-boundary.md · par-materials.md 항목 9~10
 
+저해상도 리얼타임 렌더 스파이크 (2026-08-09, 브랜치 spike/lowres-render — main 에 머지 안 됨)
+목적: 실시간 저해상도 픽셀아트 룩이 AI 모캡의 약점(지터·발미끄러짐·관절 팝)을 흡수하는지 검증. 사전 렌더 스프라이트 대신 실시간을 고르는 근거가 되는지.
+만든 것 (전부 신규, 기존 에셋 수정 0): Assets/_Project/Spikes/LowResRender/ 에 RT_LowRes(320x180 · Point · D24_UNorm_S8_UInt · AA 없음) · Spike_LowResRender.unity · AC_Spike_A/B · M_Spike_GiWhite/GiBlue/Mat. 스크립트는 Game 어셈블리 안 Scripts/Game/Spikes/ 에 SteppedAnimator.cs + SpikeCapture.cs
+씬: Y Bot(A, 파랑 기) 과 Ch30(B, 흰 기) 을 1.2m 간격 대면. 카메라 Cam_Match 는 측면에서 25° 앞쪽 · 높이 1.79m · 거리 4.70m · FOV 35 고정. 서 있는 선수가 180px 중 약 105px
+
+세 가지 판정 (§7 기준)
+1. 픽셀아트로 읽히는가 — 예. 단 정지 이미지로는 판정 불가였다. 스테핑은 시간축 효과라 같은 포즈의 B/C 스틸은 완전히 동일하다. 그래서 연속 프레임 버스트를 추가로 찍어 수치로 비교했다: 미적용(Bseq)은 매 프레임 2.5~2.7% 픽셀이 바뀌고(평균 델타 5), 12fps 스테핑(Cseq)은 7개 프레임 간격 중 4개가 변화 0%, 나머지는 3.6~3.9% 에 평균 델타 11 — 즉 포즈를 2~3 프레임 물고 있다가 튄다. 손으로 찍은 "2컷 촬영" 신호가 그대로 나온다. 증거: Bseq_f00..f07 / Cseq_f00..f07
+2. 모캡 어색함이 사라지는가 — 미판정. 사람이 Play 로 봐야 한다. 수치상 12fps 스테핑이 프레임 간 미세 변화를 실제로 버리는 것은 확인했지만(위), 발미끄러짐은 루트 이동이 남아 있어 저해상도로 가려지지 않을 가능성이 있다. Spike_LowResRender.unity 를 열고 Play 하면 바로 볼 수 있다. framesPerSecond 는 Inspector 에서 8/12/16/24 로 라이브 비교 가능
+3. 파란 기 위의 흰 손이 보이는가 — 부분적. 320px 폭에서 손 하나가 5.8px 이다. 접촉이 "있다"와 대략의 위치는 읽히지만, 깃을 잡았는지 소매를 잡았는지 손목을 잡았는지는 구분되지 않는다. 즉 잡기 종류를 UI 없이 화면만으로 전달하는 것은 이 해상도에서 불가능하다 — 잡기 상태용 풀해상도 HUD 레이어가 필요하다는 뜻이고, 이건 UI 계획에 영향을 준다. 증거: E_grip_*_x4.png
+채택 framesPerSecond: 12. 다만 1·3 만으로 정한 값이고 2 를 사람이 본 뒤 재조정할 것
+
+핸드오프 문서가 틀렸던 것 / 놀란 것
+ai_ukemi_back 은 루트 이동이 1.4m baked 되어 있다. 두 선수가 서로 등지고 넘어가므로 클립 끝에서 4.3m 벌어진다 — "1.2m 간격 유지 + 선수 100~120px" 와 "클립 전체가 화면 안" 은 동시에 성립하지 않는다. 전자를 택했다(판정 기준이 거기 걸려 있어서). 클립 전체를 담으려면 거리 7.4m, 선수 약 60px 로 내려가야 한다 — 버스트는 그 넓은 프레이밍으로 찍었다
+잡기 프레임은 클립으로 만들 수 없다. 2인 동기 모캡 클립이 없어서 1인 클립을 아무리 붙여도 서로 잡는 포즈가 안 나온다. 팔 본을 직접 조준해서 손으로 만든 포즈다. 진짜 잡기 연출은 2인 모캡이 있어야 한다 — 모캡 대상 목록에 추가할 것
+URP 에셋(PC_RPAsset)의 MSAA 는 이미 Disabled 였다. 핸드오프 §3 의 "URP 에셋에서 MSAA 끄기" 는 할 일이 없었다. 스테이지 A(AA on) 만 일시적으로 4x 로 올렸다 되돌렸고, 파일은 커밋에서 변경 없음
+SkinnedMeshRenderer.bounds 는 바인드 포즈 기준이라 애니메이션을 따라가지 않는다. 이것 때문에 카메라 프레이밍 계산이 두 번 틀렸다. updateWhenOffscreen = true 로 켜뒀다 — 안 켜면 넘어지는 동안 컬링될 수도 있다
+프로젝트가 Input System 패키지를 쓰고 있어서 §5 의 키 입력 캡처(UnityEngine.Input.GetKeyDown)가 매 프레임 예외를 던졌다. ENABLE_LEGACY_INPUT_MANAGER 로 막아뒀다. 키로 찍고 싶으면 Edit > Project Settings > Player > Active Input Handling 을 Both 로 바꾸면 된다. 지금은 Play 중 Inspector 에서 SpikeCapture 컴포넌트 헤더 우클릭 > Capture 로 찍는다
+Application.runInBackground = true 가 Player Settings 에 눌러앉는다. MCP 로 캡처하느라 켰던 것이라 되돌렸다 (ProjectSettings.asset 커밋 안 됨)
+팔레트/디더링/아웃라인 셰이더는 §6 대로 손대지 않았다. AI 크레딧도 안 썼다 (980 그대로)
+
 Next Up (in priority order)
 결정 대기 (내가 판단 안 하고 남겨둔 취향 문제) — 선택지 버튼 높이가 111px → 82px 로 줄었다. 텍스트가 넘쳐서 TextPanel 을 키우느라 ChoiceRow 에서 떼어온 결과다. 라벨(26px)에는 충분하지만 버튼이 얇아 보이면 하단 패널을 1/3보다 키우거나 타이틀 34pt / 본문 24pt 를 줄이는 쪽으로 조정해야 한다
 Play 로 시나리오를 실제로 굴려보며 매핑을 다듬어라. 매핑은 title/content 만 읽고 정한 초안이라, 클립이 상황에 맞는지는 사람 눈으로 봐야 안다 — 특히 2026-08-07 에 AI 클립으로 교체한 19개 노드는 아직 Play 확인 전이다
