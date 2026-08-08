@@ -135,8 +135,9 @@ namespace CounterTime.Core
 
             int grip = Grip.EffectiveGrip(attacker);
             int defenderStamina = Stamina.Get(defender);
-            // §4.2 — counter-ready is not a defensive stance, so it draws no −2.
-            bool defensive = defenderChoice.Core == CoreStance.Defensive && !defenderCounterReady;
+            // §4 — derived in exactly one place. Do NOT re-derive inline here; an
+            // inline `Core == Defensive` is what produced the v3.1 counter-ready bug.
+            bool defensive = JudgementCalculator.IsDefensivePosture(defenderChoice);
             var ctx = new JudgementContext(grip, read, defenderStamina, script.Technique.Class, defensive);
             var result = JudgementCalculator.Evaluate(attacker, ctx, _cfg);
 

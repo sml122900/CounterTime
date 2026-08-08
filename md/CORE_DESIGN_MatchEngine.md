@@ -1,4 +1,4 @@
-<!-- v3.1 | body:a08ed4f -->
+<!-- v3.2 | body:a24d23c -->
 # CORE_DESIGN_MatchEngine.md — CounterTime.Core implementation design
 
 Implements `MATCH_RULES.md` (that file wins on any conflict). Target:
@@ -146,6 +146,11 @@ public static class JudgementCalculator {
             };
         return r;
     }
+    /// §4 defensive stance — the ONLY place this is derived. The engine fills
+    /// JudgementContext.OpponentDefensivePosture from this; nothing else may
+    /// re-derive it inline.
+    public static bool IsDefensivePosture(in TurnChoice c) =>
+        c.Core == CoreStance.Defensive && c.Legs != LegAction.CounterReady;
     static Judgement Bracket(int s, MatchRulesConfig cfg) =>
         s <= cfg.NoPointMax ? Judgement.None
       : s <= cfg.YukoMax    ? Judgement.Yuko
@@ -254,6 +259,11 @@ JudgementCalculatorTests
   CounterReady_LowersAttackerReadOneStep
   CounterReady_FlooredAtGotRead
   CounterReady_CannotCounterFullRead      // FullRead→Read(+2), sum stays above −3
+  DefensiveCore_AloneTriggersPostureTerm                    // core Defensive, legs Neutral → −2
+  DefensiveLegs_AloneDoesNotTriggerPostureTerm              // legs 수비, core Neutral → no −2
+  HandEvade_AloneDoesNotTriggerPostureTerm
+  ExtremeDefense_ScoresSamePostureTermAsPlainDefensiveCore  // −2, not more
+  CounterReady_SuppressesPostureTermEvenWithDefensiveCore   // −2 ⇒ None, NOT −4 ⇒ counter
   (−1, Neutral→StepDown, 100, Standard, open) → sum −3 → counter, Yuko to defender
   ( 0, Neutral→StepDown, 100, Standard, open) → sum −2 → None
 

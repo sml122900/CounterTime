@@ -153,5 +153,68 @@ namespace CounterTime.Core.Tests
             Assert.IsFalse(r.IsCounter, "read AND grip must both be true for 되치기");
             Assert.AreEqual(Judgement.None, r.Judgement);
         }
+
+        // ---- §4 defensive stance (v3.2) ----
+
+        static TurnChoice Choice(HandTarget hand, CoreStance core, LegAction legs) =>
+            new TurnChoice(hand, core, legs);
+
+        [Test]
+        public void DefensiveCore_AloneTriggersPostureTerm()
+        {
+            var c = Choice(HandTarget.None, CoreStance.Defensive, LegAction.Neutral);
+            Assert.IsTrue(JudgementCalculator.IsDefensivePosture(c));
+
+            // §4.1 validation 6: 0 + 0 + 0 + 1 + (−2) = −1 ⇒ no point
+            var r = Eval(0, ReadLevel.Neutral, 100, TechniqueClass.Standard, true);
+            Assert.AreEqual(-1, r.Sum);
+            Assert.AreEqual(Judgement.None, r.Judgement);
+        }
+
+        [Test]
+        public void DefensiveLegs_AloneDoesNotTriggerPostureTerm()
+        {
+            var c = Choice(HandTarget.None, CoreStance.Neutral, LegAction.Defend);
+            Assert.IsFalse(JudgementCalculator.IsDefensivePosture(c),
+                "legs 수비 alone is not a defensive stance");
+        }
+
+        [Test]
+        public void HandEvade_AloneDoesNotTriggerPostureTerm()
+        {
+            var c = Choice(HandTarget.Evade, CoreStance.Neutral, LegAction.Neutral);
+            Assert.IsFalse(JudgementCalculator.IsDefensivePosture(c),
+                "hand 회피 alone is not a defensive stance");
+        }
+
+        [Test]
+        public void ExtremeDefense_ScoresSamePostureTermAsPlainDefensiveCore()
+        {
+            var extreme = Choice(HandTarget.Evade, CoreStance.Defensive, LegAction.Defend);
+            var plain = Choice(HandTarget.None, CoreStance.Defensive, LegAction.Neutral);
+            Assert.IsTrue(extreme.IsExtremeDefense);
+            Assert.AreEqual(JudgementCalculator.IsDefensivePosture(plain),
+                            JudgementCalculator.IsDefensivePosture(extreme),
+                "depth of turtling is charged by §6.1 and §5.2, not a third time here");
+        }
+
+        [Test]
+        public void CounterReady_SuppressesPostureTermEvenWithDefensiveCore()
+        {
+            var c = Choice(HandTarget.None, CoreStance.Defensive, LegAction.CounterReady);
+            Assert.IsFalse(JudgementCalculator.IsDefensivePosture(c));
+
+            // §4.1 validation 7: 0 + (−3) + 0 + 1 + 0 = −2 ⇒ None.
+            var dropped = JudgementCalculator.StepDownRead(ReadLevel.Neutral);
+            var r = Eval(0, dropped, 100, TechniqueClass.Standard,
+                         JudgementCalculator.IsDefensivePosture(c));
+            Assert.AreEqual(-2, r.Sum);
+            Assert.AreEqual(Judgement.None, r.Judgement);
+
+            // The exception is load-bearing: applying −2 here would be −4 ⇒ free Yuko.
+            var wrong = Eval(0, dropped, 100, TechniqueClass.Standard, true);
+            Assert.AreEqual(-4, wrong.Sum);
+            Assert.IsTrue(wrong.IsCounter, "this is what the suppression prevents");
+        }
     }
 }

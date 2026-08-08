@@ -65,6 +65,18 @@ namespace CounterTime.Core
             return r;
         }
 
+        /// §4 defensive stance — the ONLY place this is derived. The engine fills
+        /// JudgementContext.OpponentDefensivePosture from this; nothing else may
+        /// re-derive it inline.
+        ///
+        /// Binary: it asks whether the opponent handed you a throwable posture, not
+        /// how deeply they turtled. 극단적 방어 therefore scores the same −2 as a plain
+        /// defensive core — depth is already charged by §6.1 and §5.2, and charging it
+        /// a third time here would be double-counting. 카운터 준비 suppresses it: a
+        /// commitment is not a shell (§4.2).
+        public static bool IsDefensivePosture(in TurnChoice c) =>
+            c.Core == CoreStance.Defensive && c.Legs != LegAction.CounterReady;
+
         static Judgement Bracket(int s, MatchRulesConfig cfg) =>
             s <= cfg.NoPointMax ? Judgement.None
           : s <= cfg.YukoMax    ? Judgement.Yuko

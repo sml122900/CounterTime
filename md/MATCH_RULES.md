@@ -1,5 +1,5 @@
-<!-- v3.1 | body:c8fc10e -->
-# MATCH_RULES.md — COUNTER TIME judo match system (v3.1)
+<!-- v3.2 | body:e11de04 -->
+# MATCH_RULES.md — COUNTER TIME judo match system (v3.2)
 
 Single source of truth for match logic. `CounterTime.Core` implements THIS file;
 if code and this file disagree, this file wins. All numbers are v1 tunables unless
@@ -105,7 +105,7 @@ Evaluated at the moment a throw attempt resolves. Sum five terms
 | Reading (수싸움) | full read **+3** / read **+2** / neutral **0** / got read **−3** |
 | Opponent stamina | ≥50 → **0** / 25–49 → **+2** / <25 → **+3** |
 | Technique class | signature **+2** / standard **+1** / sloppy·feint **0** |
-| Opponent posture | opponent in defensive stance → **−2** |
+| Opponent posture | opponent in **defensive stance** (defined below) → **−2** |
 
 | Sum | Result |
 |---|---|
@@ -120,6 +120,20 @@ cost including the grip multiplier — force spent, thrown anyway, which is the
 real sensation. The countering side pays the flat counter cost (2, never
 multiplied, §5.1) only once the counter judgment is confirmed. A counter with
 |sum| ≤ 1 is `None`: nobody scores and nobody pays.
+
+**Defensive stance, defined.** The posture term is binary. It asks whether the
+opponent handed you a throwable posture, NOT how deeply they turtled.
+
+- Defensive stance ⇔ the opponent's **Core == Defensive** this turn. Legs and
+  hand do not enter the test.
+- `극단적 방어` therefore scores −2, exactly the same as a plain defensive core.
+  Depth of turtling is already charged twice — passivity accumulator (§6.1) and
+  the −1/turn extreme-defense drain (§5.2) — and is not charged a third time here.
+- Legs == 수비 alone is NOT a defensive stance. Hand == 회피 alone is NOT a
+  defensive stance.
+- **Exception (§4.2): a fighter who declared 카운터 준비 is never in a defensive
+  stance**, even with a defensive core. Counter-ready is a commitment, not a
+  shell, and it already pays its own price in §6.1.
 
 Reading levels, operationally: *full read* = you predicted the opponent's exact
 commitment and they were mid-commitment into you (e.g. reaching for a grip, mid
@@ -140,6 +154,12 @@ v1: the scenario/AI layer supplies the ReadLevel; Core only consumes it.
 5. **Counter-ready alone is not enough**: same exchange at grip 0
    ⇒ **−2 ⇒ None**. Counter-ready must be paired with a grip edge to break −3.
    Reading and gripping both have to be true for 되치기 to fire.
+6. **Defensive core alone triggers the term**: grip 0, read 0, stam 0, standard
+   +1, opponent Core Defensive with neutral legs ⇒ 1 + (−2) = **−1 ⇒ no point**.
+7. **Counter-ready suppresses it**: grip 0, read Neutral→**GotRead −3**, stam 0,
+   standard +1, opponent Core Defensive but 카운터 준비 declared ⇒ no posture term
+   ⇒ **−2 ⇒ None**. Applying −2 here would give −4 ⇒ a free Yuko to the defender,
+   so the exception is load-bearing, not cosmetic.
 
 ### 4.2 CounterReady and the read term
 
@@ -284,6 +304,8 @@ it implicit in the animation.
 - Exact tear success math before training modifiers (v1: pure read-based, §3.2).
 - RESOLVED v3.1: lock cap trigger (either hand), passivity ladder exclusivity,
   counter-ready effect and its sign (§4.2), simultaneous clock cost, time-up boundary.
+- RESOLVED v3.2: defensive stance is Core == Defensive only, suppressed by
+  카운터 준비 (§4). Derived in exactly one place, JudgementCalculator.IsDefensivePosture.
 - DEFERRED to the 42-node audit: counter ignition threshold (option ⓐ vs ⓒ), judged
   by distribution of ignition conditions, after the 대파열 presentation is checked.
 - Osaekomi escape resolution (v1: scripted by scenario nodes).
