@@ -127,3 +127,22 @@ HTML 프로토타입에서 검증한 시스템을 Unity(C#)로 이식하는 단�
 
 사용자는 Unity 를 처음 쓰는 초보다. 에디터 조작이 필요한 안내를 할 때는
 메뉴 경로를 정확히(예: Edit > Project Settings > Editor) 명시한다.
+
+## Document stamps
+
+`md/MATCH_RULES.md` and `md/CORE_DESIGN_MatchEngine.md` carry a body stamp on line 1:
+
+    <!-- v3.1 | body:0a1b2c3 -->
+
+- The hash is `git hash-object` over the file WITHOUT line 1, with CR stripped,
+  so writing the stamp never changes what the stamp measures.
+- Maintained by `tools/githooks/pre-commit`. Never edit the stamp by hand.
+- Enable once per clone: `git config core.hooksPath tools/githooks`
+- Verify any copy: `sh tools/stamp.sh --check <file>`
+- Purpose: a doc pasted into a chat or copied anywhere else can be checked
+  against the repo. If a copy's stamp does not match its own body, that copy was
+  hand-edited and is NOT the source of truth. Do not reconcile against it —
+  report the mismatch.
+- Conventions belong in this file, in the repo. A rule kept only in an
+  assistant's session memory is not a rule: it is invisible to diffs, to other
+  tools, and to future sessions.

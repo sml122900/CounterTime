@@ -11,6 +11,8 @@
 *.controller text eol=lf
 *.json    text eol=lf
 *.md      text eol=lf
+*.sh      text eol=lf
+tools/githooks/* text eol=lf
 
 # ─────────────────────────────────────────────
 # Git LFS — 큰 바이너리 자산 (모캡 모델·텍스처·오디오·영상)

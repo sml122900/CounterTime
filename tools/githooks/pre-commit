@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+
+# Docs that carry a body stamp. Adjust paths if the docs move.
+DOCS="md/MATCH_RULES.md md/CORE_DESIGN_MatchEngine.md"
+
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+for f in $DOCS; do
+  printf '%s\n' "$staged" | grep -qx "$f" || continue
+  sh tools/stamp.sh "$f"
+  git add "$f"
+done
