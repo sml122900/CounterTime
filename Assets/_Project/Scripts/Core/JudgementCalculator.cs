@@ -69,6 +69,16 @@ namespace CounterTime.Core
             return ReadLadder[raised];
         }
 
+        /// §4.2 seen from the other side. The formula only ever evaluates the
+        /// ATTACKER's sum, so a defender reading the attack better is expressed as the
+        /// attacker's Reading term stepping DOWN the same ladder. Floored at GotRead.
+        public static ReadLevel MirrorCounterReady(ReadLevel attackerRead, int steps)
+        {
+            int i = Array.IndexOf(ReadLadder, attackerRead);
+            if (i < 0) return attackerRead;
+            return ReadLadder[Math.Max(0, i - steps)];
+        }
+
         static Judgement Bracket(int s, MatchRulesConfig cfg) =>
             s <= cfg.NoPointMax ? Judgement.None
           : s <= cfg.YukoMax    ? Judgement.Yuko
