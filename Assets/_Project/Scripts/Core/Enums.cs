@@ -1,0 +1,18 @@
+namespace CounterTime.Core
+{
+    public enum FighterId { A, B }
+    public enum Hand { None, Left, Right }
+    public enum HandTarget { None, RightSleeve, LeftSleeve, LeftLapel, RightLapel, Evade,
+                             TwistGrip /*틀어잡기*/, BackGrab /*등싸잡기*/, Tear /*뜯기*/,
+                             MaintainGrip /*잡기 유지*/ }
+    public enum CoreStance { Aggressive, Neutral, Defensive }
+    public enum LegAction  { Attack, Neutral, Defend, CounterReady }
+    public enum GripKind   { None, Normal, Dominant }          // value 0 / 1 / 2
+    public enum GripLock   { Free, Held, Locked }
+    public enum ReadLevel  { GotRead = -3, Neutral = 0, Read = 2, FullRead = 3 }
+    public enum TechniqueClass { Sloppy = 0, Standard = 1, Signature = 2 } // judgment term
+    public enum Judgement  { None, Yuko, WazaAri, Ippon }
+    public enum RefereeProfile { Strict, Standard, Lenient }
+    public enum MatchPhase { Standing, Osaekomi, Matte, GoldenScore, Finished }
+    public enum ExchangeDurationRule { Max }   // Sum/Fixed reserved for later tuning
+}
