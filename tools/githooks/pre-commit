@@ -3,7 +3,11 @@ set -eu
 
 # 스탬프 대상은 경로가 아니라 파일 1행이 정한다.
 # 1행이 스탬프 형식이면 관리 대상, 아니면 무시. 문서를 옮겨도 안 깨진다.
-git diff --cached --name-only --diff-filter=ACM -- '*.md' | while IFS= read -r f; do
+# quotePath=false: git escapes non-ASCII paths by default, so a Korean filename
+# arrives as "md/\352\270\260..." and gets silently skipped. -c scopes this to the
+# one invocation and stays POSIX sh — `read -d ''` would be a bash-only fix.
+git -c core.quotePath=false diff --cached --name-only --diff-filter=ACM -- '*.md' \
+  | while IFS= read -r f; do
   [ -f "$f" ] || continue
   head -n 1 "$f" | tr -d '\r' \
     | grep -qE '^<!-- v[^ ]+ \| body:[0-9a-f]{7} -->$' || continue
