@@ -1,4 +1,4 @@
-<!-- v1.0 | body:fa06324 -->
+<!-- v1.0 | body:4670b81 -->
 # OPPONENT_BRAIN.md — where commits and ReadLevel come from (v1.0)
 
 `MATCH_RULES.md` wins on any conflict. This file owns exactly one thing:
@@ -76,8 +76,26 @@ for the same reason):
 | 1 | Attacker is **B**, and A knows the habit B just fired at **확정** (3+) | **GotRead −3** |
 | 2 | Attacker is **A**, B fired a non-attacking habit, and A knows it at **확정** | **FullRead +3** |
 | 3 | As row 2, but the knowledge is only **심증** (1–2) | **Read +2** |
-| 4 | Attacker is **B** and the tendency window (§3) hits | **Read +2**, or **FullRead +3** on three identical in a row |
-| 5 | anything else | **Neutral 0** |
+| 4 | Attacker is **B** and the tendency window (§3) hits — a 4-of-6 majority | **Read +2**, or **FullRead +3** on three identical in a row |
+| 5 | Attacker is **A** and A's own last **three commits were identical** | **GotRead −3** |
+| 6 | anything else | **Neutral 0** |
+
+Row 5 is the reason the tendency window exists at all: the player has to *feel*
+being read. Without it the window only ever helps B attack, and A never pays for
+becoming predictable.
+
+The evidence deliberately splits into two tiers:
+
+| Evidence | Effect |
+|---|---|
+| 4-of-6 majority in the window | B's attacks read A — **+2**, row 4, that side only |
+| **three identical in a row** | that, **and A's own attacks become readable** — row 5 |
+
+Handing GotRead straight off the 4-of-6 majority would make the same evidence
+worth +2 to B but −3 to A — mismatched magnitudes — and it would fire far too
+often. Putting the danger line at three-in-a-row gives the 내 성향 bar **two
+marks**: a warning line (4-of-6) and a danger line (three consecutive). §6 HUD
+consumes those directly.
 
 Where this goes wrong quietly:
 
@@ -91,27 +109,32 @@ Where this goes wrong quietly:
   on the GotRead floor and drops no further. **The resolver still must not
   pre-apply the step-down** — it supplies the BASE read and Core lowers it. That
   is the contract recorded on `IReadResolver` in §1.
-- **Habit knowledge outranks the tendency window.** Rows 1–3 sitting above row 4
-  is the whole statement of that priority.
+- **Habit knowledge outranks the tendency window.** Rows 1–3 sitting above rows
+  4–5 is the whole statement of that priority: knowledge A actively earned over
+  three observations beats knowledge handed to B by A's own laziness.
 - **A habit that missed its 25 % yields Neutral.** Knowing a habit is worth
   nothing on a turn B did not actually fire it — there is no read without a tell.
 
-**A habit miss never yields GotRead against A.** Row 1 aims GotRead at B and
-never at A; the only route to GotRead against A is §4.2 (A was the one who let B
-declare 카운터 준비). Stacking both would punish read investment twice and
-contradicts "reading is beaten only by reading".
+**A habit that was not fired never yields GotRead — to either side.** Knowledge
+is worth nothing on a turn B did not fire, and declining to fire is not itself
+punishable. There are exactly two routes to GotRead against A, and both are
+things A did: §4.2 (A let B declare 카운터 준비) and row 5 (A became
+predictable). That is the shape the rule wants — reading is beaten only by
+reading, and predictability is its own separate mistake.
 
 ## 3. ReadLevel — B attacking (tendency window)
 
 Symmetric source, from the data the prototype's 내 성향 panel already collects.
-**This is row 4 of the §2 ladder** — it is consulted only when rows 1–3 found
+**This is rows 4–5 of the §2 ladder** — consulted only when rows 1–3 found
 nothing. If A has knowledge of the habit B just fired, that settles the exchange
 and the window is never asked.
 
 - Window: **last 6 turns** of A's commits, keyed on the `(Core, Legs)` pair.
 - Same pair appears **≥ 4 times** in the window ⇒ that pair is dominant.
-  A's current commit matches it ⇒ **Read +2**.
-- Same pair **3 times consecutively** ⇒ **FullRead +3**.
+  A's current commit matches it ⇒ **Read +2** when B attacks (row 4).
+  This tier does **not** make A's own attacks readable.
+- Same pair **3 times consecutively** ⇒ **FullRead +3** when B attacks, and
+  **GotRead −3 on A's own attacks** (row 5). This is the danger line.
 - Otherwise Neutral.
 
 **The exposure bar is public** (`MATCH_RULES` §7). A player must be able to see
