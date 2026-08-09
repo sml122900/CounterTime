@@ -1,4 +1,4 @@
-<!-- v1.0 | body:05755a3 -->
+<!-- v1.0 | body:08dd6b2 -->
 # OPPONENT_BRAIN.md — where commits and ReadLevel come from (v1.0)
 
 `MATCH_RULES.md` wins on any conflict. This file owns exactly one thing:
@@ -63,6 +63,20 @@ Knowledge is per-habit and per-match (see §5 for career carry-over).
 
 An **observation** is counted only when the habit's condition held AND B actually
 fired it. A condition that held while B did something else counts nothing.
+
+**Reference point — the ledger records after the exchange resolves, so the read
+on any given firing sees only the observations from *earlier* firings.** Three
+sightings put the habit in the 수 노트; the **fourth** firing is the first one
+that gets read. Written the way the player experiences it:
+
+> Watch the same habit three times and it goes into your 수 노트.
+> **From then on you read it.**
+
+This is not merely for symmetry with §3. The note has to appear *before* the
+reading starts. If the third firing were itself read, the player would already
+be reading a habit the note had not yet logged, and the "logged automatically on
+the third sighting" beat would become an after-the-fact notification of
+something that already happened.
 
 The read term is always **attacker-relative**, so habit knowledge attaches to
 whoever threw the predicted habit. The same knowledge merely changes sign
@@ -181,6 +195,29 @@ a lookup. The 25% miss is what keeps a known habit tense.
 | H1 | own effective grip ≥ +1 | 업어치기 (BigThrow) | concede grip, declare 카운터 준비 |
 | H2 | within 2 turns of receiving a shido | 안뒤축감아치기 to make up — a **real attempt**: BigThrow cost, `TechniqueClass.Standard` | wait it out |
 | H3 | *reserve — lights up on retirement*<br>own stamina **< 50** AND below the opponent's | 극단적 방어 to burn clock | §6.1 +3/turn and §5.2 −1/turn do the work |
+| H4 | own effective grip **< +1** | 오른소매 노림 — a fixed target, no technique | **read the grip approach and throw into it** |
+| H4b | *reserve — replaces H4 on retirement*<br>same condition | 왼소매 노림 | observe it again |
+
+**H4 is structural, not balance.** Without it nothing in B's repertoire is
+observable early: H1 needs a grip edge B never reaches, H2 needs a shido, H3 is
+a reserve. Measured over a 50-exchange smoke match, habits fired 1–4 times total
+and ladder rows 1–3 never fired once — the read system was not running at all.
+H4 fixes three things with one habit:
+
+1. Its condition holds through the whole opening, so it is **the first habit
+   that actually accumulates observations**.
+2. B has to contest the grip to reach +1, which is **what makes H1's condition
+   reachable** in the first place.
+3. It restores `MATCH_RULES` §4.1 canonical case 3 — *"the moment the opponent
+   reaches for the grip, 틀어잡기 into 밭다리: grip +2, full read +3, signature
+   +2 = 7 = ippon."* That case is **unreachable in play without H4**, because
+   there is no way to read B going for a grip. It is exactly ladder row 2:
+   attacker A, B fired a non-attacking habit, knowledge at 확정.
+
+H4 retirement is **replacement, not deletion**. A B that stops contesting grips
+destroys itself, so the damage counter moves it to H4b and the other sleeve. It
+also keeps the read loop alive: the player has to observe the new target from
+zero.
 
 H2 has to be a real attempt, not a probe. **A poke never reaches a judgement, so a
 habit that pokes can be observed but never punished** — and being punishable is the
