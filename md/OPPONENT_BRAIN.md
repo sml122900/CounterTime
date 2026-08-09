@@ -1,4 +1,4 @@
-<!-- v1.0 | body:04c9d79 -->
+<!-- v1.0 | body:a1a3b6f -->
 # OPPONENT_BRAIN.md — where commits and ReadLevel come from (v1.0)
 
 `MATCH_RULES.md` wins on any conflict. This file owns exactly one thing:
@@ -109,8 +109,17 @@ a lookup. The 25% miss is what keeps a known habit tense.
 | | Condition | Action | Counterplay it invites |
 |---|---|---|---|
 | H1 | own effective grip ≥ +1 | 업어치기 (BigThrow) | concede grip, declare 카운터 준비 |
-| H2 | within 2 turns of receiving a shido | leg technique to make up | wait it out |
+| H2 | within 2 turns of receiving a shido | 안뒤축감아치기 to make up — a **real attempt**: BigThrow cost, `TechniqueClass.Standard` | wait it out |
 | H3 | *reserve — lights up on retirement*<br>own stamina **< 50** AND below the opponent's | 극단적 방어 to burn clock | §6.1 +3/turn and §5.2 −1/turn do the work |
+
+H2 has to be a real attempt, not a probe. **A poke never reaches a judgement, so a
+habit that pokes can be observed but never punished** — and being punishable is the
+entire reason a habit exists. H1 invites 카운터 준비; a poking H2 would invite
+nothing but waiting. The technique is the one m0 already gives B: 안뒤축감아치기,
+the 2지선다 partner of 업어치기 off the same entry. A real attempt also resets
+passivity harder (§6.1 −4, against −2 for a mere attack entry), which is what
+"making up for the shido" actually means, and it bills B the BigThrow stamina cost
+(5 × grip multiplier). That predictable burn is the habit's price.
 
 H3's floor is deliberate. Plain "behind on stamina" is true in roughly half of all
 turns, so a lit H3 would turtle B permanently — and §6.1 (+3/turn) plus §5.2
