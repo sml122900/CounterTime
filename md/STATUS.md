@@ -88,15 +88,34 @@ CounterTime.Core.Tests → 하니스로 돈다. CounterTime.Game.Tests → **안
 그래서 하니스 출력 마지막 줄이 스스로 범위를 밝히게 해뒀다: "COVERAGE: CounterTime.Core.Tests only — CounterTime.Game.Tests needs Unity Test Runner"
 **"Core N개 초록" 은 Game 테스트가 검증됐다는 뜻이 아니다.** 에러가 안 나면서 안 돌고 있는 부류라 사람이 직접 확인해야 한다: Window > General > Test Runner > EditMode 탭 > Run All
 
+Opponent brain — stages 1–3 done (2026-08-10, branch feat/match-engine, not merged)
+164 EditMode tests green: CounterTime.Core.Tests 117 / CounterTime.Brain.Tests 40 / CounterTime.Game.Tests 7. Run them in Unity: Window > General > Test Runner > EditMode > Run All
+Document stamps: md/MATCH_RULES.md v3.4 body:cf5e220 · md/OPPONENT_BRAIN.md v1.0 body:5d5a8c7 · md/CORE_DESIGN_MatchEngine.md v3.2 body:a24d23c
+New asmdef CounterTime.Brain at Assets/_Project/Scripts/Brain/ — pure C#, references CounterTime.Core only, noEngineReferences true. Verified at the assembly level, not by grep: its referenced assemblies are exactly [netstandard, CounterTime.Core]. The brain has to run in the dotnet harness, which is why it is not in Game
+Seams (interfaces in Brain, scripted implementations in Game):
+  ICommitSource — where one fighter's TurnChoice comes from. bool TryNext(out who, out choice); false means "declared nothing this turn", a distinction §6.1 passivity rides on
+  IReadResolver — the ONLY place ReadLevel is produced. Returns the BASE read; Core owns the §4.2 counter-ready step-down and a resolver that pre-applies it causes double reduction
+  IExchangeAssembler — this turn's ExchangeScript list. One node can expand to several exchanges (m14 = 4)
+  IHabitContext — 4 members, habit conditions only. Frozen surface
+  IBrainContext — 6 members, §4 ladder rungs 1 (hard gates) and 3 (fallback weighting) only. Split from IHabitContext on purpose so shido COUNT and the clock never reach habit conditions; enforced by the condition delegate's parameter type and pinned by a reflection test
+Scripted mode (대조 모드) was never touched. Every stage was verified with a 52-line fingerprint of the real MatchRunner walking MatchRunner.Mainline — all MatchEvents plus full engine state after each node — diffed against the previous stage. It came back IDENTICAL every single time, including across the v3.4 Core rule change
+진도윤 has 5 habits (H1 업어치기 on grip edge / H2 안뒤축감아치기 after a shido / H3 극단적 방어 reserve / H4 오른소매 노림 / H4b 왼소매 노림 reserve) and the read ladder is 6 rows. Both are specified in OPPONENT_BRAIN §2–§4, not in code comments alone
+Ladder order is narrowest-condition-first (H2 → H3 → H1 → H4 → H4b). With H1 leading, H1 fired 7 times while H2 and H3 fired zero — an exclusive ladder lets every rung starve the ones below it
+Two rules were added because measurement broke a premise, both recorded with their evidence: OPPONENT_BRAIN §4 "the fallback never commits a big throw" (so every big throw B makes comes from a habit and is therefore readable), and MATCH_RULES §4.3 v3.4 "a score calls matte" (recovery was tied to matte while nothing produced matte, so stamina bottomed out at ~30 exchanges against the 60–80 §2 implies)
+The dotnet harness now also compiles the real MatchRunner via a ~60-line UnityEngine shim (MonoBehaviour/TextAsset/Debug/Mathf/JsonUtility), so the Game path is exercised outside Unity. MatchRunnerHandActionTests (3) still needs the Unity Test Runner
+Do NOT use TestContext.WriteLine in tests meant to run in the harness — the reflection runner sets up no NUnit execution context and it throws NullReferenceException. Console.WriteLine works in both
+
 Next Up (in priority order)
-step 7 은 이 항목이다 (완료). 남은 것은 아래 우선순위대로
-MatchEngine 을 시나리오 러너에 연결 — 지금은 ExchangeScript 가 v1 seam 이고, 42노드 보드 JSON 이 reads/outcomes 를 공급해야 한다. 이번 패스에서는 CounterTime.Game / NodeMotionMap / 시나리오 러너를 일부러 안 건드렸다
+Stage 4 — demote result nodes to a presentation dictionary (Judgement, technique) → 서술 문구, play mode only; 대조 모드 keeps using result nodes. Scenario JSON is NOT edited in that pass
+Stage 5 — osaekomi entry gate and escape per MATCH_RULES §9. The insertion point is already marked with a TODO in MatchEngine.ResolveExchange, right where the post-score matte is decided
+Stage 6 — A-only input UI (hand 5 / core 3 / legs 4) plus the 내 성향 exposure bar. The bar needs two marks: warning at 4-of-6, danger at three consecutive
+Stage 7 — regression + STATUS update
+LiveAssembler (OPPONENT_BRAIN §1) is NOT built. The smoke test assembles exchanges inline; the real one belongs with stage 6 wiring
+Match length is deliberately unresolved. Measured 21–34 exchanges with 135–177 s left on the clock, against the 6–8 sequences §2 assumes. The remaining variable is A's attack frequency, and A is the player — tuning now would fit a synthetic fixture and break when a human arrives. Judgement formula, waza-ari thresholds, cost table and per-exchange seconds all stay untouched until after stage 6
 잡기 HUD (패치 1.7 로 필수가 됐다) — Core 는 이미 GripChanged 에 부위를 실어 보낸다. Game 쪽에서 RenderTexture 바깥 풀해상도 레이어로 받아야 한다
 
 결정 대기 (내가 판단 안 하고 남겨둔 취향 문제) — 선택지 버튼 높이가 111px → 82px 로 줄었다. 텍스트가 넘쳐서 TextPanel 을 키우느라 ChoiceRow 에서 떼어온 결과다. 라벨(26px)에는 충분하지만 버튼이 얇아 보이면 하단 패널을 1/3보다 키우거나 타이틀 34pt / 본문 24pt 를 줄이는 쪽으로 조정해야 한다
 Play 로 시나리오를 실제로 굴려보며 매핑을 다듬어라. 매핑은 title/content 만 읽고 정한 초안이라, 클립이 상황에 맞는지는 사람 눈으로 봐야 안다 — 특히 2026-08-07 에 AI 클립으로 교체한 19개 노드는 아직 Play 확인 전이다
-Port the combat logic from the HTML prototype (counter-time-v03.html) into pure C# classes under CounterTime.Core — the two-phase turn (grip-fighting → scoring techniques), matchup judgment, opponent habit-reading system
-Design the opponent tendency data structure: POCO in CounterTime.Core + ScriptableObject wrapper in CounterTime.Game (this was the planned "session 3" work)
 (Separate, not urgent) Finish the Judo match-1 scenario on the scenario board — three things the user still needs to answer: how the right-sleeve grip exchange actually plays out / timing of the collar-grip transition / the tells that distinguish an ippon-seoi-nage attempt from an ouchi-gari attempt
 
 알려진 공백 (인지하고 남겨둔 것 — 버그 아님)
@@ -108,6 +127,11 @@ Why Assets/Editor/HubForceResolve.cs disappeared — nobody deleted it. It is Un
 Whether to keep the Unity Cloud link (cloudProjectId / organizationId in ProjectSettings.asset) — keep and commit. cloudEnabled is 0, it is a project GUID rather than a secret, ProjectSettings.asset is tracked anyway, and the editor rewrites it if removed.
 
 Session Log (newest first)
+2026-08-10
+Opponent brain stages 1–3. Isolated the scripted path behind interfaces, extracted the assembler, built habit data + observation ledger, then the live read resolver and the habit-driven commit source. 130 → 164 tests.
+Every stage was gated on a fingerprint diff of the real MatchRunner over the mainline, and it stayed IDENTICAL throughout — including across a Core rule change. That is the whole reason 대조 모드 survived a rewrite of what feeds it.
+Measurement drove three rule changes that no amount of reading would have found: habits fired 1–4 times a match and ladder rows 1–3 fired ZERO (added H4 잡기 노림), half of all judgements came from the fallback (fallback pokes only), and stamina bottomed out at ~30 exchanges because nothing called matte (MATCH_RULES v3.4 §4.3).
+Two of my diagnoses were wrong and the instrumentation caught both before I "fixed" anything: row 2 was scoring normally, and retirement WAS happening (H4b firing is the proof). Dump before diagnosing.
 2026-08-07
 AI anim 4 clips generated (5cr each, 20cr total), mapped to 19 nodes. n10 = placeholder, mocap needed.
 클립: ai_seoinage_entry / ai_osotogari_entry / ai_ukemi_back / ai_ground_pin. A·B 컨트롤러 양쪽에 State 로 들어가 있다.
