@@ -45,6 +45,16 @@ namespace CounterTime.Game.Match
         /// 화면·로그·CSV 가 붙는 유일한 지점.
         public event Action<ScenarioNode, MatchEvent> Presented;
 
+        /// §6 결과 노드 승격(4b) — 판정 이벤트와 그 기술 Id 를 짝지어 알린다. Core 는
+        /// 손대지 않는다: <see cref="JudgementScored"/> 에 TechniqueId 를 추가하는 안을
+        /// 먼저 시도했더니 지문(behavior fingerprint)이 안 IDENTICAL 해져서(이벤트 모양이
+        /// 바뀌므로) 되돌렸다 — 대신 이 노드가 이미 들고 있는 지역 변수 <c>s.Technique</c>
+        /// 를 소비 지점에서 짝지어 낸다. 아무도 구독하지 않으면 그냥 도는 이벤트라
+        /// 대조 모드 자체의 동작에는 영향이 없다 — <see cref="ResultNarrationTable"/> 을
+        /// 실제로 쿼리하는 건 play mode 전용 구독자(ResultNarrationPresenter)뿐이고,
+        /// 그 구독자를 대조 모드 씬/테스트는 붙이지 않는다.
+        public event Action<JudgementScored, string> JudgementNarrated;
+
         void Awake() => Build(matchScenarioJson);
         void Start() => Begin();
 
@@ -135,6 +145,7 @@ namespace CounterTime.Game.Match
                                                          _commit[1] ?? TurnChoice.Neutral, s))
                 {
                     Present(node, e);
+                    if (e is JudgementScored j) JudgementNarrated?.Invoke(j, s.Technique?.Id);
                     // 그쳐가 끊는 지점이다. 그립이 풀리듯 자세도 풀린다 — 아무도 아직
                     // 아무것도 선언하지 않은 상태로 돌아간다.
                     if (e is MatteCalled) _commit[0] = _commit[1] = null;
