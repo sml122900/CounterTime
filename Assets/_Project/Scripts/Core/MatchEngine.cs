@@ -58,12 +58,19 @@ namespace CounterTime.Core
             FighterId? attacker = script.Attacker;
             if ((attacker == FighterId.A && crA) || (attacker == FighterId.B && crB))
                 attacker = null;
-            bool entryA = script.AttackEntryA && !crA;
-            bool entryB = script.AttackEntryB && !crB;
+            // §4 / §5.1 — a poke is not a throw attempt. To the referee it reads as
+            // 기술 진입 (−2), deliberately weaker than a real attempt's −4: probing your
+            // way out of a passivity call takes twice as many turns and burns stamina.
+            bool poke = attacker.HasValue && script.Technique != null
+                        && script.Technique.Cost == ActionCost.Poke;
+            bool entryA = (script.AttackEntryA || (poke && attacker == FighterId.A)) && !crA;
+            bool entryB = (script.AttackEntryB || (poke && attacker == FighterId.B)) && !crB;
+            bool realA = !poke && attacker == FighterId.A;
+            bool realB = !poke && attacker == FighterId.B;
 
             // 1. referee observes both commits — but only the ones actually declared.
-            if (script.DeclaredA) Referee.ObserveTurn(FighterId.A, a, entryA, attacker == FighterId.A);
-            if (script.DeclaredB) Referee.ObserveTurn(FighterId.B, b, entryB, attacker == FighterId.B);
+            if (script.DeclaredA) Referee.ObserveTurn(FighterId.A, a, entryA, realA);
+            if (script.DeclaredB) Referee.ObserveTurn(FighterId.B, b, entryB, realB);
 
             // 2. grip resolution
             ResolveGrip(FighterId.A, a, b, ev);
@@ -122,6 +129,21 @@ namespace CounterTime.Core
                               in TurnChoice a, in TurnChoice b, List<MatchEvent> ev)
         {
             FighterId defender = Opp(attacker);
+
+            // §4 — the formula is evaluated "at the moment a throw attempt resolves".
+            // A poke is not a throw: §5.1 gives it its own row, and letting it fire a
+            // judgment would make it strictly dominate big throws (same yuko bracket at
+            // a third of the cost, and 기술급 bottoms out at Sloppy=0 so it cannot be
+            // priced down). It costs the poker and nothing else — §5.2's "a technique
+            // came at you" means a throw came at you.
+            // 위장 공격 is NOT this case: §4 lists sloppy·feint at 0, so a feint is a
+            // real attempt that scores nothing, and it keeps firing a judgment.
+            if (script.Technique.Cost == ActionCost.Poke)
+            {
+                Stamina.PayAttack(attacker, script.Technique, Grip.EffectiveGrip(attacker));
+                return;
+            }
+
             TurnChoice defenderChoice = attacker == FighterId.A ? b : a;
             bool defenderCounterReady = defenderChoice.Legs == LegAction.CounterReady;
 
