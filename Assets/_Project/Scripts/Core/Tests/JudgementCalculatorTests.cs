@@ -75,6 +75,48 @@ namespace CounterTime.Core.Tests
             Assert.AreEqual(Judgement.Yuko, r.Judgement);
         }
 
+        // ---- read-free counter ignition (from the 360-combo sweep, docs/judgement-sweep.md) ----
+
+        /// The sweep found exactly three combos where a counter fires with the attacker
+        /// NOT read (읽기 ≥ 0). All three share one shape: the attacker is behind on grip
+        /// and throws into a turtled opponent. That is the single most typical way to get
+        /// countered in judo, so it stays — this pins it so it is not later "fixed" as a bug.
+        ///
+        /// It also means 되치기 is NOT counter-ready's private mechanic (§8, resolved ⓐ).
+        [Test]
+        public void CounterFiresWithoutRead_WhenGripIsBehindAndOpponentTurtles()
+        {
+            var sloppyAtMinusTwo = Eval(-2, ReadLevel.Neutral, 100, TechniqueClass.Sloppy, true);
+            Assert.AreEqual(-4, sloppyAtMinusTwo.Sum);
+            Assert.IsTrue(sloppyAtMinusTwo.IsCounter);
+
+            var standardAtMinusTwo = Eval(-2, ReadLevel.Neutral, 100, TechniqueClass.Standard, true);
+            Assert.AreEqual(-3, standardAtMinusTwo.Sum);
+            Assert.IsTrue(standardAtMinusTwo.IsCounter);
+
+            var sloppyAtMinusOne = Eval(-1, ReadLevel.Neutral, 100, TechniqueClass.Sloppy, true);
+            Assert.AreEqual(-3, sloppyAtMinusOne.Sum);
+            Assert.IsTrue(sloppyAtMinusOne.IsCounter);
+        }
+
+        /// The boundary the sweep drew: read-free counters need BOTH a grip deficit and a
+        /// turtled opponent. Drop either and the counter does not fire. m14 is exactly the
+        /// turtled half of this shape and survives only because A is at grip +2.
+        [Test]
+        public void CounterNeverFiresWithoutRead_FromGripZeroOrBetter()
+        {
+            foreach (var tech in new[] { TechniqueClass.Sloppy, TechniqueClass.Standard,
+                                         TechniqueClass.Signature })
+                foreach (var read in new[] { ReadLevel.Neutral, ReadLevel.Read, ReadLevel.FullRead })
+                    for (int grip = 0; grip <= 2; grip++)
+                        foreach (bool turtled in new[] { false, true })
+                            Assert.IsFalse(Eval(grip, read, 100, tech, turtled).IsCounter,
+                                $"grip {grip}, read {read}, tech {tech}, turtled {turtled}");
+
+            // and without the turtle, a grip deficit alone is not enough either
+            Assert.IsFalse(Eval(-2, ReadLevel.Neutral, 100, TechniqueClass.Sloppy, false).IsCounter);
+        }
+
         // ---- stamina brackets ----
 
         [Test]
