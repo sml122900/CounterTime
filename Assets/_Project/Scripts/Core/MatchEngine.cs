@@ -91,6 +91,19 @@ namespace CounterTime.Core
             CheckReferee(ev);
             if (script.CallMatte) CallMatte(ev);
 
+            // §4.3 (v3.4) — a score resets the situation. Recovery was tied to matte
+            // while nothing produced matte, so §5.3's +3 was unreachable and stamina
+            // bottomed out around 30 exchanges against the 60–80 §2 assumes.
+            //
+            // A score that ended the match calls none — there is nothing to restart.
+            // Nor do we call a second one when the referee already did this exchange.
+            //
+            // TODO(step 5) §9.1 osaekomi entry gate goes HERE: when the gate passes,
+            // the hold follows instead of matte. Until MatchPhase.Osaekomi is wired,
+            // every score lands on matte.
+            if (!Board.IsFinished && ScoredThisExchange(ev) && !MatteAlreadyCalled(ev))
+                CallMatte(ev);
+
             if (Board.IsFinished) ev.Add(new MatchEnded(Board.Winner));
             return ev;
         }
@@ -222,7 +235,24 @@ namespace CounterTime.Core
             }
         }
 
+        /// §4.3 — 노포인트는 상황을 리셋하지 않는다. 실제로 점수가 난 교환만이다.
+        static bool ScoredThisExchange(List<MatchEvent> ev)
+        {
+            foreach (var e in ev)
+                if (e is JudgementScored j && j.Judgement != Judgement.None) return true;
+            return false;
+        }
+
+        static bool MatteAlreadyCalled(List<MatchEvent> ev)
+        {
+            foreach (var e in ev)
+                if (e is MatteCalled) return true;
+            return false;
+        }
+
         /// §3.2 / §5.3 — matte frees every grip and gives each fighter one recovery.
+        /// 자세 초기화는 여기서 안 한다 — Core 는 자세를 들지 않는다. 커밋을 유지하는
+        /// 쪽(러너)이 MatteCalled 를 받아 푼다.
         void CallMatte(List<MatchEvent> ev)
         {
             Grip.OnMatte();

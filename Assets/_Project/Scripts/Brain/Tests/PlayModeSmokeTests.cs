@@ -33,6 +33,9 @@ namespace CounterTime.Brain.Tests
             public readonly Dictionary<FighterId, int> ScoredBy = new Dictionary<FighterId, int>();
             public int Counters;
 
+            /// §4.3 (v3.4) — 그쳐가 몇 번 났는가. 회복이 여기에 묶여 있다.
+            public int Mattes;
+
             /// 각 습관이 몇 번째 교환에 확정에 닿았는가. 없으면 그 경기에 못 닿았다.
             public readonly Dictionary<HabitId, int> ConfirmedAt = new Dictionary<HabitId, int>();
 
@@ -54,7 +57,7 @@ namespace CounterTime.Brain.Tests
             public override string ToString()
             {
                 var sb = new StringBuilder();
-                sb.AppendLine($"  turns={Turns}  fallback={FallbackTurns} ({100f * FallbackTurns / Turns:0.0}%)");
+                sb.AppendLine($"  turns={Turns}  fallback={FallbackTurns} ({100f * FallbackTurns / Turns:0.0}%)  mattes={Mattes}");
                 sb.AppendLine($"  ending: {Ending}");
                 foreach (HabitId id in Enum.GetValues(typeof(HabitId)))
                     sb.AppendLine($"  habit {id,-22} fired {(Fires.TryGetValue(id, out int n) ? n : 0)}"
@@ -134,6 +137,8 @@ namespace CounterTime.Brain.Tests
                 });
 
                 foreach (var e in events)
+                {
+                    if (e is MatteCalled) m.Mattes++;
                     if (e is JudgementScored js)
                     {
                         m.Score(js.Judgement, js.ScoredBy);
@@ -148,6 +153,7 @@ namespace CounterTime.Brain.Tests
                                 + $" (counter={js.IsCounter}, Bhabit={(brain.LastDecision.ConditionHeld ? brain.LastDecision.Habit.Id.ToString() : "-")}"
                                 + $", Bcore={b.Core}, Blegs={b.Legs}, gripA={engine.Grip.EffectiveGrip(FighterId.A)})");
                     }
+                }
 
                 // §4.2 피해 — 관측 기록보다 <b>먼저</b> 본다. 그래야 "A 가 이미 읽을 수
                 // 있었던 상태에서 벌준 것" 만 세어진다. 이번 턴의 발화는 아직 원장에

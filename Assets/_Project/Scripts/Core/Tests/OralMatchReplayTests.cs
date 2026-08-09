@@ -367,10 +367,14 @@ namespace CounterTime.Core.Tests
                     Read = ReadLevel.Neutral,
                 });
 
-            // A paid 5 × 1.5 = 8 for the throw and keeps it despite being countered.
-            Assert.AreEqual(92, _e.Stamina.Get(FighterId.A), "no refund for the countered attacker");
-            // B paid 2 defence + 2 counter.
-            Assert.AreEqual(96, _e.Stamina.Get(FighterId.B));
+            // A paid 5 × 1.5 = 8 for the throw and keeps it despite being countered;
+            // B paid 2 defence + 2 counter. Both then take the §4.3 matte recovery
+            // (+3, v3.4) — a counter that scores is a score, so it lands on matte like
+            // any other. That is a flat term on top and does NOT refund the throw:
+            // the gap between the two sides is unchanged at 8 − 4.
+            Assert.AreEqual(92 + _cfg.MatteRecovery, _e.Stamina.Get(FighterId.A),
+                "no refund for the countered attacker");
+            Assert.AreEqual(96 + _cfg.MatteRecovery, _e.Stamina.Get(FighterId.B));
         }
     }
 }
