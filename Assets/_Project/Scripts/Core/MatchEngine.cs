@@ -10,7 +10,8 @@ namespace CounterTime.Core
         public FighterId? Attacker;                  // null ⇒ no technique this exchange
         public TechniqueSpec Technique;
         public ReadLevel Read = ReadLevel.Neutral;   // attacker's read of the defender
-        public DefenseQuality DefenseQuality = DefenseQuality.Neutral;
+        // No DefenseQuality here — §5.2 keys it off the read, so it is derived in
+        // StaminaSystem.DefenseQualityFor. A script field would be a second source.
         public bool AttackEntryA, AttackEntryB;
         public int DurationA = 3, DurationB = 3;     // §2 time costs, seconds
         public bool CallMatte;
@@ -143,7 +144,7 @@ namespace CounterTime.Core
 
             // 4. stamina — attacker pays for the commit …
             Stamina.PayAttack(attacker, script.Technique, grip);
-            Stamina.PayDefense(defender, script.DefenseQuality);
+            Stamina.PayDefense(defender, StaminaSystem.DefenseQualityFor(read));
             // … and the COUNTERING fighter pays the flat counter cost only once the
             // judgment is confirmed. The countered attacker gets no refund (§4).
             if (result.IsCounter) Stamina.PayCounter(result.ScoredBy);

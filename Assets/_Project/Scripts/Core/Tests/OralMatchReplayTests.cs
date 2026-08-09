@@ -94,7 +94,6 @@ namespace CounterTime.Core.Tests
                     Attacker = FighterId.A,
                     Technique = t,
                     Read = ReadLevel.Neutral,
-                    DefenseQuality = DefenseQuality.Clean,
                 });
                 last = ev.OfType<JudgementScored>().LastOrDefault() ?? last;
             }
@@ -122,7 +121,6 @@ namespace CounterTime.Core.Tests
                     Attacker = FighterId.A,
                     Technique = t,
                     Read = ReadLevel.Neutral,
-                    DefenseQuality = DefenseQuality.Clean,
                 });
 
             Assert.AreEqual(1, _e.Board.Shido(FighterId.B), "fourth turtled turn hits 12");
@@ -367,7 +365,6 @@ namespace CounterTime.Core.Tests
                     Attacker = FighterId.A,
                     Technique = BigThrow("batadari"),
                     Read = ReadLevel.Neutral,
-                    DefenseQuality = DefenseQuality.Clean,
                 });
 
             // A paid 5 × 1.5 = 8 for the throw and keeps it despite being countered.

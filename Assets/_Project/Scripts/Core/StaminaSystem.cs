@@ -27,6 +27,19 @@ namespace CounterTime.Core
         /// counter judgment is confirmed; the countered attacker gets no refund.
         public void PayCounter(FighterId who) => Spend(who, _cfg.CounterCost);
 
+        /// §5.2 defence quality — the ONLY place this is derived. "Clean defense
+        /// (won the read)" keys the whole row off the read, so quality is not an
+        /// independent input: it IS the read, seen from the defender's side.
+        /// Feed it the EFFECTIVE read (after §4.2 counter-ready step-down) — a
+        /// declared counter that drags the attacker down to 읽힘 has, by definition,
+        /// won the read.
+        public static DefenseQuality DefenseQualityFor(ReadLevel effectiveRead) => effectiveRead switch
+        {
+            ReadLevel.GotRead => DefenseQuality.Clean,     // defender won the read
+            ReadLevel.Neutral => DefenseQuality.Neutral,
+            _                 => DefenseQuality.Pushed,    // Read / FullRead — lost it
+        };
+
         public void PayDefense(FighterId who, DefenseQuality q) => Spend(who, q switch
         {
             DefenseQuality.Clean   => _cfg.DefendCleanCost,

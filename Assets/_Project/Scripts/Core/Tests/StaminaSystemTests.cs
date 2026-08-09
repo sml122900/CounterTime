@@ -108,6 +108,17 @@ namespace CounterTime.Core.Tests
             Assert.AreEqual(88, _s.Get(FighterId.A));
         }
 
+        /// §5.2 "Clean defense (won the read)" — quality is the read seen from the
+        /// defender's side, so there is nothing left to script independently.
+        [Test]
+        public void DefenseQuality_IsDerivedFromTheEffectiveRead()
+        {
+            Assert.AreEqual(DefenseQuality.Clean, StaminaSystem.DefenseQualityFor(ReadLevel.GotRead));
+            Assert.AreEqual(DefenseQuality.Neutral, StaminaSystem.DefenseQualityFor(ReadLevel.Neutral));
+            Assert.AreEqual(DefenseQuality.Pushed, StaminaSystem.DefenseQualityFor(ReadLevel.Read));
+            Assert.AreEqual(DefenseQuality.Pushed, StaminaSystem.DefenseQualityFor(ReadLevel.FullRead));
+        }
+
         [Test]
         public void ExtremeDefense_DrainsOnePerTurn()
         {
