@@ -1,4 +1,4 @@
-<!-- v1.0 | body:665b5ad -->
+<!-- v1.0 | body:5d5a8c7 -->
 # OPPONENT_BRAIN.md — where commits and ReadLevel come from (v1.0)
 
 `MATCH_RULES.md` wins on any conflict. This file owns exactly one thing:
@@ -203,6 +203,19 @@ before.
 The poke fits the vacated slot exactly. It never reaches a judgement, so it
 cannot manufacture score, but it still counts as an attack entry for §6.1 (−2),
 so B does not drift into passivity while it has nothing to commit to.
+
+**Ladder order: narrowest condition first.** The rungs are checked
+**H2 → H3 → H1 → H4**, which is exactly their conditions ordered from most to
+least specific — H2 needs a shido in the last two turns, H3 needs tiredness *and*
+a deficit, H1 needs a grip edge, H4 covers every remaining grip state. `MATCH_RULES`
+§6.1 is already shaped this way (real attempt → attack entry → extreme defence →
+… → all-neutral), for the same reason.
+
+An exclusive ladder gives everything above a rung the power to starve it. Ordered
+by anything other than specificity, the broad rungs eat the narrow ones and the
+narrow ones are never observed: measured with H1 first, H1 fired 7 times while H2
+and H3 fired **zero**, so two of B's four habits were unreadable in practice.
+H4 sits last because its condition is the widest of all.
 
 **0.75, not 1.0.** At 1.0 a 확정 habit makes B deterministic and the match ends as
 a lookup. The 25% miss is what keeps a known habit tense.
