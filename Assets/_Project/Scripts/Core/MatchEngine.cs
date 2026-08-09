@@ -116,9 +116,14 @@ namespace CounterTime.Core
                     break;
 
                 case HandTarget.Tear:
+                    // §7 — read the holder's hand first; once the tear resolves the
+                    // connection is gone and the HUD would have no way to learn it ended.
+                    Hand holderHand = Grip.HolderHandGripping(who, mine.OwnHand);
                     var outcome = Grip.ResolveTear(who, mine.OwnHand,
                         theirs.Hand == HandTarget.MaintainGrip);
                     ev.Add(new TearResolved(who, mine.OwnHand, outcome));
+                    if (outcome == TearOutcome.Freed && holderHand != Hand.None)
+                        ev.Add(new GripChanged(Opp(who), holderHand, HandTarget.None, GripKind.None));
                     Stamina.PayAttack(who, new TechniqueSpec("tear", ActionCost.Tear,
                         TechniqueClass.Sloppy), Grip.EffectiveGrip(who));
                     break;

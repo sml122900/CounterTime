@@ -51,6 +51,19 @@ namespace CounterTime.Core
 
         public GripLock LockState(FighterId who, Hand hand) => _lockOn[(int)who, Ix(hand)];
 
+        /// §7 — which of the opponent's hands is currently gripping `victim`'s `hand`,
+        /// or None. The engine reads this BEFORE a tear resolves so it can emit an
+        /// explicit "this hold ended" event: the HUD may not infer a release from the
+        /// absence of an event, and it cannot see inside GripSystem.
+        public Hand HolderHandGripping(FighterId victim, Hand hand)
+        {
+            FighterId holder = Opp(victim);
+            foreach (var h in new[] { Hand.Left, Hand.Right })
+                if (_target[(int)holder, Ix(h)] == hand && _holding[(int)holder, Ix(h)] != GripKind.None)
+                    return h;
+            return Hand.None;
+        }
+
         /// §2 — 틀어잡기/등싸잡기 need the other hand to already hold something.
         public bool CanUseConversion(FighterId who) => Value(who) > 0;
 
