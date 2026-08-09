@@ -26,10 +26,15 @@ namespace CounterTime.Game.Match
         MatchRulesConfig _cfg;
         ScenarioExchangeScript _script;
 
-        /// 러너가 드는 유일한 상태는 '입력'이다. §2 는 커밋을 턴 단위로 정의하지만 노드는
-        /// 한 번에 한 선수만 바꾸므로, 바뀌지 않은 쪽은 그대로 간다 — m13 의 극단적 방어가
-        /// m14 의 네 교환 내내 유지되는 것이 그 경우다.
+        /// 러너가 드는 유일한 상태는 '입력'이다. 말한 적 없는 커밋은 근거가 아니므로
+        /// 노드마다 새로 세운다 — 노드가 밝힌 선수만 그 자세를 갖고, 나머지는 중립이다.
+        /// 자세를 이어붙이는 것은 없는 데이터를 만들어내는 것이다.
         readonly TurnChoice[] _commit = new TurnChoice[2];
+
+        /// default(TurnChoice) 는 중립이 아니다 — Aggressive/Attack 이 enum 0 이라서
+        /// 심판의 §6.1 '전부 중립'(+1) 에도 안 걸린다. 중립은 명시해야 중립이다.
+        static readonly TurnChoice Neutral =
+            new TurnChoice(HandTarget.None, CoreStance.Neutral, LegAction.Neutral);
 
         public MatchEngine Engine { get; private set; }
         public ScenarioRunner Scenario { get; private set; }
@@ -46,7 +51,7 @@ namespace CounterTime.Game.Match
             Engine = new MatchEngine(_cfg, refereeProfile, new SystemRandomSource(randomSeed));
             _script = new ScenarioExchangeScript(_cfg);
             Scenario = new ScenarioRunner(new ScenarioGraph(JsonUtility.FromJson<ScenarioData>(json.text)));
-            _commit[0] = _commit[1] = default;
+            _commit[0] = _commit[1] = Neutral;
         }
 
         public void Begin() => EnterNode(startNodeId);
@@ -66,6 +71,7 @@ namespace CounterTime.Game.Match
             var node = Scenario.Current;
             if (node == null) return;
 
+            _commit[0] = _commit[1] = Neutral;
             if (ScenarioTurnChoices.TryParse(node, out var who, out var commit))
                 _commit[(int)who] = commit;
 
@@ -78,7 +84,12 @@ namespace CounterTime.Game.Match
 
             foreach (var s in scripts)
                 foreach (var e in Engine.ResolveExchange(_commit[0], _commit[1], s))
+                {
                     Present(node, e);
+                    // 그쳐는 그립만 푸는 게 아니다 — 선수가 일어서서 다시 선다.
+                    // 자세도 같이 초기화해야 노드 안의 남은 교환이 옛 자세를 물려받지 않는다.
+                    if (e is MatteCalled) _commit[0] = _commit[1] = Neutral;
+                }
         }
 
         void Present(ScenarioNode node, MatchEvent e)
