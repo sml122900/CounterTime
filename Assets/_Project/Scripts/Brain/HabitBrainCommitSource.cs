@@ -113,7 +113,11 @@ namespace CounterTime.Brain
             switch (m)
             {
                 case Move.GripFight:
-                    if (_brainContext.OwnEffectiveGrip < 0) w += 2;    // 잡기: 밀리면 잡으러 간다
+                    // 잡기 축. H4 가 25% 빗나간 턴에도 폴백이 잡기를 안 고르면 B 는
+                    // 영영 잡기 +1 에 못 닿고, 그러면 H1 조건도 영영 안 선다 — 스모크에서
+                    // 실제로 그렇게 나왔다(H1 발화 0~1회). 문턱을 H4 와 같은 +1 로 맞춘다.
+                    if (_brainContext.OwnEffectiveGrip < 1) w += 3;
+                    if (_brainContext.OwnEffectiveGrip < 0) w += 2;    // 밀리고 있으면 더
                     break;
                 case Move.Attack:
                     if (_brainContext.OwnEffectiveGrip >= 1) w += 2;   // 잡기: 우위면 던진다

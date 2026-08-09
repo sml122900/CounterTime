@@ -11,10 +11,22 @@ namespace CounterTime.Brain
     /// </summary>
     public static class Jindoyun
     {
+        /// <summary>
+        /// <b>순서가 규칙이다</b> — 사다리는 첫 매치에서 끝난다.
+        ///
+        /// H1 과 H4 는 조건이 정확히 배타적이라(잡기 ≥ +1 / &lt; +1) 서로 다투지 않는다.
+        /// H2 를 H4 위에 두는 것은 의도다: 지도를 받은 직후에는 잡으러 가는 것보다
+        /// 만회가 급하다.
+        ///
+        /// 예비 둘은 맨 뒤다. H4b 가 H3 보다 앞인 것도 의도 — 폐기가 났을 때 B 는
+        /// 먼저 다른 소매를 시도하고, 그것도 안 되면 틀어박힌다.
+        /// </summary>
         public static readonly HabitId[] Habits =
         {
             HabitId.BigThrowOnGripEdge,
             HabitId.LegTechAfterShido,
+            HabitId.SeekGripRightSleeve,
+            HabitId.SeekGripLeftSleeve,
             HabitId.TurtleWhenTired,
         };
 

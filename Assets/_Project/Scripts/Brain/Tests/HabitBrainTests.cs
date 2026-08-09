@@ -218,9 +218,10 @@ namespace CounterTime.Brain.Tests
         {
             var opp = Jindoyun.Create(Cfg);
 
-            Assert.AreEqual(3, opp.Habits.Count, "진도윤의 습관은 H1·H2·H3 셋뿐이다");
+            Assert.AreEqual(5, opp.Habits.Count, "진도윤의 습관은 H1·H2·H3·H4·H4b 다섯이다");
             CollectionAssert.AreEquivalent(
-                new[] { HabitId.BigThrowOnGripEdge, HabitId.LegTechAfterShido, HabitId.TurtleWhenTired },
+                new[] { HabitId.BigThrowOnGripEdge, HabitId.LegTechAfterShido, HabitId.TurtleWhenTired,
+                        HabitId.SeekGripRightSleeve, HabitId.SeekGripLeftSleeve },
                 opp.Habits.Select(h => h.Id).ToArray());
 
             Assert.IsFalse(opp.Habits.Any(h => h.Action.Technique != null
@@ -228,7 +229,7 @@ namespace CounterTime.Brain.Tests
                 "기습기가 습관 행동으로 들어가 있으면 안 된다");
 
             // 원장은 HabitId 로만 센다 — 기습기를 셀 칸이 애초에 없다.
-            Assert.AreEqual(3, Enum.GetValues(typeof(HabitId)).Length,
+            Assert.AreEqual(5, Enum.GetValues(typeof(HabitId)).Length,
                 "HabitId 에 기습기 항목이 생기면 그 순간 관측 대상이 된다");
         }
 
@@ -257,9 +258,13 @@ namespace CounterTime.Brain.Tests
             ledger.Record(AlwaysFires().Next(s, ctx));
             Assert.AreEqual(2, ledger.Observations(HabitId.BigThrowOnGripEdge));
 
-            // 조건이 아무것도 안 서는 턴을 기록해도 아무 일도 안 난다.
-            ledger.Record(AlwaysFires().Next(s, new Ctx()));
+            // 다른 습관이 조건은 섰지만 빗나간 턴 — 아무 칸도 안 오른다.
+            // (잡기 0 이면 H4 조건이 선다. H1 은 이제 안 선다 — 둘은 배타적이다.)
+            var missedOther = AlwaysMisses().Next(s, new Ctx());
+            Assert.AreEqual(HabitId.SeekGripRightSleeve, missedOther.Habit.Id, "전제: H4 가 후보다");
+            ledger.Record(missedOther);
             Assert.AreEqual(2, ledger.Observations(HabitId.BigThrowOnGripEdge));
+            Assert.AreEqual(0, ledger.Observations(HabitId.SeekGripRightSleeve));
             Assert.AreEqual(0, ledger.Observations(HabitId.LegTechAfterShido));
         }
 

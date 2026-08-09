@@ -54,9 +54,35 @@ namespace CounterTime.Brain
                         fireProbability,
                         isReserve: true);
 
+                // H4 — 잡기가 우위가 아니면 소매를 노린다. 기술이 없으므로 <b>비공격
+                // 습관</b>이고, 그래서 사다리 2행(A 공격 + B 비공격 습관 + 확정 →
+                // 완전간파)의 대상이 된다. MATCH_RULES §4.1 카논 케이스 3 —
+                // "상대가 잡으러 오는 순간 틀어잡고 밭다리 = 7 = 한판" 이 그 장면이고,
+                // 이 습관이 없으면 플레이에서 도달할 수 없다.
+                //
+                // H1 과 조건이 정확히 배타적이다(≥ +1 / < +1). 둘이 같은 턴에 다투지
+                // 않으므로 사다리 순서가 둘 사이에서는 의미가 없다.
+                case HabitId.SeekGripRightSleeve:
+                    return SeekGrip(id, cfg, fireProbability, HandTarget.RightSleeve, Hand.Right, isReserve: false);
+
+                // H4b — 예비 교체분. 폐기는 삭제가 아니다: 잡기를 아예 안 가면 B 가
+                // 자멸한다. 간파당했으니 반대 소매로 바꾼다 — 플레이어는 새 부위를
+                // 0 부터 다시 관측해야 하고, 그래서 읽기 루프가 살아 있다.
+                case HabitId.SeekGripLeftSleeve:
+                    return SeekGrip(id, cfg, fireProbability, HandTarget.LeftSleeve, Hand.Left, isReserve: true);
+
                 default:
                     return null;
             }
         }
+
+        /// 부위만 다른 두 잡기 노림 습관. 조건은 같다 — 잡기가 우위가 아니면 잡으러 간다.
+        static HabitDefinition SeekGrip(HabitId id, MatchRulesConfig cfg, float fireProbability,
+                                        HandTarget target, Hand ownHand, bool isReserve) =>
+            new HabitDefinition(id,
+                ctx => ctx.OwnEffectiveGrip < 1,
+                new HabitAction(new TurnChoice(target, CoreStance.Neutral, LegAction.Neutral, ownHand)),
+                fireProbability,
+                isReserve);
     }
 }

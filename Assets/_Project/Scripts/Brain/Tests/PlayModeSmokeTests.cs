@@ -28,16 +28,27 @@ namespace CounterTime.Brain.Tests
             public string Ending = "ran out of exchanges";
             public ObservationLedger Ledger;
 
+            /// 판정 발화 — 등급별, 그리고 되치기 몇 건인지.
+            public readonly Dictionary<Judgement, int> Judgements = new Dictionary<Judgement, int>();
+            public int Counters;
+
             public void Fire(HabitId id) => Fires[id] = (Fires.TryGetValue(id, out int n) ? n : 0) + 1;
+
+            public void Score(Judgement j) => Judgements[j] = (Judgements.TryGetValue(j, out int n) ? n : 0) + 1;
 
             public override string ToString()
             {
                 var sb = new StringBuilder();
-                sb.AppendLine($"  turns={Turns}  fallback={FallbackTurns} ({100f * FallbackTurns / Turns:0.0}%)  ended: {Ending}");
+                sb.AppendLine($"  turns={Turns}  fallback={FallbackTurns} ({100f * FallbackTurns / Turns:0.0}%)");
+                sb.AppendLine($"  ending: {Ending}");
                 foreach (HabitId id in Enum.GetValues(typeof(HabitId)))
-                    sb.AppendLine($"  habit {id,-20} fired {(Fires.TryGetValue(id, out int n) ? n : 0)}"
+                    sb.AppendLine($"  habit {id,-22} fired {(Fires.TryGetValue(id, out int n) ? n : 0)}"
                                 + $"  observed {Ledger.Observations(id)}");
                 for (int r = 1; r <= 6; r++) sb.AppendLine($"  ladder row {r}: {Rows[r]}");
+                sb.Append("  judgements:");
+                foreach (Judgement j in Enum.GetValues(typeof(Judgement)))
+                    sb.Append($" {j}={(Judgements.TryGetValue(j, out int c) ? c : 0)}");
+                sb.AppendLine($"   (counters {Counters})");
                 return sb.ToString();
             }
         }
@@ -97,6 +108,13 @@ namespace CounterTime.Brain.Tests
                     Read = read,
                 });
 
+                foreach (var e in events)
+                    if (e is JudgementScored js)
+                    {
+                        m.Score(js.Judgement);
+                        if (js.IsCounter) m.Counters++;
+                    }
+
                 // 관측: 실제로 발화한 턴만 센다 — 구조가 그걸 강제한다.
                 ledger.Record(brain.LastDecision);
 
@@ -111,9 +129,18 @@ namespace CounterTime.Brain.Tests
                 window.Record(a);      // 창은 지난 커밋만 든다 — 해결 뒤에 넣는다
             }
 
+            // 종료 사유는 MatchEnded 가 안 실어 보낸다(Winner 만 든다) — 보드에서 되짚는다.
             if (engine.Board.IsFinished)
-                m.Ending = $"match over, winner {(engine.Board.Winner.HasValue ? engine.Board.Winner.ToString() : "draw")}"
-                         + $", clock {engine.Clock.RemainingSeconds}s left";
+            {
+                var w = engine.Board.Winner;
+                string why = !w.HasValue ? "draw"
+                    : engine.Board.HasIppon(w.Value) ? "ippon (or waza-ari x2)"
+                    : engine.Board.Shido(w.Value == FighterId.A ? FighterId.B : FighterId.A) >= 3 ? "shido x3"
+                    : "time / other";
+                m.Ending = $"{why}, winner {(w.HasValue ? w.ToString() : "-")}, clock {engine.Clock.RemainingSeconds}s left"
+                         + $" | score A {engine.Board.WazaAri(FighterId.A)}w/{engine.Board.Yuko(FighterId.A)}y/{engine.Board.Shido(FighterId.A)}s"
+                         + $"  B {engine.Board.WazaAri(FighterId.B)}w/{engine.Board.Yuko(FighterId.B)}y/{engine.Board.Shido(FighterId.B)}s";
+            }
 
             return m;
         }
@@ -162,17 +189,44 @@ namespace CounterTime.Brain.Tests
         }
 
         /// <summary>
-        /// A 가 같은 수만 반복하면 5행(A 의 공격이 읽힘)이 실제로 발화해야 한다.
-        /// 변주하면 안 나와야 한다 — 그 대비가 5행이 의도대로 도는지를 보여준다.
+        /// <b>읽기 사다리가 실제로 도는가.</b> 이 테스트가 지키는 것은 측정으로 한 번
+        /// 깨졌던 전제다 — H4 이전에는 변주하는 A 와의 33교환이 <b>전부 6행(Neutral)</b>
+        /// 이었다. 판정식에서 폭이 가장 큰 항이 통째로 죽어 있었다는 뜻이고, 그게
+        /// H4(잡기 노림)를 넣은 이유다.
+        ///
+        /// 여기서 0 이 나오면 습관이 관측될 만큼 안 뜬다는 신호다. 숫자를 판정하지는
+        /// 않는다 — 0 이냐 아니냐만 본다.
         /// </summary>
         [Test]
-        public void RepeatingTheSameCommit_TriggersRowFive_VaryingDoesNot()
+        public void ReadLadderActuallyRuns_NotEveryTurnIsNeutral()
         {
-            var repeating = RunMatch(_ => Same, seed: 1234);
+            var m = RunMatch(t => Varied[t % Varied.Length], seed: 1234);
+            Console.WriteLine(m.ToString());
+
+            int nonNeutral = 0;
+            for (int r = 1; r <= 5; r++) nonNeutral += m.Rows[r];
+
+            Assert.Greater(nonNeutral, 0,
+                "한 경기가 전부 6행이면 읽기 시스템이 한 번도 안 도는 것이다");
+        }
+
+        /// <summary>
+        /// 4주기로 변주하는 A 는 성향 창에 안 걸린다 — 6턴 중 최대 2회라 4/6 최빈이
+        /// 구조적으로 불가능하고, 3연속도 안 선다.
+        ///
+        /// 반대쪽(반복하는 A 가 5행에 걸린다)은 <c>LiveReadResolverTests</c> 의
+        /// <c>ThreeConsecutiveIdenticalCommits_MakeAAttackReadable_GotRead</c> 가 든다.
+        /// 여기서 못 드는 이유가 계측 결과다: 잡기 지향을 넣은 뒤로 <b>반복하는 A 와의
+        /// 경기가 5교환 만에 끝난다</b>(B 가 절반 둘로 이긴다). 4연속이 서기 전에 경기가
+        /// 끝나서 스모크로는 5행을 관찰할 수 없다.
+        /// </summary>
+        [Test]
+        public void VaryingCommits_NeverTriggerTheTendencyWindow()
+        {
             var varying = RunMatch(t => Varied[t % Varied.Length], seed: 1234);
 
-            Assert.Greater(repeating.Rows[5], 0, "반복하는 A 는 자기 공격이 읽혀야 한다");
-            Assert.AreEqual(0, varying.Rows[5], "4주기로 변주하면 3연속이 안 서므로 5행이 안 나온다");
+            Assert.AreEqual(0, varying.Rows[4], "4주기는 4/6 최빈이 구조적으로 불가능하다");
+            Assert.AreEqual(0, varying.Rows[5], "3연속도 안 서므로 A 가 읽히지 않는다");
         }
     }
 }

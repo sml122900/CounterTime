@@ -12,6 +12,10 @@ namespace CounterTime.Brain
         LegTechAfterShido,
         /// 예비 — 폐기 시 점등. 체력 &lt;50 이고 상대보다 낮으면 극단적 방어.
         TurtleWhenTired,
+        /// 자기 유효 잡기 &lt; +1 → 오른소매를 노린다. 기술 없음(비공격 습관).
+        SeekGripRightSleeve,
+        /// 예비 — SeekGripRightSleeve 가 폐기되면 이쪽으로 넘어간다. 같은 조건, 왼소매.
+        SeekGripLeftSleeve,
     }
 
     /// <summary>
