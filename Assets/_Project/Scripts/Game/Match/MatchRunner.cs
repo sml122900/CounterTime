@@ -126,8 +126,19 @@ namespace CounterTime.Game.Match
                     // 아무것도 선언하지 않은 상태로 돌아간다.
                     if (e is MatteCalled) _commit[0] = _commit[1] = null;
                 }
+
+                // 손 행동은 사건이라 선언한 교환에서 한 번만 일어난다. 자세는 남는다.
+                // 이게 없으면 유지 중인 잡기가 매 교환 다시 실행돼, 상대가 뜯어낸 그립을
+                // 같은 교환 안에서 도로 잡아버린다(§3.2 무효화).
+                for (int i = 0; i < 2; i++)
+                    if (_commit[i].HasValue && _commit[i].Value.HasHandAction)
+                        _commit[i] = StanceOnly(_commit[i].Value);
             }
         }
+
+        /// 사건은 떼고 상태만 남긴다 — 코어·하체는 다음 선언이나 그쳐까지 그대로 간다.
+        static TurnChoice StanceOnly(in TurnChoice c) =>
+            new TurnChoice(HandTarget.None, c.Core, c.Legs, c.OwnHand);
 
         void Present(ScenarioNode node, MatchEvent e)
         {
