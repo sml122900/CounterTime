@@ -32,12 +32,14 @@ namespace CounterTime.Brain
 
         public HabitLadder(IRandomSource rng) => _rng = rng;
 
-        public HabitDecision Next(OpponentDefinition opponent, IHabitContext ctx)
+        /// <param name="state">경기 상태. 어느 상대인지도 여기서 나온다 — 정의와 상태를
+        /// 따로 받으면 짝이 안 맞는 조합을 넘길 수 있다.</param>
+        public HabitDecision Next(HabitState state, IHabitContext ctx)
         {
-            foreach (var h in opponent.Habits)
+            foreach (var h in state.Opponent.Habits)
             {
                 // 폐기됐거나 아직 안 켜진 예비는 사다리에 오르지 않는다.
-                if (!h.IsActive) continue;
+                if (!state.IsActive(h)) continue;
                 if (!h.Condition(ctx)) continue;
 
                 // 여기서 return 하는 것이 '합산하지 않는다'의 전부다. 아래 습관들은

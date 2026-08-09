@@ -9,8 +9,8 @@ namespace CounterTime.Brain
     /// "≥ +1" 을 인스펙터에서 만지게 하면 규칙이 에셋으로 새어나간다. Game 쪽 SO 가
     /// 저작하는 것은 <b>어느 습관을 켤지 / 발화확률 / ScoutingLevel</b> 셋뿐이다.
     ///
-    /// <b>경기마다 새로 부른다.</b> 반환되는 습관들은 피해 카운터와 폐기·점등 상태를
-    /// 들고 있어서 경기 간 재사용이 곧 오염이다.
+    /// 반환값은 <b>불변</b>이라 여러 경기가 공유해도 된다. 경기마다 새로 만드는 것은
+    /// <see cref="HabitState"/> 다.
     /// </summary>
     public static class Jindoyun
     {
@@ -27,15 +27,20 @@ namespace CounterTime.Brain
                         TurnChoice.Neutral,
                         new TechniqueSpec("업어치기", ActionCost.BigThrow, TechniqueClass.Standard))),
 
-                // H2 — 지도 뒤 2턴 내에 발기술로 만회한다. 초대하는 대응: 그냥 기다리기.
+                // H2 — 지도 뒤 2턴 내에 안뒤축감아치기로 만회한다. 초대하는 대응: 기다리기.
                 // "2턴 내" = TurnsSinceOwnShido 가 0 과 1, 정확히 두 번이다. <= 2 는
                 // 세 번이 되어 틀린다 — 턴의 정의는 IHabitContext 에 못 박아뒀다.
+                //
+                // 견제기가 아니라 진짜 시도다. 견제기는 판정을 발화하지 않아서, 읽혀도
+                // 벌 방법이 없는 습관이 된다 — 공략 대상이 되는 것이 습관의 존재 이유다.
+                // m0 이 이미 B 에게 준 기술이고(업어치기와 초동이 같은 2지선다),
+                // §6.1 소극 리셋도 −4 로 더 세다. 대가는 큰기술 체력 비용이다.
                 new HabitDefinition(
                     HabitId.LegTechAfterShido,
                     ctx => ctx.TurnsSinceOwnShido.HasValue && ctx.TurnsSinceOwnShido.Value < 2,
                     new HabitAction(
                         new TurnChoice(HandTarget.None, CoreStance.Neutral, LegAction.Attack),
-                        new TechniqueSpec("발기술", ActionCost.Poke, TechniqueClass.Sloppy))),
+                        new TechniqueSpec("안뒤축감아치기", ActionCost.BigThrow, TechniqueClass.Standard))),
 
                 // H3 — 예비. 폐기가 나기 전엔 사다리에 오르지 않는다.
                 // 체력 <50 '그리고' 상대보다 낮을 때만이다. 단순 열세는 턴의 절반쯤
