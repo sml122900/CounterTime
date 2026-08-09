@@ -1,4 +1,4 @@
-<!-- v1.0 | body:08dd6b2 -->
+<!-- v1.0 | body:6aa5ef0 -->
 # OPPONENT_BRAIN.md — where commits and ReadLevel come from (v1.0)
 
 `MATCH_RULES.md` wins on any conflict. This file owns exactly one thing:
@@ -198,6 +198,20 @@ a lookup. The 25% miss is what keeps a known habit tense.
 | H4 | own effective grip **< +1** | 오른소매 노림 — a fixed target, no technique | **read the grip approach and throw into it** |
 | H4b | *reserve — replaces H4 on retirement*<br>same condition | 왼소매 노림 | observe it again |
 
+**Cooldown — `MinTurnsBetweenFirings`.** H1 = **3**; every other habit 0. A habit
+on cooldown is skipped and the ladder moves to the next rung, so exclusivity is
+untouched. It is a data field on the definition, so the SO authoring model does
+not change.
+
+Measured cause: H1 fired **11 times in 27 exchanges** — that is not a habit, it
+is a compulsion. Nobody throws every single turn they hold a grip edge, and from
+the reading side a signal that appears every turn carries no information to read.
+23 attempts in 27 exchanges is also why matches were ending in a quarter of the
+regulation time; §2 assumes 6–8 sequences of 30–60 s, not a throw every 3 s.
+**Target: the signature habit fires 5–7 times a match.** Since 확정 needs a
+fourth firing, that rate lets certainty land late in the match and opens one or
+two payoff windows — which is the intended pacing.
+
 **H4 is structural, not balance.** Without it nothing in B's repertoire is
 observable early: H1 needs a grip edge B never reaches, H2 needs a shido, H3 is
 a reserve. Measured over a 50-exchange smoke match, habits fired 1–4 times total
@@ -240,8 +254,21 @@ never observable in advance, never logged (`MATCH_RULES` §7).
 ### 4.2 Retirement and replacement
 
 - Per-habit **damage counter**: +1 whenever the habit fired on a turn where A
-  scored yuko-or-better, or countered successfully.
+  scored yuko-or-better, or countered successfully — **but only once A already
+  knows that habit at 확정.** Damage taken before the note exists does not count.
 - Counter reaches **2** ⇒ habit is retired permanently for that match.
+
+**Why the precondition.** Without it the loop cannot finish, and that is
+arithmetic, not opinion: 확정 needs a **fourth** firing (§2 reference point) while
+retirement needs only **two** punished firings, so any habit A is capable of
+punishing retires before it can ever be read. Measured: H4 reached three
+observations and was retired before the fourth firing — the read loop was
+structurally unable to complete.
+
+It also fixes the fiction. B drops a habit because B **realises it has been
+read**; before 확정, A has not read anything and B has no way to know. Two lucky
+punishes are not a tell. This is the prototype's rule as written — land two
+counters and the opponent *recognises the read* and abandons the habit.
 - Retirement lights up the reserve habit (H3). Without a replacement, a corrected
   opponent degenerates into noise and there is nothing left to read.
 - The 수 노트 entry is **not deleted** — it is marked 폐기됨. It is the player's
