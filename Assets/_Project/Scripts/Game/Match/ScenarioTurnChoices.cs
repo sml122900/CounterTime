@@ -15,7 +15,7 @@ namespace CounterTime.Game.Match
         public static bool TryParse(ScenarioNode node, out FighterId who, out TurnChoice choice)
         {
             who = FighterId.A;
-            choice = default;
+            choice = TurnChoice.Neutral;
 
             string t = node == null ? null : node.title;
             if (string.IsNullOrEmpty(t)) return false;
