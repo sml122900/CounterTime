@@ -28,13 +28,21 @@ namespace CounterTime.Brain.Tests
             public string Ending = "ran out of exchanges";
             public ObservationLedger Ledger;
 
-            /// 판정 발화 — 등급별, 그리고 되치기 몇 건인지.
+            /// 판정 발화 — 등급별, 득점자별, 그리고 되치기 몇 건인지.
             public readonly Dictionary<Judgement, int> Judgements = new Dictionary<Judgement, int>();
+            public readonly Dictionary<FighterId, int> ScoredBy = new Dictionary<FighterId, int>();
             public int Counters;
+
+            /// 각 습관이 몇 번째 교환에 확정에 닿았는가. 없으면 그 경기에 못 닿았다.
+            public readonly Dictionary<HabitId, int> ConfirmedAt = new Dictionary<HabitId, int>();
 
             public void Fire(HabitId id) => Fires[id] = (Fires.TryGetValue(id, out int n) ? n : 0) + 1;
 
-            public void Score(Judgement j) => Judgements[j] = (Judgements.TryGetValue(j, out int n) ? n : 0) + 1;
+            public void Score(Judgement j, FighterId by)
+            {
+                Judgements[j] = (Judgements.TryGetValue(j, out int n) ? n : 0) + 1;
+                ScoredBy[by] = (ScoredBy.TryGetValue(by, out int b) ? b : 0) + 1;
+            }
 
             public override string ToString()
             {
@@ -43,12 +51,15 @@ namespace CounterTime.Brain.Tests
                 sb.AppendLine($"  ending: {Ending}");
                 foreach (HabitId id in Enum.GetValues(typeof(HabitId)))
                     sb.AppendLine($"  habit {id,-22} fired {(Fires.TryGetValue(id, out int n) ? n : 0)}"
-                                + $"  observed {Ledger.Observations(id)}");
+                                + $"  observed {Ledger.Observations(id)}"
+                                + $"  confirmed {(ConfirmedAt.TryGetValue(id, out int at) ? "at exchange " + at : "never")}");
                 for (int r = 1; r <= 6; r++) sb.AppendLine($"  ladder row {r}: {Rows[r]}");
                 sb.Append("  judgements:");
                 foreach (Judgement j in Enum.GetValues(typeof(Judgement)))
                     sb.Append($" {j}={(Judgements.TryGetValue(j, out int c) ? c : 0)}");
                 sb.AppendLine($"   (counters {Counters})");
+                sb.AppendLine($"  scored by: A={(ScoredBy.TryGetValue(FighterId.A, out int sa) ? sa : 0)}"
+                            + $"  B={(ScoredBy.TryGetValue(FighterId.B, out int sbb) ? sbb : 0)}");
                 return sb.ToString();
             }
         }
@@ -111,19 +122,24 @@ namespace CounterTime.Brain.Tests
                 foreach (var e in events)
                     if (e is JudgementScored js)
                     {
-                        m.Score(js.Judgement);
+                        m.Score(js.Judgement, js.ScoredBy);
                         if (js.IsCounter) m.Counters++;
                     }
 
-                // 관측: 실제로 발화한 턴만 센다 — 구조가 그걸 강제한다.
-                ledger.Record(brain.LastDecision);
-
-                // §4.2 피해: 습관이 발화한 턴에 A 가 유효 이상을 냈거나 되치기에 성공했다.
+                // §4.2 피해 — 관측 기록보다 <b>먼저</b> 본다. 그래야 "A 가 이미 읽을 수
+                // 있었던 상태에서 벌준 것" 만 세어진다. 이번 턴의 발화는 아직 원장에
+                // 안 들어갔다.
                 if (brain.LastDecision.Fired)
                     foreach (var e in events)
                         if (e is JudgementScored j && j.ScoredBy == FighterId.A
                             && (j.IsCounter || j.Judgement != Judgement.None))
-                            state.RegisterDamage(brain.LastDecision.Habit.Id);
+                            state.RegisterDamage(brain.LastDecision.Habit.Id, ledger);
+
+                // 관측: 실제로 발화한 턴만 센다 — 구조가 그걸 강제한다.
+                ledger.Record(brain.LastDecision);
+                if (brain.LastDecision.Fired && ledger.IsConfirmed(brain.LastDecision.Habit.Id)
+                    && !m.ConfirmedAt.ContainsKey(brain.LastDecision.Habit.Id))
+                    m.ConfirmedAt[brain.LastDecision.Habit.Id] = turn;
 
                 ctx.ObserveExchange(events);
                 window.Record(a);      // 창은 지난 커밋만 든다 — 해결 뒤에 넣는다

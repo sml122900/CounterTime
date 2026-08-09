@@ -15,9 +15,15 @@ namespace CounterTime.Brain
     /// </summary>
     public sealed class ObservationLedger
     {
+        /// §2 — 관측 3회 이상이면 확정(수 노트에 기록), 1~2 면 심증.
+        public const int CertainObservations = 3;
+
         readonly Dictionary<HabitId, int> _counts = new Dictionary<HabitId, int>();
 
         public int Observations(HabitId id) => _counts.TryGetValue(id, out int c) ? c : 0;
+
+        /// <summary>수 노트에 올라와 있는가 (§2 확정). 파생 지점은 여기 하나다.</summary>
+        public bool IsConfirmed(HabitId id) => Observations(id) >= CertainObservations;
 
         public void Record(in HabitDecision decision)
         {

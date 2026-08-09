@@ -37,6 +37,15 @@ namespace CounterTime.Brain.Tests
         static HabitDefinition Habit(HabitState s, HabitId id) =>
             s.Opponent.Habits.Single(h => h.Id == id);
 
+        /// §4.2 피해는 확정 뒤에만 센다 — 그 전제를 만드는 원장.
+        static ObservationLedger ConfirmedLedger(HabitState s, HabitId id)
+        {
+            var l = new ObservationLedger();
+            var d = new HabitDecision(Habit(s, id), fired: true);
+            for (int i = 0; i < ObservationLedger.CertainObservations; i++) l.Record(d);
+            return l;
+        }
+
         // ── §4 사다리 ────────────────────────────────────────────────────────────
 
         /// <summary>
@@ -73,14 +82,15 @@ namespace CounterTime.Brain.Tests
             Assert.AreEqual(0.75f, Habit(s, HabitId.BigThrowOnGripEdge).FireProbability,
                 "기본 발화확률은 0.75 다");
 
-            var missed = AlwaysMisses().Next(s, ctx);
+            // 상태를 매번 새로 만든다 — 같은 상태로 연속 호출하면 H1 의 쿨다운이 끼어든다.
+            var missed = AlwaysMisses().Next(FreshMatch(), ctx);
             Assert.IsTrue(missed.ConditionHeld, "조건은 섰다");
             Assert.IsFalse(missed.Fired, "그런데 25% 쪽에 걸렸다 — 항상 발화하면 안 된다");
 
-            Assert.IsTrue(AlwaysFires().Next(s, ctx).Fired, "같은 조건에서 통과하면 발화한다");
+            Assert.IsTrue(AlwaysFires().Next(FreshMatch(), ctx).Fired, "같은 조건에서 통과하면 발화한다");
 
             // 경계: 0.75 는 통과가 아니다. 0.75 미만이라야 발화다.
-            Assert.IsFalse(new HabitLadder(new FixedRandomSource(0.75f)).Next(s, ctx).Fired,
+            Assert.IsFalse(new HabitLadder(new FixedRandomSource(0.75f)).Next(FreshMatch(), ctx).Fired,
                 "임계값 자체는 발화가 아니다");
         }
 
@@ -167,16 +177,17 @@ namespace CounterTime.Brain.Tests
             var s = FreshMatch();
             var h1 = Habit(s, HabitId.BigThrowOnGripEdge);
             var h3 = Habit(s, HabitId.TurtleWhenTired);
+            var confirmed = ConfirmedLedger(s, HabitId.BigThrowOnGripEdge);
 
             Assert.IsTrue(h3.IsReserve, "전제: H3 은 예비다");
             Assert.IsFalse(s.IsLit(h3), "전제: 예비는 처음엔 꺼져 있다");
             Assert.IsTrue(s.IsActive(h1), "전제: H1 은 처음부터 산다");
 
-            s.RegisterDamage(HabitId.BigThrowOnGripEdge);
+            s.RegisterDamage(HabitId.BigThrowOnGripEdge, confirmed);
             Assert.IsFalse(s.IsRetired(HabitId.BigThrowOnGripEdge), "1회로는 폐기되지 않는다 — 임계는 2 다");
             Assert.IsFalse(s.IsLit(h3), "폐기 전에 예비가 켜지면 안 된다");
 
-            s.RegisterDamage(HabitId.BigThrowOnGripEdge);
+            s.RegisterDamage(HabitId.BigThrowOnGripEdge, confirmed);
             Assert.IsTrue(s.IsRetired(HabitId.BigThrowOnGripEdge), "2회에 폐기된다");
             Assert.IsTrue(s.IsLit(h3), "폐기가 예비를 점등한다");
             Assert.IsTrue(s.IsActive(h3), "점등된 예비는 이제 사다리에 오른다");
@@ -188,12 +199,13 @@ namespace CounterTime.Brain.Tests
         {
             var s = FreshMatch();
             var ctx = new Ctx { OwnEffectiveGrip = 2 };
+            var confirmed = ConfirmedLedger(s, HabitId.BigThrowOnGripEdge);
 
             Assert.AreEqual(HabitId.BigThrowOnGripEdge, AlwaysFires().Next(s, ctx).Habit.Id,
                 "전제: 폐기 전에는 H1 이 나온다");
 
-            s.RegisterDamage(HabitId.BigThrowOnGripEdge);
-            s.RegisterDamage(HabitId.BigThrowOnGripEdge);
+            s.RegisterDamage(HabitId.BigThrowOnGripEdge, confirmed);
+            s.RegisterDamage(HabitId.BigThrowOnGripEdge, confirmed);
 
             Assert.IsTrue(Habit(s, HabitId.BigThrowOnGripEdge).Condition(ctx),
                 "조건 자체는 여전히 선다 — 막는 것은 폐기다");
@@ -202,7 +214,7 @@ namespace CounterTime.Brain.Tests
                 "폐기된 습관은 조건이 서도 나오지 않는다 (다른 습관 조건은 이 컨텍스트에서 안 선다)");
 
             // 세 번째 피해가 카운터를 더 올려 되살아나거나 하지 않는다.
-            s.RegisterDamage(HabitId.BigThrowOnGripEdge);
+            s.RegisterDamage(HabitId.BigThrowOnGripEdge, confirmed);
             Assert.IsTrue(s.IsRetired(HabitId.BigThrowOnGripEdge));
             Assert.AreEqual(HabitState.RetireAtDamage, s.Damage(HabitId.BigThrowOnGripEdge),
                 "폐기 후에는 카운터도 더 오르지 않는다");
@@ -244,28 +256,91 @@ namespace CounterTime.Brain.Tests
         {
             var s = FreshMatch();
             var ledger = new ObservationLedger();
-            var ctx = new Ctx { OwnEffectiveGrip = 2 };
+            // 잡기 0 → H4(쿨다운 없음)가 후보다. H1 은 쿨다운 3 이라 연속 호출에 안 맞는다.
+            var ctx = new Ctx { OwnEffectiveGrip = 0 };
 
             var missed = AlwaysMisses().Next(s, ctx);
             ledger.Record(missed);
+            Assert.AreEqual(HabitId.SeekGripRightSleeve, missed.Habit.Id, "전제: H4 가 후보다");
             Assert.IsTrue(missed.ConditionHeld, "전제: 조건은 섰다");
-            Assert.AreEqual(0, ledger.Observations(HabitId.BigThrowOnGripEdge),
+            Assert.AreEqual(0, ledger.Observations(HabitId.SeekGripRightSleeve),
                 "빗나간 턴은 관측이 아니다 — 조건 성립만으로 세면 안 된다");
 
             ledger.Record(AlwaysFires().Next(s, ctx));
-            Assert.AreEqual(1, ledger.Observations(HabitId.BigThrowOnGripEdge), "실행된 턴만 +1");
+            Assert.AreEqual(1, ledger.Observations(HabitId.SeekGripRightSleeve), "실행된 턴만 +1");
 
             ledger.Record(AlwaysFires().Next(s, ctx));
-            Assert.AreEqual(2, ledger.Observations(HabitId.BigThrowOnGripEdge));
+            Assert.AreEqual(2, ledger.Observations(HabitId.SeekGripRightSleeve));
+            Assert.IsFalse(ledger.IsConfirmed(HabitId.SeekGripRightSleeve), "2회는 아직 심증이다");
 
-            // 다른 습관이 조건은 섰지만 빗나간 턴 — 아무 칸도 안 오른다.
-            // (잡기 0 이면 H4 조건이 선다. H1 은 이제 안 선다 — 둘은 배타적이다.)
-            var missedOther = AlwaysMisses().Next(s, new Ctx());
-            Assert.AreEqual(HabitId.SeekGripRightSleeve, missedOther.Habit.Id, "전제: H4 가 후보다");
-            ledger.Record(missedOther);
-            Assert.AreEqual(2, ledger.Observations(HabitId.BigThrowOnGripEdge));
-            Assert.AreEqual(0, ledger.Observations(HabitId.SeekGripRightSleeve));
+            ledger.Record(AlwaysFires().Next(s, ctx));
+            Assert.IsTrue(ledger.IsConfirmed(HabitId.SeekGripRightSleeve), "3회면 수 노트에 오른다");
+
+            // 다른 습관 칸은 하나도 안 올랐다.
+            Assert.AreEqual(0, ledger.Observations(HabitId.BigThrowOnGripEdge));
             Assert.AreEqual(0, ledger.Observations(HabitId.LegTechAfterShido));
+        }
+
+        /// <summary>
+        /// §4.1 쿨다운 — 매 턴 나오는 신호는 읽을 값이 없다. H1 은 3턴에 한 번까지다.
+        /// 쿨다운 중에는 <b>건너뛰고 사다리 다음 칸으로 간다</b> — 합산도, 정지도 아니다.
+        /// </summary>
+        [Test]
+        public void HabitOnCooldown_IsSkipped_LadderFallsThroughToTheNextRung()
+        {
+            var s = FreshMatch();
+            var ladder = AlwaysFires();
+            var gripEdge = new Ctx { OwnEffectiveGrip = 2 };
+
+            Assert.AreEqual(3, Habit(s, HabitId.BigThrowOnGripEdge).MinTurnsBetweenFirings);
+
+            Assert.AreEqual(HabitId.BigThrowOnGripEdge, ladder.Next(s, gripEdge).Habit.Id, "턴 0: 발화");
+            Assert.IsFalse(ladder.Next(s, gripEdge).ConditionHeld, "턴 1: 쿨다운 — 다른 후보도 없다");
+            Assert.IsFalse(ladder.Next(s, gripEdge).ConditionHeld, "턴 2: 아직 쿨다운");
+            Assert.AreEqual(HabitId.BigThrowOnGripEdge, ladder.Next(s, gripEdge).Habit.Id, "턴 3: 다시 뜬다");
+
+            // 쿨다운은 막을 뿐 사다리를 멈추지 않는다 — 아래 칸이 조건을 만족하면 그게 나온다.
+            var fresh = FreshMatch();
+            var afterShido = new Ctx { OwnEffectiveGrip = 2, TurnsSinceOwnShido = 0 };
+            Assert.AreEqual(HabitId.BigThrowOnGripEdge, AlwaysFires().Next(fresh, afterShido).Habit.Id);
+            Assert.AreEqual(HabitId.LegTechAfterShido, AlwaysFires().Next(fresh, afterShido).Habit.Id,
+                "H1 이 쿨다운이면 H2 로 내려간다");
+        }
+
+        /// <summary>
+        /// §4.2 선행조건 — <b>확정 전의 피해는 안 센다.</b>
+        ///
+        /// 없으면 루프가 산술적으로 완주 불가다: 확정은 4번째 발화가 필요한데 폐기는
+        /// 2회면 되므로, 벌줄 수 있는 습관은 읽히기 전에 먼저 사라진다. 실측에서 H4 가
+        /// 정확히 그렇게 관측 3회에서 폐기됐다.
+        /// </summary>
+        [Test]
+        public void DamageBeforeConfirmation_DoesNotCount_OtherwiseTheLoopCannotFinish()
+        {
+            var s = FreshMatch();
+            var unknown = new ObservationLedger();
+
+            s.RegisterDamage(HabitId.BigThrowOnGripEdge, unknown);
+            s.RegisterDamage(HabitId.BigThrowOnGripEdge, unknown);
+            s.RegisterDamage(HabitId.BigThrowOnGripEdge, unknown);
+            Assert.AreEqual(0, s.Damage(HabitId.BigThrowOnGripEdge),
+                "A 가 모르는 습관은 벌받아도 카운터가 안 오른다 — 읽은 게 아니라 운이다");
+            Assert.IsFalse(s.IsRetired(HabitId.BigThrowOnGripEdge), "따라서 폐기되지도 않는다");
+
+            // 심증(2회)까지도 아직 아니다.
+            var suspected = new ObservationLedger();
+            var d = new HabitDecision(Habit(s, HabitId.BigThrowOnGripEdge), fired: true);
+            suspected.Record(d);
+            suspected.Record(d);
+            s.RegisterDamage(HabitId.BigThrowOnGripEdge, suspected);
+            Assert.AreEqual(0, s.Damage(HabitId.BigThrowOnGripEdge), "심증만으로는 B 가 읽혔다고 못 느낀다");
+
+            // 확정된 뒤부터 센다.
+            suspected.Record(d);
+            Assert.IsTrue(suspected.IsConfirmed(HabitId.BigThrowOnGripEdge), "전제: 이제 확정이다");
+            s.RegisterDamage(HabitId.BigThrowOnGripEdge, suspected);
+            s.RegisterDamage(HabitId.BigThrowOnGripEdge, suspected);
+            Assert.IsTrue(s.IsRetired(HabitId.BigThrowOnGripEdge), "확정 뒤 피해 2회면 폐기된다");
         }
 
         // ── 정의 / 상태 경계 ────────────────────────────────────────────────────
@@ -303,8 +378,9 @@ namespace CounterTime.Brain.Tests
             var shared = Jindoyun.Create(Cfg);   // SO 한 장이 여러 경기에 물린 상황
 
             var match1 = new HabitState(shared);
-            match1.RegisterDamage(HabitId.BigThrowOnGripEdge);
-            match1.RegisterDamage(HabitId.BigThrowOnGripEdge);
+            var confirmed = ConfirmedLedger(match1, HabitId.BigThrowOnGripEdge);
+            match1.RegisterDamage(HabitId.BigThrowOnGripEdge, confirmed);
+            match1.RegisterDamage(HabitId.BigThrowOnGripEdge, confirmed);
             Assert.IsTrue(match1.IsRetired(HabitId.BigThrowOnGripEdge), "전제: 첫 경기에서 폐기됐다");
 
             var match2 = new HabitState(shared);

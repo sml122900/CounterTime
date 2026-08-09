@@ -15,10 +15,14 @@ namespace CounterTime.Brain
         public const int RetireAtDamage = 2;
 
         readonly Dictionary<HabitId, int> _damage = new Dictionary<HabitId, int>();
+        readonly Dictionary<HabitId, int> _lastFiredTurn = new Dictionary<HabitId, int>();
         readonly HashSet<HabitId> _retired = new HashSet<HabitId>();
         bool _reservesLit;
 
         public OpponentDefinition Opponent { get; }
+
+        /// 이 경기에서 사다리가 몇 번 돌았는가. <see cref="HabitLadder.Next"/> 가 올린다.
+        public int Turn { get; private set; } = -1;
 
         public HabitState(OpponentDefinition opponent) => Opponent = opponent;
 
@@ -29,18 +33,40 @@ namespace CounterTime.Brain
         /// 예비가 아닌 습관은 처음부터 켜져 있다. 예비는 폐기가 한 번 나야 켜진다.
         public bool IsLit(HabitDefinition habit) => !habit.IsReserve || _reservesLit;
 
+        /// <summary>§4.1 쿨다운. 아직 안 지났으면 이번 턴에는 못 오른다.</summary>
+        public bool IsOnCooldown(HabitDefinition habit) =>
+            habit.MinTurnsBetweenFirings > 0
+            && _lastFiredTurn.TryGetValue(habit.Id, out int last)
+            && Turn - last < habit.MinTurnsBetweenFirings;
+
         /// 사다리에 오를 자격.
-        public bool IsActive(HabitDefinition habit) => !IsRetired(habit.Id) && IsLit(habit);
+        public bool IsActive(HabitDefinition habit) =>
+            !IsRetired(habit.Id) && IsLit(habit) && !IsOnCooldown(habit);
+
+        /// <summary>사다리가 한 바퀴 돈다. 턴 계수와 쿨다운의 기준이다.</summary>
+        internal void BeginTurn() => Turn++;
+
+        /// <summary>이번 턴에 발화했다 — 쿨다운 시작점을 찍는다.</summary>
+        internal void NoteFired(HabitId id) => _lastFiredTurn[id] = Turn;
 
         /// <summary>
         /// §4.2 — 이 습관이 대가를 치렀다(발화한 턴에 A 가 유효 이상을 냈거나 되치기에
         /// 성공했다). 임계에 닿으면 폐기하고 <b>예비를 점등</b>한다.
         ///
+        /// <b>선행조건: A 가 그 습관을 이미 확정으로 알고 있어야 한다.</b> 확정 전의
+        /// 피해는 읽어서 낸 게 아니라 운이고, B 는 자기가 읽혔다는 걸 모른다. 이게
+        /// 없으면 루프가 산술적으로 완주 불가다 — 확정은 4번째 발화가 필요한데 폐기는
+        /// 2회면 되므로, <b>벌줄 수 있는 습관은 읽히기 전에 먼저 사라진다</b>.
+        /// 원장을 인자로 받는 이유가 그것이다: 부르는 쪽에 판단할 자리를 안 준다.
+        ///
         /// 교체가 없으면 교정당한 상대가 잡음으로 퇴화하고 읽을 것이 사라진다.
         /// 수 노트 항목은 지우지 않는다 — 폐기는 플래그일 뿐이고 폐기됨 표시는 UI 몫이다.
         /// </summary>
-        public void RegisterDamage(HabitId id)
+        /// <param name="ledger">이번 턴의 관측이 기록되기 <b>전</b>의 원장. 그래야 "A 가
+        /// 읽을 수 있었던 상태에서 벌준 것" 만 세어진다.</param>
+        public void RegisterDamage(HabitId id, ObservationLedger ledger)
         {
+            if (!ledger.IsConfirmed(id)) return;
             if (_retired.Contains(id)) return;
 
             int d = Damage(id) + 1;

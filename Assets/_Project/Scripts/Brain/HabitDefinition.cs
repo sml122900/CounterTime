@@ -59,14 +59,25 @@ namespace CounterTime.Brain
         /// 예비 습관은 점등되기 전엔 사다리에 오르지 않는다 (§4.2).
         public readonly bool IsReserve;
 
+        /// <summary>
+        /// §4.1 — 발화 사이 최소 턴 간격. 0 이면 제한 없음.
+        ///
+        /// 매 턴 나오는 신호는 읽을 값이 없다. 실측에서 H1 이 27교환에 11번 떴는데,
+        /// 그건 습관이 아니라 강박이고 경기를 정규시간의 1/4 만에 끝냈다. 쿨다운 중인
+        /// 습관은 <b>건너뛰고 사다리 다음 칸으로 간다</b> — 배타성은 그대로다.
+        /// </summary>
+        public readonly int MinTurnsBetweenFirings;
+
         public HabitDefinition(HabitId id, Func<IHabitContext, bool> condition, HabitAction action,
-                               float fireProbability = 0.75f, bool isReserve = false)
+                               float fireProbability = 0.75f, bool isReserve = false,
+                               int minTurnsBetweenFirings = 0)
         {
             Id = id;
             Condition = condition;
             Action = action;
             FireProbability = fireProbability;
             IsReserve = isReserve;
+            MinTurnsBetweenFirings = minTurnsBetweenFirings;
         }
     }
 }

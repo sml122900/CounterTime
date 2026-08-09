@@ -19,13 +19,18 @@ namespace CounterTime.Brain
             {
                 // H1 — 자기 유효 잡기가 우위면 업어치기. 초대하는 대응: 잡기를 내주고
                 // 카운터 준비를 선언하는 것.
+                //
+                // 쿨다운 3 — 잡기 우위를 잡았다고 매 턴 던지는 선수는 없고, 매 턴 나오는
+                // 신호는 읽을 값이 없다. 실측에서 27교환에 11번 떠서 경기를 정규시간의
+                // 1/4 만에 끝냈다. 목표는 한 경기 5~7회다.
                 case HabitId.BigThrowOnGripEdge:
                     return new HabitDefinition(id,
                         ctx => ctx.OwnEffectiveGrip >= 1,
                         new HabitAction(
                             TurnChoice.Neutral,
                             new TechniqueSpec("업어치기", ActionCost.BigThrow, TechniqueClass.Standard)),
-                        fireProbability);
+                        fireProbability,
+                        minTurnsBetweenFirings: 3);
 
                 // H2 — 지도 뒤 2턴 내에 안뒤축감아치기로 만회한다. 초대하는 대응: 기다리기.
                 // "2턴 내" = TurnsSinceOwnShido 가 0 과 1, 정확히 두 번이다. <= 2 는

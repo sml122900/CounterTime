@@ -36,15 +36,23 @@ namespace CounterTime.Brain
         /// 따로 받으면 짝이 안 맞는 조합을 넘길 수 있다.</param>
         public HabitDecision Next(HabitState state, IHabitContext ctx)
         {
+            // 사다리 한 바퀴 = 한 턴. 쿨다운이 이걸 기준으로 센다. 여기서 올리므로
+            // 부르는 쪽이 턴 증가를 잊을 수가 없다.
+            state.BeginTurn();
+
             foreach (var h in state.Opponent.Habits)
             {
-                // 폐기됐거나 아직 안 켜진 예비는 사다리에 오르지 않는다.
+                // 폐기됐거나, 아직 안 켜진 예비거나, 쿨다운 중이면 오르지 않는다.
+                // 건너뛰고 다음 칸으로 간다 — 배타성은 그대로다.
                 if (!state.IsActive(h)) continue;
                 if (!h.Condition(ctx)) continue;
 
                 // 여기서 return 하는 것이 '합산하지 않는다'의 전부다. 아래 습관들은
                 // 조건이 서 있어도 이번 턴에 쳐다보지 않는다.
-                return new HabitDecision(h, _rng.NextFloat() < h.FireProbability);
+                bool fired = _rng.NextFloat() < h.FireProbability;
+                // 쿨다운은 실제로 낸 턴부터 센다. 25% 에 걸린 턴은 아무 일도 안 났다.
+                if (fired) state.NoteFired(h.Id);
+                return new HabitDecision(h, fired);
             }
             return default;
         }

@@ -15,9 +15,6 @@ namespace CounterTime.Brain
     /// </summary>
     public sealed class LiveReadResolver : IReadResolver
     {
-        /// §2 — 관측 3회 이상이면 확정, 1~2 면 심증.
-        public const int CertainObservations = 3;
-
         readonly ObservationLedger _ledger;
         readonly TendencyWindow _window;
 
@@ -44,7 +41,7 @@ namespace CounterTime.Brain
             // 25% 에 걸린 턴은 tell 이 없었다는 뜻이다.
             bool fired = _bHabit.ConditionHeld && _bHabit.Fired;
             int observations = fired ? _ledger.Observations(_bHabit.Habit.Id) : 0;
-            bool certain = observations >= CertainObservations;
+            bool certain = fired && _ledger.IsConfirmed(_bHabit.Habit.Id);
             bool suspected = observations > 0 && !certain;
             bool nonAttacking = fired && _bHabit.Habit.Action.Technique == null;
 
