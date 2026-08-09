@@ -99,14 +99,42 @@ HTML 프로토타입에서 검증한 시스템을 Unity(C#)로 이식하는 단�
 
     Assets/_Project/
       Scripts/Core/   → CounterTime.Core.asmdef (Combat / AI / Model)
+      Scripts/Core/Tests/ → CounterTime.Core.Tests.asmdef
       Scripts/Game/   → CounterTime.Game.asmdef (UI / Managers)
+      Scripts/Game/Tests/ → CounterTime.Game.Tests.asmdef
       Scenes/Main.unity
       Scenario/            시나리오 원본 (JSON, 시나리오 보드 HTML 등) — 시나리오 파일은 전부 여기
       ScriptableObjects/   상대 성향 데이터 에셋
+      Spikes/              검증 장치 (아래 참조)
       Art/ Audio/ Prefabs/ Settings/
 
     md/                    설계 문서. STATUS.md · MATCH_RULES.md · CORE_DESIGN_MatchEngine.md
     CLAUDE.md              프로젝트 루트 (이 파일)
+
+## Spikes — 검증 장치이지 프로덕션이 아니다
+
+`Assets/_Project/Spikes/` 는 규칙 문서가 **인용하는 실측을 재현하는 장치**다.
+
+- **프로덕션 코드가 여기를 참조하면 안 된다.** `Main.unity` 도 참조하지 않는다.
+- **지우지 말 것.** `MATCH_RULES §7` 이 HUD 를 하드 요구로 못 박은 근거가
+  `spike/lowres-render` 의 실측("320×180 에서 손은 5.8px")이다. 측정 장치가 한 대의
+  디스크에만 있으면, 규칙을 리포 밖에만 적어둔 것과 같은 실패가 된다.
+- **스파이크의 인스펙터 값은 사양이 아니다.** 예: 스파이크 씬의 `nearMissSeconds` 는
+  폐기된 초안값 `0.08` 이다. 확정 규격은 `0.5` 이고 출처는 `md/STATUS.md` 다.
+
+## 테스트 — 어셈블리가 둘이다
+
+| 어셈블리 | 무엇 | 어떻게 돌리나 |
+|---|---|---|
+| `CounterTime.Core.Tests` | 순수 판정·시스템 | Unity Test Runner **또는** dotnet 콘솔 하니스 |
+| `CounterTime.Game.Tests` | 러너 규칙(자세 유지·손 행동 소비 등) | **Unity Test Runner 에서만** |
+
+`Core` 는 UnityEngine 을 안 쓰므로 scratchpad 의 dotnet 하니스로 Unity 없이 돌릴 수 있다.
+`Game` 은 MonoBehaviour·TextAsset 을 쓰므로 **그 하니스로는 못 돈다.**
+
+> **"Core N개 초록"은 Game 테스트가 검증됐다는 뜻이 아니다.**
+> 에러가 안 나면서 안 돌고 있는 부류라, 사람이 직접 확인해야 한다:
+> `Window > General > Test Runner > EditMode 탭 > Run All`
 
 ## 컨벤션
 
