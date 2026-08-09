@@ -1,4 +1,4 @@
-<!-- v1.0 | body:6aa5ef0 -->
+<!-- v1.0 | body:665b5ad -->
 # OPPONENT_BRAIN.md — where commits and ReadLevel come from (v1.0)
 
 `MATCH_RULES.md` wins on any conflict. This file owns exactly one thing:
@@ -183,7 +183,26 @@ Per turn, an **exclusive ladder** — first match wins, never summed (same shape
                  → remove illegal commits
 2. habits        condition holds → fire with probability 0.75, first match only
 3. fallback      weighted random over grip / stamina / shido count / clock
+                 — grip work, tear, poke or defend. NEVER a big throw.
 ```
+
+**The fallback never commits a big throw.** Its attacking option is the poke and
+nothing else.
+
+This is a premise, not a balance number. **A commit that reaches a judgement has
+to be a commit with a reason, and in the brain the reason is a habit.** The
+fallback is by definition the turn where B had no reason to pick anything, so a
+big throw from there is a throw nobody could have read. Measured, half of every
+judgement in a match was coming from that path — which makes half the mind game
+not a mind game.
+
+The property this buys is the point: **every big throw B makes now comes from a
+habit, so every one of them is in principle readable.** That was not true
+before.
+
+The poke fits the vacated slot exactly. It never reaches a judgement, so it
+cannot manufacture score, but it still counts as an attack entry for §6.1 (−2),
+so B does not drift into passivity while it has nothing to commit to.
 
 **0.75, not 1.0.** At 1.0 a 확정 habit makes B deterministic and the match ends as
 a lookup. The 25% miss is what keeps a known habit tense.
