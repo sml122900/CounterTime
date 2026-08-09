@@ -1,4 +1,5 @@
 using System;
+using CounterTime.Brain;
 using CounterTime.Core;
 using CounterTime.Core.Scenario;
 using UnityEngine;
@@ -97,7 +98,13 @@ namespace CounterTime.Game.Match
             var node = Scenario.Current;
             if (node == null) return;
 
-            bool declaredNow = ScenarioTurnChoices.TryParse(node, out var who, out var commit);
+            // 러너는 커밋과 읽기가 어디서 오는지 이름으로 모른다 — 인터페이스만 안다.
+            // 여기 꽂힌 것이 대조 모드의 스크립트 출처이고, 플레이 모드에서는 A 입력과
+            // B 습관 브레인이 같은 자리에 꽂힌다.
+            ICommitSource commits = new ScriptedCommitSource(node);
+            IReadResolver read = new ScriptedReadResolver(_script, node);
+
+            bool declaredNow = commits.TryNext(out var who, out var commit);
             if (declaredNow) _commit[(int)who] = commit;
 
             var scripts = _script.For(node);
@@ -117,6 +124,12 @@ namespace CounterTime.Game.Match
                 // (m36 같은)에서도 심판은 실제 시도(§6.1 −4)를 봐야 한다.
                 s.DeclaredA = _commit[0].HasValue || s.Attacker == FighterId.A;
                 s.DeclaredB = _commit[1].HasValue || s.Attacker == FighterId.B;
+
+                // 읽기는 리졸버 한 곳에서만 나온다. 대조 모드에서는 노드가 정한 값이라
+                // 조립기가 넣어둔 값과 같다 — 3단계에서 여기 LiveReadResolver 가 꽂힌다.
+                if (s.Attacker.HasValue)
+                    s.Read = read.For(s.Attacker.Value, _commit[0] ?? TurnChoice.Neutral,
+                                                        _commit[1] ?? TurnChoice.Neutral);
 
                 foreach (var e in Engine.ResolveExchange(_commit[0] ?? TurnChoice.Neutral,
                                                          _commit[1] ?? TurnChoice.Neutral, s))

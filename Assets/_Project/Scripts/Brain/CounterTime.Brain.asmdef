@@ -1,0 +1,16 @@
+{
+    "name": "CounterTime.Brain",
+    "rootNamespace": "CounterTime.Brain",
+    "references": [
+        "CounterTime.Core"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

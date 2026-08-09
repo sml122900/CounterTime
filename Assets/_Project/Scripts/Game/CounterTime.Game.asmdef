@@ -3,6 +3,7 @@
     "rootNamespace": "CounterTime.Game",
     "references": [
         "CounterTime.Core",
+        "CounterTime.Brain",
         "UnityEngine.UI",
         "Unity.TextMeshPro"
     ],
