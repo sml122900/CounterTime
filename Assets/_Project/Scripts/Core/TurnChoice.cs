@@ -20,6 +20,12 @@ namespace CounterTime.Core
             OwnHand = ownHand;
         }
 
+        /// §2 — 이 손이 실제로 무언가를 하는가. 시간 비용표에는 잡기 5 / 기술·방어 3 /
+        /// 뜯기 3 만 있고 <b>자세 변경 항목이 없다</b>: 자세만 바꾸는 것은 교환이 아니다.
+        /// 회피와 잡기 유지는 손을 쓰지만 아무것도 일으키지 않으므로 행동이 아니다.
+        public bool HasHandAction =>
+            Hand != HandTarget.None && Hand != HandTarget.Evade && Hand != HandTarget.MaintainGrip;
+
         /// §2 극단적 방어 — hand 회피 + core 수비 + legs 수비.
         public bool IsExtremeDefense =>
             Hand == HandTarget.Evade && Core == CoreStance.Defensive && Legs == LegAction.Defend;

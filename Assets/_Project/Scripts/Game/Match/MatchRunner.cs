@@ -22,6 +22,9 @@ namespace CounterTime.Game.Match
         [SerializeField] RefereeProfile refereeProfile = RefereeProfile.Standard;
         [SerializeField] int randomSeed = 12345;
         [SerializeField] bool logEvents = true;
+        /// 42노드 대조는 재현 가능해야 한다. §6.2 의 임계 ±1 지터는 실플레이에서만 살린다.
+        /// 규칙 문서가 아니라 config 값이라 여기서 끈다 — MATCH_RULES 의 숫자는 그대로다.
+        [SerializeField] bool deterministicReplay = true;
 
         MatchRulesConfig _cfg;
         ScenarioExchangeScript _script;
@@ -48,6 +51,7 @@ namespace CounterTime.Game.Match
         public void Build(TextAsset json)
         {
             _cfg = new MatchRulesConfig();
+            if (deterministicReplay) _cfg.ThresholdJitter = 0;
             Engine = new MatchEngine(_cfg, refereeProfile, new SystemRandomSource(randomSeed));
             _script = new ScenarioExchangeScript(_cfg);
             Scenario = new ScenarioRunner(new ScenarioGraph(JsonUtility.FromJson<ScenarioData>(json.text)));
@@ -71,15 +75,19 @@ namespace CounterTime.Game.Match
             var node = Scenario.Current;
             if (node == null) return;
 
-            if (ScenarioTurnChoices.TryParse(node, out var who, out var commit))
-                _commit[(int)who] = commit;
+            bool declaredNow = ScenarioTurnChoices.TryParse(node, out var who, out var commit);
+            if (declaredNow) _commit[(int)who] = commit;
 
             var scripts = _script.For(node);
             bool hasTechnique = scripts.Count > 0 && scripts[0].Attacker.HasValue;
-            bool isActor = node.Kind == NodeKind.ChoiceA || node.Kind == NodeKind.ActionB;
 
-            // 서술·결과 노드는 교환이 아니다 — 표시만 하고 시계를 태우지 않는다.
-            if (!hasTechnique && !isActor) return;
+            // §2 — 교환은 최소 한 명이 행동해야 성립한다. 자세 선언만 있는 노드(m13)와
+            // 서술·결과 노드는 시계를 태우지 않고 소극도 누산하지 않는다. 선언한 자세는
+            // 위에서 이미 반영됐고 규칙 1대로 다음 선언이나 그쳐까지 유지된다.
+            //
+            // 행동 여부는 '이 노드가 선언한' 커밋으로만 본다. 유지 중인 잡기는 이미
+            // GripSystem 에 서 있으므로 노드마다 다시 잡는 것이 아니다.
+            if (!hasTechnique && !(declaredNow && commit.HasHandAction)) return;
 
             foreach (var s in scripts)
             {
