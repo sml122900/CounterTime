@@ -1,5 +1,5 @@
-<!-- v3.3 | body:9b466ae -->
-# MATCH_RULES.md — COUNTER TIME judo match system (v3.3)
+<!-- v3.4 | body:cf5e220 -->
+# MATCH_RULES.md — COUNTER TIME judo match system (v3.4)
 
 Single source of truth for match logic. `CounterTime.Core` implements THIS file;
 if code and this file disagree, this file wins. All numbers are v1 tunables unless
@@ -193,6 +193,43 @@ CounterReady is an accessory to signature techniques rather than an independent 
 and option ⓒ (flat −1 modifier on CounterReady) becomes necessary. Check the 대파열
 presentation weight before touching any number.
 
+### 4.3 Matte after a score (v3.4)
+
+The exchange in which a score resolves is followed immediately by **matte**, unless
+the osaekomi entry gate (§9.1) sends it to the ground instead.
+
+| | On a scoring matte |
+|---|---|
+| Grips | all reset to **Free** |
+| Stance | both fighters reset |
+| Stamina | §5.3 unchanged — **+3 each**, once per matte |
+| Clock | stops (§1) |
+| Passivity accumulators | untouched |
+
+A score that ends the match (ippon, or the second waza-ari) is not followed by
+matte — there is nothing to restart.
+
+**Why this exists.** Recovery was tied to matte while nothing was producing matte:
+§5.3 pays +3 per matte, but the only rules that called one were shido and the
+detected feint, so measured matches saw **0–2 matte in a whole match**. Stamina
+therefore drained roughly 3–4 per exchange with no meaningful recovery, bottoming
+out at about **30 exchanges** — against the 60–80 that §2's "6–8 sequences of
+30–60 s" implies at 3–5 s per exchange. §2 and §5 were describing two different
+matches. This is a gap in the rules, not a consequence of how aggressively either
+fighter plays.
+
+It settles four things at once:
+
+1. **Stamina.** Roughly one matte per score, so a match with 7 scores returns +21
+   to each fighter and the exchange budget moves toward what §2 assumes.
+2. **The read loop.** Grips reset, so grip-approach habits fire again and the
+   opponent's tells come back around several times a match instead of once
+   (`OPPONENT_BRAIN` §4.1 H4).
+3. **Rhythm.** It creates the 하지메 → 그쳐 unit §2 is written around. Without it
+   the regulation four minutes is one unbroken scramble.
+4. **Presentation.** 대파열 already resolves into a pause (§8); matte is the
+   landing that beat was written for.
+
 ## 5. Stamina (체력, 0–100 each)
 
 ### 5.1 Attacker costs
@@ -226,7 +263,8 @@ opponent's stamina bonus — intended death spiral).
 Osaekomi escape exchanges have their own cost — see §9.3.
 
 ### 5.3 Recovery
-Matte: **+3** once per matte. Osaekomi stalling (advantaged side, no pin scored):
+Matte: **+3** once per matte — and since v3.4 a score calls one (§4.3), which is
+what makes this term reachable often enough to matter. Osaekomi stalling (advantaged side, no pin scored):
 **+2 per 10 s** burned.
 
 ### 5.4 Training / mastery (hook)
