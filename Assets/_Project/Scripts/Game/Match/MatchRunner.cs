@@ -28,7 +28,6 @@ namespace CounterTime.Game.Match
         [SerializeField] bool deterministicReplay = true;
 
         MatchRulesConfig _cfg;
-        ScenarioExchangeScript _script;
 
         /// 러너가 드는 유일한 상태는 '입력'이다.
         ///
@@ -54,7 +53,6 @@ namespace CounterTime.Game.Match
             _cfg = new MatchRulesConfig();
             if (deterministicReplay) _cfg.ThresholdJitter = 0;
             Engine = new MatchEngine(_cfg, refereeProfile, new SystemRandomSource(randomSeed));
-            _script = new ScenarioExchangeScript(_cfg);
             Scenario = new ScenarioRunner(new ScenarioGraph(JsonUtility.FromJson<ScenarioData>(json.text)));
             _commit[0] = _commit[1] = null;
         }
@@ -98,16 +96,18 @@ namespace CounterTime.Game.Match
             var node = Scenario.Current;
             if (node == null) return;
 
-            // 러너는 커밋과 읽기가 어디서 오는지 이름으로 모른다 — 인터페이스만 안다.
+            // 러너는 교환·커밋·읽기가 어디서 오는지 이름으로 모른다 — 인터페이스만 안다.
             // 여기 꽂힌 것이 대조 모드의 스크립트 출처이고, 플레이 모드에서는 A 입력과
             // B 습관 브레인이 같은 자리에 꽂힌다.
+            IExchangeAssembler assembler = new ScriptedAssembler(_cfg, node);
+            var scripts = assembler.Assemble();
+
             ICommitSource commits = new ScriptedCommitSource(node);
-            IReadResolver read = new ScriptedReadResolver(_script, node);
+            // 조립된 결과에서 읽기를 받는다 — 노드를 두 번 파싱하지 않는다.
+            IReadResolver read = new ScriptedReadResolver(scripts);
 
             bool declaredNow = commits.TryNext(out var who, out var commit);
             if (declaredNow) _commit[(int)who] = commit;
-
-            var scripts = _script.For(node);
             bool hasTechnique = scripts.Count > 0 && scripts[0].Attacker.HasValue;
 
             // §2 — 교환은 최소 한 명이 행동해야 성립한다. 자세 선언만 있는 노드(m13)와

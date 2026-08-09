@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using CounterTime.Brain;
 using CounterTime.Core;
 using CounterTime.Core.Scenario;
 using UnityEngine;
@@ -8,8 +9,9 @@ using UnityEngine;
 namespace CounterTime.Game.Match
 {
     /// <summary>
-    /// 시나리오 노드 → 엔진 입력. 노드 본문의 <c>[판정식]</c> 줄에서 공격자·읽기 값·기술급만
-    /// 뽑아 Core 의 <see cref="ExchangeScript"/> 를 조립한다.
+    /// 대조 모드(스크립트 경로)의 조립기. 시나리오 노드 → 엔진 입력. 노드 본문의
+    /// <c>[판정식]</c> 줄에서 공격자·읽기 값·기술급만 뽑아 Core 의
+    /// <see cref="ExchangeScript"/> 를 조립한다.
     ///
     /// 판정은 여기서 절대 하지 않는다 — 합과 등급은 Core 의 JudgementCalculator 한 곳에서만 난다.
     /// 잡기·체력·수비자세 항도 여기서 만들지 않는다. 전부 엔진 상태에서 나온다.
@@ -20,7 +22,7 @@ namespace CounterTime.Game.Match
     /// Core 의 <see cref="ExchangeScript"/> 는 sealed 라 상속할 수 없다 — 그래서 이 클래스는
     /// 파생이 아니라 조립기다. JSON·정규식 파싱이 들어가므로 Core 가 아닌 Game 에 있다.
     /// </summary>
-    public sealed class ScenarioExchangeScript
+    public sealed class ScriptedAssembler : IExchangeAssembler
     {
         // "[판정식] …" / "[판정식/A] …" / "[판정식/B] …" — 접미사가 없으면 공격자는 A.
         static readonly Regex FormulaLine = new Regex(@"\[판정식(?:/(?<who>[AB]))?\](?<terms>[^\n]*)");
@@ -30,11 +32,15 @@ namespace CounterTime.Game.Match
         static readonly Regex TechTerm = new Regex(@"(?:시그니처|기술급|기술)\s*(?<v>[+-]?\d+)");
 
         readonly MatchRulesConfig _cfg;
+        readonly ScenarioNode _node;
 
-        public ScenarioExchangeScript(MatchRulesConfig cfg)
+        public ScriptedAssembler(MatchRulesConfig cfg, ScenarioNode node)
         {
             _cfg = cfg;
+            _node = node;
         }
+
+        public IReadOnlyList<ExchangeScript> Assemble() => For(_node);
 
         /// <summary>
         /// 한 노드가 몇 교환인지는 노드가 정한다. 대개 1개지만, 제목이 기술을 여러 개
@@ -44,7 +50,7 @@ namespace CounterTime.Game.Match
         /// 노드에 <c>[판정식]</c> 줄이 없으면 기술이 없다 — 잡기싸움 턴(§2 5초) 하나.
         /// 있으면 기술 교환(§2 3초)으로 조립한다.
         /// </summary>
-        public IReadOnlyList<ExchangeScript> For(ScenarioNode node)
+        IReadOnlyList<ExchangeScript> For(ScenarioNode node)
         {
             var line = node == null ? null : node.content;
             var m = string.IsNullOrEmpty(line) ? null : FormulaLine.Match(line);
