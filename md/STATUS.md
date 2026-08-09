@@ -68,7 +68,9 @@ rules v3.2 — 수비 자세 정의 (판정식의 마지막 미정의 항)
 예외: 카운터 준비를 선언한 쪽은 코어가 수비적이어도 수비 자세가 아니다. 이게 없으면 −2 가 붙어 −4 → 방어자에게 공짜 유효가 난다. 테스트가 틀린 답(−4)까지 같이 검증한다
 JudgementCalculator.IsDefensivePosture 가 유일한 파생 지점이다. MatchEngine 이 인라인으로 다시 유도하던 걸 걷어냈다 — v3.1 적용 중 나온 버그가 정확히 그 인라인 유도였다. grep 으로 다른 파생 없음 확인 (RefereeSystem/TurnChoice 의 Defensive 는 §6.1 rung 과 §2 극단적 방어 정의로 서로 다른 규칙)
 
-연출 스펙 — 대파열 (2026-08-09 BurstFeelTest 로 실측. 스크립트는 임시라 삭제됨)
+연출 스펙 — 대파열 (2026-08-09 BurstFeelTest 로 실측)
+BurstFeelTest.cs 와 Assets/_Project/Spikes/LowResRender/ 는 삭제하지 않고 **커밋했다** — §7 이 HUD 를 하드 요구로 못 박은 근거가 이 스파이크의 실측(320×180 에서 손 5.8px)이라, 측정 장치가 한 대의 디스크에만 있으면 규칙을 리포 밖에 적어둔 것과 같아진다. 2순위 부원 촬영도 이 씬이 파이프라인이다. Main.unity 는 7.6 에서 참조를 끊었다
+**스파이크 씬의 nearMissSeconds 는 폐기된 초안값 0.08 이다. 확정 규격은 0.5** — 스파이크는 측정 장치지 사양서가 아니다
 되치기 대파열 = 예고 0.8초 @0.25x → 정지 0.25초 → 흑백반전 3×0.05초. 근접 실패 = 0.5x 로 0.5초. 되치기 발화 임계는 **−3 유지 (option ⓐ)**
 이걸로 §4.2 / §8 의 "대파열 연출 무게를 먼저 확인하라" 전제가 충족됐다. 확인 결과가 "ⓐ 그대로" 였으므로 §8 의 DEFERRED 항목(ⓐ vs ⓒ)은 42노드 감사까지 그대로 열어둔다 — 숫자는 안 건드린다
 구조 주의 — 반전은 정지 "다음" 이 아니라 정지 "안" 에서 돈다. timeScale 0 구간이 총 0.25초이고 그중 앞 0.15초가 흑백 교대, 남은 0.10초가 정지 유지다. 순차로 읽으면 총 정지가 0.40초가 되어 60% 길어진다
@@ -79,10 +81,12 @@ m15 노드는 A 체력 90 으로 기록돼 있는데 엔진은 93 이 나온다.
 극단적 방어 4턴 = 지도는 임계가 정확히 12 일 때만 성립한다. §6.2 의 ±1 지터가 +1 이면 5턴이 된다. 테스트는 지터 0 으로 고정한다
 CORE_DESIGN 에 남아 있던 모순 2개도 고쳤다 — EffectiveGrip 주석이 아직 "lead hand" 였고, 대상 폴더가 asmdef 밖이었다
 
-테스트 실행 경로 (중요)
+테스트 실행 경로 (중요) — 어셈블리가 둘이고 하니스는 한쪽만 돈다
 Unity MCP 로는 EditMode 테스트를 못 돌린다. TestRunnerApi.Execute 가 "User interactions are not supported for MCP tool calls" 로 막힌다
-대신 Core 가 순수 C# 이라는 점을 이용해 scratchpad 에 dotnet 콘솔 하니스를 만들어 커밋된 NUnit 테스트 파일을 그대로 컴파일·실행했다 (nunit.framework.dll 은 Library/PackageCache/com.unity.ext.nunit@.../net40/unity-custom/ 에 있다). 하니스는 리포에 안 들어간다 — 커밋된 산출물은 NUnit 테스트 쪽이다
-사람이 확인할 때는 Unity 에서 Window > General > Test Runner 를 열고 EditMode 탭 > Run All
+대신 Core 가 순수 C# 이라는 점을 이용해 scratchpad 에 dotnet 콘솔 하니스를 만들어 커밋된 NUnit 테스트 파일을 그대로 컴파일·실행했다 (nunit.framework.dll 은 Library/PackageCache/com.unity.ext.nunit@.../net40/unity-custom/ 에 있다). 하니스는 리포에 안 들어간다 — 커밋된 산출물은 NUnit 테스트 쪽이다. 세션마다 다시 만든다
+CounterTime.Core.Tests → 하니스로 돈다. CounterTime.Game.Tests → **안 돈다.** MonoBehaviour·TextAsset 을 써서 UnityEngine 이 필요하다
+그래서 하니스 출력 마지막 줄이 스스로 범위를 밝히게 해뒀다: "COVERAGE: CounterTime.Core.Tests only — CounterTime.Game.Tests needs Unity Test Runner"
+**"Core N개 초록" 은 Game 테스트가 검증됐다는 뜻이 아니다.** 에러가 안 나면서 안 돌고 있는 부류라 사람이 직접 확인해야 한다: Window > General > Test Runner > EditMode 탭 > Run All
 
 Next Up (in priority order)
 step 7 은 이 항목이다 (완료). 남은 것은 아래 우선순위대로
