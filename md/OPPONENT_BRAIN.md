@@ -1,4 +1,4 @@
-<!-- v1.0 | body:4670b81 -->
+<!-- v1.0 | body:05755a3 -->
 # OPPONENT_BRAIN.md — where commits and ReadLevel come from (v1.0)
 
 `MATCH_RULES.md` wins on any conflict. This file owns exactly one thing:
@@ -136,6 +136,23 @@ and the window is never asked.
 - Same pair **3 times consecutively** ⇒ **FullRead +3** when B attacks, and
   **GotRead −3 on A's own attacks** (row 5). This is the danger line.
 - Otherwise Neutral.
+
+**Reference point — the window holds PAST commits, and the current one is
+compared against it.** So "three consecutive" means three already sitting in the
+window and you throw a fourth: the commit that gets punished is the fourth, not
+the third. The name and the count look off by one until you read it the way the
+player experiences it, which is how it should be written down:
+
+> Throw the same commit three times in a row and the bar lights its danger mark.
+> **Throw it again while the mark is lit and you get read.** Change your commit
+> and the mark goes out.
+
+The warning has to arrive before the punishment — that was the condition on
+adopting the window at all (§7: unannounced reads are indistinguishable from bad
+RNG). Counting the current commit into the window instead would punish the very
+move that completes the pattern, leaving no turn in which to avoid it. Both
+tiers use this same reference point, so one window never carries two different
+ones.
 
 **The exposure bar is public** (`MATCH_RULES` §7). A player must be able to see
 they are becoming readable *before* it costs them a waza-ari; unannounced reads
