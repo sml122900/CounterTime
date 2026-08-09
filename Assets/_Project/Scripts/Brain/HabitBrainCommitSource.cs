@@ -98,8 +98,15 @@ namespace CounterTime.Brain
 
         // ── 3단 폴백 ────────────────────────────────────────────────────────────
 
+        /// <summary>
         /// 폴백 후보. §4 는 "잡기·체력·지도수·시계로 가중" 까지만 정하고 숫자는 안 준다.
-        enum Move { GripFight, Tear, Attack, Poke, Defend }
+        ///
+        /// <b>큰기술이 없다.</b> 판정을 발화하는 수는 이유가 있는 수여야 하고, 브레인에서
+        /// 이유는 습관이다. 폴백은 정의상 고를 이유가 없는 턴이므로 거기서 나온 던지기는
+        /// 아무도 읽을 수 없다. 그래서 공격 후보는 견제기 하나뿐이고, 그 결과
+        /// <b>B 의 모든 큰기술이 습관에서 나온다 = 원리적으로 전부 읽을 수 있다.</b>
+        /// </summary>
+        enum Move { GripFight, Tear, Poke, Defend }
 
         /// <summary>
         /// <b>이 가중치는 문서에 없다.</b> §4 가 축 넷만 정하고 숫자를 안 줘서 v1 으로
@@ -108,7 +115,7 @@ namespace CounterTime.Brain
         /// </summary>
         int WeightOf(Move m)
         {
-            int w = m == Move.GripFight || m == Move.Attack ? 2 : 1;   // 기본값
+            int w = m == Move.GripFight ? 2 : 1;   // 기본값
 
             switch (m)
             {
@@ -119,13 +126,10 @@ namespace CounterTime.Brain
                     if (_brainContext.OwnEffectiveGrip < 1) w += 3;
                     if (_brainContext.OwnEffectiveGrip < 0) w += 2;    // 밀리고 있으면 더
                     break;
-                case Move.Attack:
-                    if (_brainContext.OwnEffectiveGrip >= 1) w += 2;   // 잡기: 우위면 던진다
-                    if (_brainContext.OwnStamina < 50) w -= 1;         // 체력: 지치면 덜 던진다
-                    if (_brainContext.SecondsRemaining < 30) w += 2;   // 시계: 시간이 없으면 던진다
-                    break;
                 case Move.Poke:
                     if (_brainContext.OwnShidoCount >= 1) w += 2;      // 지도수: 활발해 보여야 한다
+                    if (_brainContext.SecondsRemaining < 30) w += 2;   // 시계: 시간이 없으면 압박한다
+                    if (_brainContext.OwnEffectiveGrip >= 1) w += 1;   // 잡기: 우위인데 습관이 안 떴다
                     break;
                 case Move.Defend:
                     if (_brainContext.OwnStamina < 50) w += 2;         // 체력: 지치면 지킨다
@@ -164,10 +168,6 @@ namespace CounterTime.Brain
                 case Move.Tear:
                     return new HabitAction(
                         new TurnChoice(HandTarget.Tear, CoreStance.Neutral, LegAction.Neutral));
-                case Move.Attack:
-                    return new HabitAction(
-                        new TurnChoice(HandTarget.None, CoreStance.Aggressive, LegAction.Neutral),
-                        new TechniqueSpec("업어치기", ActionCost.BigThrow, TechniqueClass.Standard));
                 case Move.Poke:
                     return new HabitAction(
                         new TurnChoice(HandTarget.None, CoreStance.Neutral, LegAction.Attack),

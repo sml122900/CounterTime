@@ -172,6 +172,23 @@ namespace CounterTime.Brain.Tests
             new TurnChoice(HandTarget.None, CoreStance.Neutral, LegAction.CounterReady),
         };
 
+        /// <summary>
+        /// 현실적인 A — 공격은 6턴 중 2회(약 1/3)고 나머지는 잡기·방어·카운터 준비다.
+        ///
+        /// 위 <see cref="Varied"/> 는 매 턴 뭔가를 걸어서 판정을 양산했다. 실측에서
+        /// 판정 22건 중 A 가 11건이었고, 그러면 수치가 B 의 성질을 측정하지 못한다.
+        /// 판단은 이 프로필 기준으로 한다.
+        /// </summary>
+        static readonly TurnChoice[] Realistic =
+        {
+            new TurnChoice(HandTarget.None, CoreStance.Aggressive, LegAction.Attack),
+            new TurnChoice(HandTarget.RightSleeve, CoreStance.Neutral, LegAction.Neutral),
+            new TurnChoice(HandTarget.None, CoreStance.Defensive, LegAction.Defend),
+            new TurnChoice(HandTarget.None, CoreStance.Aggressive, LegAction.Attack),
+            new TurnChoice(HandTarget.LeftSleeve, CoreStance.Neutral, LegAction.Neutral),
+            new TurnChoice(HandTarget.None, CoreStance.Neutral, LegAction.CounterReady),
+        };
+
         [Test]
         public void HabitBrainPlaysAFullMatch_WithoutException()
         {
@@ -182,13 +199,20 @@ namespace CounterTime.Brain.Tests
             Assert.DoesNotThrow(() => varying = RunMatch(t => Varied[t % Varied.Length], seed: 1234),
                 "A 가 변주해도 예외 없이 돌아야 한다");
 
+            Metrics realistic = null;
+            Assert.DoesNotThrow(() => realistic = RunMatch(t => Realistic[t % Realistic.Length], seed: 1234),
+                "현실적인 A 로도 예외 없이 돌아야 한다");
+
             Console.WriteLine("=== A repeats one commit ===");
             Console.WriteLine(repeating.ToString());
             Console.WriteLine("=== A varies (4-cycle) ===");
             Console.WriteLine(varying.ToString());
+            Console.WriteLine("=== A realistic (6-cycle, ~1/3 attacks) ===");
+            Console.WriteLine(realistic.ToString());
 
             Assert.Greater(repeating.Turns, 0);
             Assert.Greater(varying.Turns, 0);
+            Assert.Greater(realistic.Turns, 0);
         }
 
         /// <summary>

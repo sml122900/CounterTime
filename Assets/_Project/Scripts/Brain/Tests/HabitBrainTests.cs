@@ -394,6 +394,87 @@ namespace CounterTime.Brain.Tests
             Assert.IsTrue(match1.IsRetired(HabitId.BigThrowOnGripEdge));
         }
 
+        // ── §4 3단 폴백 ─────────────────────────────────────────────────────────
+
+        /// 폴백·게이트 면. 습관 면과 한 객체가 구현해도 되지만 타입은 둘이다.
+        sealed class BrainCtx : IHabitContext, IBrainContext
+        {
+            public int OwnEffectiveGrip { get; set; }
+            public int? TurnsSinceOwnShido { get; set; }
+            public int OwnStamina { get; set; } = 100;
+            public int OpponentStamina { get; set; } = 100;
+            public int OwnShidoCount { get; set; }
+            public int SecondsRemaining { get; set; } = 240;
+            public bool OwnStaminaLockout { get; set; }
+            public bool OwnHasLockedHand { get; set; }
+        }
+
+        /// <summary>
+        /// <b>폴백은 큰기술을 내지 않는다.</b> 판정을 발화하는 수는 이유가 있는 수여야
+        /// 하는데, 폴백은 정의상 고를 이유가 없는 턴이다. 거기서 나온 던지기는 아무도
+        /// 읽을 수 없고, 실측에서 그런 던지기가 판정의 절반을 만들고 있었다.
+        /// </summary>
+        [Test]
+        public void FallbackNeverCommitsABigThrow_OnlyGripWorkPokeOrNeutral()
+        {
+            // 습관이 하나도 없는 상대 — 사다리가 언제나 폴백까지 내려간다.
+            var noHabits = new HabitState(new OpponentDefinition("no-habits", new HabitDefinition[0]));
+
+            for (int roll = 0; roll < 40; roll++)
+                foreach (var ctx in new[]
+                {
+                    new BrainCtx { OwnEffectiveGrip = -2 },
+                    new BrainCtx { OwnEffectiveGrip = 0, OwnShidoCount = 2 },
+                    new BrainCtx { OwnEffectiveGrip = 2, SecondsRemaining = 10 },
+                    new BrainCtx { OwnEffectiveGrip = 1, OwnStamina = 10 },
+                })
+                {
+                    var brain = new HabitBrainCommitSource(FighterId.B, noHabits, ctx, ctx,
+                                                           new FixedRandomSource(0f, roll));
+                    brain.TryNext(out _, out _);
+
+                    Assert.IsTrue(brain.LastUsedFallback, "전제: 습관이 없으니 폴백이다");
+                    if (brain.LastTechnique == null) continue;
+                    Assert.AreEqual(ActionCost.Poke, brain.LastTechnique.Cost,
+                        $"폴백이 큰기술을 냈다 (roll {roll}) — 읽을 수 없는 던지기가 된다");
+                }
+        }
+
+        /// <summary>
+        /// 위 규칙의 <b>진짜 목적</b>: B 의 모든 큰기술이 습관에서 나온다. 그래야 B 의
+        /// 던지기가 전부 원리적으로 읽을 수 있는 대상이 된다.
+        /// </summary>
+        [Test]
+        public void EveryBigThrowByB_ComesFromAHabit()
+        {
+            var s = FreshMatch();
+            var rng = new SystemRandomSource(4242);
+            int bigThrows = 0;
+
+            for (int turn = 0; turn < 120; turn++)
+            {
+                var ctx = new BrainCtx
+                {
+                    OwnEffectiveGrip = (turn % 5) - 2,          // −2 … +2 를 훑는다
+                    TurnsSinceOwnShido = turn % 7 == 0 ? 0 : (int?)null,
+                    OwnStamina = 100 - turn % 60,
+                    OwnShidoCount = turn % 11 == 0 ? 1 : 0,
+                    SecondsRemaining = 240 - turn * 2,
+                };
+                var brain = new HabitBrainCommitSource(FighterId.B, s, ctx, ctx, rng);
+                brain.TryNext(out _, out _);
+
+                if (brain.LastTechnique == null || brain.LastTechnique.Cost != ActionCost.BigThrow) continue;
+
+                bigThrows++;
+                Assert.IsTrue(brain.LastDecision.Fired,
+                    "큰기술이 습관 밖에서 나왔다 — 읽을 수 없는 던지기다");
+                Assert.IsFalse(brain.LastUsedFallback);
+            }
+
+            Assert.Greater(bigThrows, 0, "전제: 이 구간에서 큰기술이 나오긴 했다");
+        }
+
         /// §5 — 필드는 있고 값은 0 이다. 커리어 작업은 데이터를 바꾸지 코드를 바꾸지 않는다.
         [Test]
         public void Jindoyun_ShipsAtScoutingLevelZero()
