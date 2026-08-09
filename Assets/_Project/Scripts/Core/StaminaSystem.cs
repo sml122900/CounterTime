@@ -50,6 +50,10 @@ namespace CounterTime.Core
         /// §5.2 — the turtling death spiral: extra drain for every turn held.
         public void DrainExtremeDefense(FighterId who) => Spend(who, _cfg.ExtremeDefenseDrainPerTurn);
 
+        /// §9.3 — 맞물림 (defender's escape attempt and the holder's response matched):
+        /// the hold continues and the defender pays for staying under control.
+        public void PayOsaekomiStay(FighterId who) => Spend(who, _cfg.OsaekomiStayCost);
+
         /// §5.3. "Once per matte" is the caller's contract — MatchEngine calls this
         /// exactly once when matte is declared.
         public void RecoverMatte(FighterId who) => Gain(who, _cfg.MatteRecovery);

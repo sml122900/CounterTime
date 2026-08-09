@@ -144,11 +144,23 @@ namespace CounterTime.Core.Tests
             var first = _e.ResolveExchange(Idle, Idle, WazaAri());
             Assert.AreEqual(Judgement.WazaAri, first.OfType<JudgementScored>().Single().Judgement);
             Assert.IsFalse(_e.Board.IsFinished, "전제: 첫 절반으로는 안 끝난다");
-            Assert.IsNotEmpty(first.OfType<MatteCalled>(), "끝나지 않은 득점에는 그쳐가 붙는다");
+            // §9.1 (step 5) — waza-ari ALWAYS enters osaekomi, never matte. This
+            // replaces the old "unfinished score always calls matte" premise on
+            // purpose; MatteAfterScoreTests.ScoreCallsMatte_UnlessOsaekomiWouldFollow
+            // covers the case that still lands on matte (a yuko without the grip/
+            // stamina edge).
+            Assert.IsEmpty(first.OfType<MatteCalled>(), "절반은 그쳐가 아니라 굳히기로 들어간다");
+            Assert.IsNotEmpty(first.OfType<OsaekomiEntered>(), "절반은 무조건 굳히기 진입");
+            Assert.IsTrue(_e.Osaekomi.Active);
 
+            // 두 번째는 별개 교환으로 A 를 다시 공격자로 세운다 — 첫 절반이 연 굳히기가
+            // 여전히 열려 있어도 ResolveExchange 는 그 상태를 안 본다(§9 배선은 6단계
+            // 몫). 둘째 절반이 합산 한판을 내고, 그 시점엔 이미 끝났으니 그쳐도
+            // 굳히기 진입도 없다.
             var second = _e.ResolveExchange(Idle, Idle, WazaAri());
             Assert.IsTrue(_e.Board.IsFinished, "전제: 절반 둘이 합해져 경기가 끝났다");
             Assert.IsEmpty(second.OfType<MatteCalled>(), "다시 세울 것이 없으면 그쳐도 없다");
+            Assert.IsEmpty(second.OfType<OsaekomiEntered>(), "경기가 끝났으면 굳히기도 새로 안 연다");
             Assert.IsNotNull(second.OfType<MatchEnded>().SingleOrDefault());
         }
 

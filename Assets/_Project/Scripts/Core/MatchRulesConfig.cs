@@ -40,5 +40,8 @@ namespace CounterTime.Core
         public bool ResolveExchangeOnExpiry = true;
         // §4.2 counter-ready
         public int CounterReadyReadSteps = 1;   // capped at FullRead
+        // §9 osaekomi
+        public int OsaekomiStayCost = 3;          // §9.3 맞물림 — defender pays per stay
+        public int OsaekomiEscapeIntervalSec = 5; // §9.3 — one escape exchange per 5s of hold
     }
 }

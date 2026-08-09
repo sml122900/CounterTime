@@ -87,6 +87,62 @@ namespace CounterTime.Core
 
     public sealed class MatteCalled : MatchEvent { }
 
+    /// §9.1/§9.2 — osaekomi entry. `Adv` and `EscapesNeeded` are frozen at entry;
+    /// nothing recomputes them mid-hold.
+    public sealed class OsaekomiEntered : MatchEvent
+    {
+        public readonly FighterId Holder;
+        public readonly int Adv;
+        public readonly int EscapesNeeded;
+
+        public OsaekomiEntered(FighterId holder, int adv, int escapesNeeded)
+        {
+            Holder = holder; Adv = adv; EscapesNeeded = escapesNeeded;
+        }
+    }
+
+    /// §9.3 — a hold duration threshold (5/10/20s) was crossed. Distinct from
+    /// JudgementScored: an osaekomi score is not derived from the §4 formula, so
+    /// Sum/Terms/IsCounter would not mean anything here.
+    public sealed class OsaekomiScoreAwarded : MatchEvent
+    {
+        public readonly FighterId Holder;
+        public readonly Judgement Judgement;
+        public readonly int HeldSeconds;
+
+        public OsaekomiScoreAwarded(FighterId holder, Judgement judgement, int heldSeconds)
+        {
+            Holder = holder; Judgement = judgement; HeldSeconds = heldSeconds;
+        }
+    }
+
+    /// §9.3 — one escape exchange resolved. `EscapeCredited` is true on 어긋남
+    /// (the cross pairs); false on 맞물림 (the hold continues).
+    public sealed class OsaekomiEscapeResolved : MatchEvent
+    {
+        public readonly FighterId Defender;
+        public readonly OsaekomiDefenderChoice DefenderChoice;
+        public readonly OsaekomiHolderChoice HolderChoice;
+        public readonly bool EscapeCredited;
+        public readonly int EscapesSoFar;
+
+        public OsaekomiEscapeResolved(FighterId defender, OsaekomiDefenderChoice defenderChoice,
+                                      OsaekomiHolderChoice holderChoice, bool escapeCredited, int escapesSoFar)
+        {
+            Defender = defender; DefenderChoice = defenderChoice; HolderChoice = holderChoice;
+            EscapeCredited = escapeCredited; EscapesSoFar = escapesSoFar;
+        }
+    }
+
+    /// §9.4 — the hold broke via escape (escapesNeeded reached). NOT emitted when
+    /// the hold ends because an osaekomi ippon was scored — that ends the match via
+    /// MatchEnded instead, and there is nothing left to "escape" from.
+    public sealed class OsaekomiEnded : MatchEvent
+    {
+        public readonly FighterId Defender;
+        public OsaekomiEnded(FighterId defender) => Defender = defender;
+    }
+
     public sealed class MatchEnded : MatchEvent
     {
         public readonly FighterId? Winner;

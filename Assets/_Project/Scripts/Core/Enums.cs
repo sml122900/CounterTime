@@ -18,4 +18,8 @@ namespace CounterTime.Core
     public enum ActionCost { BigThrow, Poke, Counter, Tear }   // §5.1 cost rows
     public enum DefenseQuality { Clean, Neutral, Pushed }      // §5.2
     public enum TearOutcome { Freed, Locked, Impossible }      // §3.2
+
+    // §9.3 — the defender's two escape attempts and the holder's two responses.
+    public enum OsaekomiDefenderChoice { Reversal /*뒤집기*/, Escape /*빠져나가기*/ }
+    public enum OsaekomiHolderChoice   { Follow /*따라가기*/, PressIn /*눌러붙기*/ }
 }

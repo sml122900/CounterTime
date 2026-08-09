@@ -22,6 +22,20 @@ namespace CounterTime.Core
         public bool CallMatte;
     }
 
+    /// §9.2 — hold state. `Adv`/`EscapesNeeded` are frozen at entry (§9.2: "Nothing
+    /// recomputes it mid-hold") and only <see cref="MatchEngine.ResolveOsaekomiExchange"/>
+    /// mutates the running counters.
+    public sealed class OsaekomiState
+    {
+        public bool Active { get; internal set; }
+        public FighterId Holder { get; internal set; }
+        public int Adv { get; internal set; }
+        public int EscapesNeeded { get; internal set; }
+        public int EscapesSoFar { get; internal set; }
+        public int HeldSeconds { get; internal set; }
+        internal bool YukoAwarded, WazaAriAwarded;
+    }
+
     public sealed class MatchEngine
     {
         readonly MatchRulesConfig _cfg;
@@ -33,6 +47,7 @@ namespace CounterTime.Core
         public RefereeSystem Referee { get; }
         public ScoreBoard Board { get; }
         public MatchClock Clock { get; }
+        public OsaekomiState Osaekomi { get; } = new OsaekomiState();
 
         public MatchEngine(MatchRulesConfig cfg, RefereeProfile profile, IRandomSource rng)
         {
@@ -98,13 +113,149 @@ namespace CounterTime.Core
             // A score that ended the match calls none — there is nothing to restart.
             // Nor do we call a second one when the referee already did this exchange.
             //
-            // TODO(step 5) §9.1 osaekomi entry gate goes HERE: when the gate passes,
-            // the hold follows instead of matte. Until MatchPhase.Osaekomi is wired,
-            // every score lands on matte.
-            if (!Board.IsFinished && ScoredThisExchange(ev) && !MatteAlreadyCalled(ev))
-                CallMatte(ev);
+            // §9.1 osaekomi entry gate — automatic, never a player choice. Two rows of
+            // that table need no extra code here: "Ippon → n/a, match ends" falls out
+            // of the !Board.IsFinished guard for free (Board.Award already set it), and
+            // "None, or counter with |sum|≤1 → never" is already excluded by
+            // LastScoredJudgement filtering on Judgement != None (and with the default
+            // CounterThreshold=-3 / NoPointMax=1 a counter can never land at |sum|≤1 in
+            // the first place).
+            if (!Board.IsFinished && !MatteAlreadyCalled(ev))
+            {
+                var scored = LastScoredJudgement(ev);
+                if (scored != null && !TryEnterOsaekomi(scored, ev))
+                    CallMatte(ev);
+            }
 
             if (Board.IsFinished) ev.Add(new MatchEnded(Board.Winner));
+            return ev;
+        }
+
+        /// §9.1 entry gate. Waza-ari always enters. Yuko enters only if the scorer's
+        /// effective grip ≥ +1 AND the thrown fighter's stamina < 50 — otherwise §4.3
+        /// matte applies as before.
+        ///
+        /// "Attacker" in §9.1/§9.2 is read here as the fighter who just scored
+        /// (`j.ScoredBy`), not the original technique declarer (`script.Attacker`
+        /// elsewhere in this file) — physically, the scorer is who ends up on top to
+        /// hold, which for a counter is the ORIGINAL DEFENDER. MATCH_RULES §9 does not
+        /// spell this out, so for a countered score (`j.IsCounter`) this is a judgment
+        /// call, not a literal reading of the doc; see the overnight report. It only
+        /// matters for Yuko, since Waza-ari enters regardless — a countered Yuko is
+        /// deliberately left NOT entering osaekomi rather than guess further.
+        bool TryEnterOsaekomi(JudgementScored j, List<MatchEvent> ev)
+        {
+            if (j.Judgement == Judgement.WazaAri)
+            {
+                EnterOsaekomi(j.ScoredBy, wazaAriEntry: true,
+                    Grip.EffectiveGrip(j.ScoredBy), Stamina.Get(Opp(j.ScoredBy)), ev);
+                return true;
+            }
+            if (j.Judgement == Judgement.Yuko && !j.IsCounter)
+            {
+                int grip = Grip.EffectiveGrip(j.ScoredBy);
+                int defenderStamina = Stamina.Get(Opp(j.ScoredBy));
+                if (grip >= 1 && defenderStamina < 50)
+                {
+                    EnterOsaekomi(j.ScoredBy, wazaAriEntry: false, grip, defenderStamina, ev);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// §9.2 — computed once, frozen at entry.
+        void EnterOsaekomi(FighterId holder, bool wazaAriEntry, int attackerGrip,
+                           int defenderStamina, List<MatchEvent> ev)
+        {
+            int adv = (wazaAriEntry ? 2 : 0) + attackerGrip
+                    + (defenderStamina < 25 ? 2 : defenderStamina < 50 ? 1 : 0);
+            int escapesNeeded = System.Math.Clamp(1 + FloorDiv2(adv), 1, 3);
+
+            Osaekomi.Active = true;
+            Osaekomi.Holder = holder;
+            Osaekomi.Adv = adv;
+            Osaekomi.EscapesNeeded = escapesNeeded;
+            Osaekomi.EscapesSoFar = 0;
+            Osaekomi.HeldSeconds = 0;
+            Osaekomi.YukoAwarded = false;
+            Osaekomi.WazaAriAwarded = false;
+            Clock.Phase = MatchPhase.Osaekomi;
+            ev.Add(new OsaekomiEntered(holder, adv, escapesNeeded));
+        }
+
+        static int FloorDiv2(int v) => (int)System.Math.Floor(v / 2.0);
+
+        /// §9.3/§9.4 — one escape exchange, 5 s of real time. Score is awarded FIRST at
+        /// each 5/10/20 s mark, the escape resolves after (§9.3's explicit ordering).
+        /// No-op (empty list) if osaekomi is not active or the match already ended.
+        public IReadOnlyList<MatchEvent> ResolveOsaekomiExchange(
+            OsaekomiDefenderChoice defenderChoice, OsaekomiHolderChoice holderChoice)
+        {
+            var ev = new List<MatchEvent>();
+            if (!Osaekomi.Active || Board.IsFinished) return ev;
+
+            FighterId holder = Osaekomi.Holder;
+            FighterId defender = Opp(holder);
+
+            Clock.AdvanceOsaekomi(_cfg.OsaekomiEscapeIntervalSec);
+            Osaekomi.HeldSeconds += _cfg.OsaekomiEscapeIntervalSec;
+
+            if (!Osaekomi.YukoAwarded && Osaekomi.HeldSeconds >= _cfg.OsaekomiYukoSec)
+            {
+                Osaekomi.YukoAwarded = true;
+                Board.Award(holder, Judgement.Yuko);
+                ev.Add(new OsaekomiScoreAwarded(holder, Judgement.Yuko, Osaekomi.HeldSeconds));
+            }
+            if (!Board.IsFinished && !Osaekomi.WazaAriAwarded && Osaekomi.HeldSeconds >= _cfg.OsaekomiWazaAriSec)
+            {
+                Osaekomi.WazaAriAwarded = true;
+                Board.Award(holder, Judgement.WazaAri);
+                ev.Add(new OsaekomiScoreAwarded(holder, Judgement.WazaAri, Osaekomi.HeldSeconds));
+            }
+            if (!Board.IsFinished && Osaekomi.HeldSeconds >= _cfg.OsaekomiIpponSec)
+            {
+                Board.Award(holder, Judgement.Ippon);
+                ev.Add(new OsaekomiScoreAwarded(holder, Judgement.Ippon, Osaekomi.HeldSeconds));
+            }
+
+            if (Board.IsFinished)
+            {
+                Osaekomi.Active = false;
+                ev.Add(new MatchEnded(Board.Winner));
+                return ev;
+            }
+
+            // §9.3 — 맞물림 (뒤집기×따라가기, 빠져나가기×눌러붙기): hold continues, the
+            // defender pays for staying under control. 어긋남 (the cross pairs): one
+            // escape credited.
+            bool matched = (defenderChoice == OsaekomiDefenderChoice.Reversal && holderChoice == OsaekomiHolderChoice.Follow)
+                        || (defenderChoice == OsaekomiDefenderChoice.Escape && holderChoice == OsaekomiHolderChoice.PressIn);
+            if (matched)
+                Stamina.PayOsaekomiStay(defender);
+            else
+                Osaekomi.EscapesSoFar++;
+
+            // §5.3 unchanged — holder recovery is +2 per completed 10s stalled. Held
+            // time advances in fixed 5s ticks, so this fires on every other exchange.
+            if (Osaekomi.HeldSeconds % 10 == 0)
+                Stamina.RecoverStall(holder, 10);
+
+            ev.Add(new OsaekomiEscapeResolved(defender, defenderChoice, holderChoice,
+                                              !matched, Osaekomi.EscapesSoFar));
+
+            if (Osaekomi.EscapesSoFar >= Osaekomi.EscapesNeeded)
+            {
+                // §9.4 — standing restart WITHOUT matte: grips reset to Free, but no
+                // matte stamina recovery. Stance reset (mirrors CallMatte) is the
+                // runner's job once stage 6 wires ResolveOsaekomiExchange in — scripted
+                // mode never reaches this method today.
+                Grip.OnMatte();
+                Osaekomi.Active = false;
+                Clock.Phase = MatchPhase.Standing;
+                ev.Add(new OsaekomiEnded(defender));
+            }
+
             return ev;
         }
 
@@ -236,11 +387,13 @@ namespace CounterTime.Core
         }
 
         /// §4.3 — 노포인트는 상황을 리셋하지 않는다. 실제로 점수가 난 교환만이다.
-        static bool ScoredThisExchange(List<MatchEvent> ev)
+        /// §9.1 also keys off this exact judgement (Ippon excluded implicitly since
+        /// Board.IsFinished is already true by the time the caller checks it).
+        static JudgementScored LastScoredJudgement(List<MatchEvent> ev)
         {
             foreach (var e in ev)
-                if (e is JudgementScored j && j.Judgement != Judgement.None) return true;
-            return false;
+                if (e is JudgementScored j && j.Judgement != Judgement.None) return j;
+            return null;
         }
 
         static bool MatteAlreadyCalled(List<MatchEvent> ev)
