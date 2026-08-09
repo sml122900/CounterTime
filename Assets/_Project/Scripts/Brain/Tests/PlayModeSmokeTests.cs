@@ -36,6 +36,11 @@ namespace CounterTime.Brain.Tests
             /// §4.3 (v3.4) — 그쳐가 몇 번 났는가. 회복이 여기에 묶여 있다.
             public int Mattes;
 
+            /// §9.1 (step 5, 야간 작업) — 굳히기 진입 횟수. 이 루프는 ResolveOsaekomiExchange
+            /// 를 안 부른다(그 배선은 6단계) — 그래서 굳히기가 열려도 다음 교환은 평범한
+            /// 서기 교환으로 처리된다. 숫자만 기록한다, 안 고친다.
+            public int OsaekomiEntries;
+
             /// 각 습관이 몇 번째 교환에 확정에 닿았는가. 없으면 그 경기에 못 닿았다.
             public readonly Dictionary<HabitId, int> ConfirmedAt = new Dictionary<HabitId, int>();
 
@@ -57,7 +62,7 @@ namespace CounterTime.Brain.Tests
             public override string ToString()
             {
                 var sb = new StringBuilder();
-                sb.AppendLine($"  turns={Turns}  fallback={FallbackTurns} ({100f * FallbackTurns / Turns:0.0}%)  mattes={Mattes}");
+                sb.AppendLine($"  turns={Turns}  fallback={FallbackTurns} ({100f * FallbackTurns / Turns:0.0}%)  mattes={Mattes}  osaekomiEntries={OsaekomiEntries}");
                 sb.AppendLine($"  ending: {Ending}");
                 foreach (HabitId id in Enum.GetValues(typeof(HabitId)))
                     sb.AppendLine($"  habit {id,-22} fired {(Fires.TryGetValue(id, out int n) ? n : 0)}"
@@ -139,6 +144,7 @@ namespace CounterTime.Brain.Tests
                 foreach (var e in events)
                 {
                     if (e is MatteCalled) m.Mattes++;
+                    if (e is OsaekomiEntered) m.OsaekomiEntries++;
                     if (e is JudgementScored js)
                     {
                         m.Score(js.Judgement, js.ScoredBy);
