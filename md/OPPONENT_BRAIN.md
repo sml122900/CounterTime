@@ -1,4 +1,4 @@
-<!-- v1.0 | body:acf2c10 -->
+<!-- v1.0 | body:9493e00 -->
 # OPPONENT_BRAIN.md — where commits and ReadLevel come from (v1.0)
 
 `MATCH_RULES.md` wins on any conflict. This file owns exactly one thing:
@@ -22,12 +22,18 @@ lives in `CounterTime.Core`.
 ## 1. Structure
 
 ```
-ICommitSource            TurnChoice Next(MatchState, FighterId)
+ICommitSource            bool TryNext(out FighterId who, out TurnChoice choice)
+                         false = no declaration this turn. Do NOT collapse this
+                         into a neutral TurnChoice — MATCH_RULES §6.1 "a fighter
+                         who never declared accumulates 0" rides on the distinction.
   ScriptedCommitSource     scenario node          (대조 모드)
   PlayerCommitSource       A-only input UI        (플레이 모드)
   HabitBrainCommitSource   B algorithm            (플레이 모드)
 
-IReadResolver            ReadLevel For(attacker, TurnChoice a, TurnChoice b, ...)
+IReadResolver            ReadLevel For(FighterId attacker, TurnChoice a, TurnChoice b)
+                         Returns the BASE read, before §4.2 CounterReady step-down.
+                         Core applies the step-down; a resolver that pre-applies it
+                         causes double reduction.
   ScriptedReadResolver     node's [판정식] line   (대조 모드)
   LiveReadResolver         §2 + §3 below          (플레이 모드)
 
