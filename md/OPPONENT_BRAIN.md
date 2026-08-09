@@ -1,4 +1,4 @@
-<!-- v1.0 | body:9493e00 -->
+<!-- v1.0 | body:04c9d79 -->
 # OPPONENT_BRAIN.md — where commits and ReadLevel come from (v1.0)
 
 `MATCH_RULES.md` wins on any conflict. This file owns exactly one thing:
@@ -110,7 +110,13 @@ a lookup. The 25% miss is what keeps a known habit tense.
 |---|---|---|---|
 | H1 | own effective grip ≥ +1 | 업어치기 (BigThrow) | concede grip, declare 카운터 준비 |
 | H2 | within 2 turns of receiving a shido | leg technique to make up | wait it out |
-| H3 | *reserve — lights up on retirement* | stamina behind → 극단적 방어 to burn clock | §6.1 +3/turn and §5.2 −1/turn do the work |
+| H3 | *reserve — lights up on retirement*<br>own stamina **< 50** AND below the opponent's | 극단적 방어 to burn clock | §6.1 +3/turn and §5.2 −1/turn do the work |
+
+H3's floor is deliberate. Plain "behind on stamina" is true in roughly half of all
+turns, so a lit H3 would turtle B permanently — and §6.1 (+3/turn) plus §5.2
+(−1/turn) would then grind B into a sandbag rather than an opponent. The 50 is
+**not a new number**: it is `MatchRulesConfig.StaminaBonusTiredThreshold`, the
+same tier §4 already scores from. Both halves of the condition are v1 tunables.
 
 말아업어치기 (stamina < 30, once per match) is **not a habit**: it is a hard rule,
 never observable in advance, never logged (`MATCH_RULES` §7).
