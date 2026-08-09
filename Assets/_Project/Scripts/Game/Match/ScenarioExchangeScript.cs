@@ -48,8 +48,7 @@ namespace CounterTime.Game.Match
         {
             var line = node == null ? null : node.content;
             var m = string.IsNullOrEmpty(line) ? null : FormulaLine.Match(line);
-            if (m == null || !m.Success)
-                return new[] { new ExchangeScript { DurationA = _cfg.GripTurnSec, DurationB = _cfg.GripTurnSec } };
+            if (m == null || !m.Success) return new[] { GripTurn(node) };
 
             string terms = m.Groups["terms"].Value;
             var attacker = m.Groups["who"].Value == "B" ? FighterId.B : FighterId.A;
@@ -64,6 +63,30 @@ namespace CounterTime.Game.Match
                 foreach (var name in names)
                     scripts.Add(Exchange(attacker, read, name, CostOf(name), techClass));
             return scripts;
+        }
+
+        /// <summary>
+        /// <c>[판정식]</c> 이 없는 잡기싸움 턴(§2 5초). 다만 <b>판정식이 없다고 행동이 없는
+        /// 것은 아니다</b> — §2 는 "발기술은 잡으면서도 가능" 이라 하고 §5.1 은 견제 발기술을
+        /// Poke(1) 로 값매긴다. 하체 공격을 선언한 노드는 판정식 줄이 없어도 기술을 낸다
+        /// (m3 "하체 발기술", 본문 "체력: 견제 발기술 −1").
+        ///
+        /// 이 노드가 <b>직접 선언한</b> 것만 본다. 유지 중인 커밋으로 매 교환마다 발기술이
+        /// 다시 나가면 안 된다.
+        /// </summary>
+        ExchangeScript GripTurn(ScenarioNode node)
+        {
+            bool declared = ScenarioTurnChoices.TryParse(node, out var who, out var c);
+            // §2 시간 비용 — 뜯기 3초, 잡기 5초.
+            int sec = declared && c.Hand == HandTarget.Tear ? _cfg.TearSec : _cfg.GripTurnSec;
+            var s = new ExchangeScript { DurationA = sec, DurationB = sec };
+            if (declared && c.Legs == LegAction.Attack)
+            {
+                s.Attacker = who;
+                // 견제기다 — m0 범례의 "어설픈·위장 0" 급.
+                s.Technique = new TechniqueSpec(node.id + ":발기술", ActionCost.Poke, TechniqueClass.Sloppy);
+            }
+            return s;
         }
 
         ExchangeScript Exchange(FighterId attacker, ReadLevel read, string techId,

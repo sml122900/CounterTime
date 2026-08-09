@@ -34,9 +34,20 @@ namespace CounterTime.Game.Match
                 return true;
             }
 
-            choice = new TurnChoice(HandOf(t), CoreOf(t), LegsOf(t), OwnHandOf(t));
+            var hand = HandOf(t);
+            var own = OwnHandOf(t);
+
+            // 뜯기는 '어느 손을' 이 본질인데 제목이 자주 생략한다 (m20 "① 즉시 뜯기").
+            // 그 경우에만 본문을 본다 — m20 본문이 "잡힌 왼손을 비틀어 뺀다" 로 밝힌다.
+            // 본문 전체를 항상 읽으면 산문 속 부위 언급까지 손 목표로 잡혀서 과탐지된다.
+            if (hand == HandTarget.Tear && !NamesAHand(t))
+                own = OwnHandOf(node.content ?? "");
+
+            choice = new TurnChoice(hand, CoreOf(t), LegsOf(t), own);
             return true;
         }
+
+        static bool NamesAHand(string t) => t.Contains("왼손") || t.Contains("오른손");
 
         /// 구체적인 이름이 먼저다 — 틀어잡기가 '잡기 유지'보다 앞서야 한다.
         static HandTarget HandOf(string t) =>
@@ -45,14 +56,18 @@ namespace CounterTime.Game.Match
             : t.Contains("뜯기")      ? HandTarget.Tear
             : t.Contains("잡기 유지") ? HandTarget.MaintainGrip
             : t.Contains("회피")      ? HandTarget.Evade
-            : t.Contains("오른소매")  ? HandTarget.RightSleeve
-            : t.Contains("왼소매")    ? HandTarget.LeftSleeve
+            // 포획 = 상대 손을 낚아채는 것. "A 왼손 포획" 은 그 소매를 잡는 것이다.
+            : t.Contains("오른소매") || (t.Contains("포획") && t.Contains("오른손")) ? HandTarget.RightSleeve
+            : t.Contains("왼소매")   || (t.Contains("포획") && t.Contains("왼손"))   ? HandTarget.LeftSleeve
             : t.Contains("왼가슴") || t.Contains("안깃") ? HandTarget.LeftLapel
             : t.Contains("오른가슴")  ? HandTarget.RightLapel
             : HandTarget.None;
 
         static Hand OwnHandOf(string t) =>
-              t.Contains("왼손")   ? Hand.Left
+              // "A 왼손 포획" 의 왼손은 잡히는 손이지 잡는 손이 아니다. 어느 손으로
+              // 낚아챘는지는 노드가 안 밝히므로 기본값을 쓴다.
+              t.Contains("포획") ? Hand.Right
+            : t.Contains("왼손")   ? Hand.Left
             : t.Contains("오른손") ? Hand.Right
             : Hand.Right;
 
