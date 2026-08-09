@@ -12,22 +12,27 @@ namespace CounterTime.Brain
     public static class Jindoyun
     {
         /// <summary>
-        /// <b>순서가 규칙이다</b> — 사다리는 첫 매치에서 끝난다.
+        /// <b>순서가 규칙이다</b> — 사다리는 첫 매치에서 끝나므로, 위에 있는 것이 아래를
+        /// 굶길 수 있다. 그래서 <b>조건이 좁은 것부터</b> 검사한다 (§6.1 과 같은 모양).
         ///
-        /// H1 과 H4 는 조건이 정확히 배타적이라(잡기 ≥ +1 / &lt; +1) 서로 다투지 않는다.
-        /// H2 를 H4 위에 두는 것은 의도다: 지도를 받은 직후에는 잡으러 가는 것보다
-        /// 만회가 급하다.
+        /// <code>
+        /// H2  지도 받은 뒤 2턴 내        가장 좁다 — 지도가 나야 하고 창도 2턴이다
+        /// H3  체력 &lt;50 이고 열세         둘 다 만족해야 한다
+        /// H1  잡기 ≥ +1                  잡기 축의 절반
+        /// H4  잡기 &lt; +1                  나머지 절반 — 가장 넓다
+        /// H4b 잡기 &lt; +1 (예비)           H4 의 교체분이라 그 뒤
+        /// </code>
         ///
-        /// 예비 둘은 맨 뒤다. H4b 가 H3 보다 앞인 것도 의도 — 폐기가 났을 때 B 는
-        /// 먼저 다른 소매를 시도하고, 그것도 안 되면 틀어박힌다.
+        /// 실측 근거: H1 을 맨 앞에 뒀더니 H1 이 7회 발화하는 동안 H2·H3 이 <b>0회</b>
+        /// 였다. B 의 습관 넷 중 둘이 실질적으로 관측 불가였다.
         /// </summary>
         public static readonly HabitId[] Habits =
         {
-            HabitId.BigThrowOnGripEdge,
             HabitId.LegTechAfterShido,
+            HabitId.TurtleWhenTired,
+            HabitId.BigThrowOnGripEdge,
             HabitId.SeekGripRightSleeve,
             HabitId.SeekGripLeftSleeve,
-            HabitId.TurtleWhenTired,
         };
 
         public static OpponentDefinition Create(MatchRulesConfig cfg)

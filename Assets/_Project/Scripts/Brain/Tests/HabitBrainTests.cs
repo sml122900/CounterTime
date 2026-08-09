@@ -63,10 +63,41 @@ namespace CounterTime.Brain.Tests
 
             var d = AlwaysFires().Next(s, ctx);
 
-            Assert.AreEqual(HabitId.BigThrowOnGripEdge, d.Habit.Id, "목록에서 먼저인 H1 이 이긴다");
+            Assert.AreEqual(HabitId.LegTechAfterShido, d.Habit.Id, "조건이 좁은 H2 가 이긴다");
             Assert.IsTrue(d.Fired);
-            Assert.AreEqual("업어치기", d.Habit.Action.Technique.Id,
-                "H1 의 행동만 나온다 — H2 의 기술과 섞이지 않는다");
+            Assert.AreEqual("안뒤축감아치기", d.Habit.Action.Technique.Id,
+                "H2 의 행동만 나온다 — H1 의 업어치기와 섞이지 않는다");
+        }
+
+        /// <summary>
+        /// 배타 사다리는 <b>조건이 좁은 것부터</b> 본다. 넓은 조건이 위에 있으면 좁은
+        /// 것을 굶긴다 — H1 을 맨 앞에 뒀을 때 H1 이 7회 도는 동안 H2·H3 이 0회였다.
+        /// </summary>
+        [Test]
+        public void LadderChecksNarrowConditionsFirst_H2BeatsH1WhenBothHold()
+        {
+            var s = FreshMatch();
+            var both = new Ctx { OwnEffectiveGrip = 2, TurnsSinceOwnShido = 0 };
+
+            Assert.IsTrue(Habit(s, HabitId.BigThrowOnGripEdge).Condition(both), "전제: H1 조건도 선다");
+            Assert.IsTrue(Habit(s, HabitId.LegTechAfterShido).Condition(both), "전제: H2 조건도 선다");
+
+            Assert.AreEqual(HabitId.LegTechAfterShido, AlwaysFires().Next(s, both).Habit.Id,
+                "지도 직후 2턴이라는 좁은 조건이 잡기 축 절반보다 먼저다");
+
+            // 좁은 조건이 안 서면 넓은 쪽으로 내려간다.
+            Assert.AreEqual(HabitId.BigThrowOnGripEdge,
+                AlwaysFires().Next(FreshMatch(), new Ctx { OwnEffectiveGrip = 2 }).Habit.Id);
+
+            // H4 는 잡기 축의 나머지 절반이라 가장 뒤다.
+            Assert.AreEqual(HabitId.SeekGripRightSleeve,
+                AlwaysFires().Next(FreshMatch(), new Ctx { OwnEffectiveGrip = 0 }).Habit.Id);
+
+            CollectionAssert.AreEqual(
+                new[] { HabitId.LegTechAfterShido, HabitId.TurtleWhenTired, HabitId.BigThrowOnGripEdge,
+                        HabitId.SeekGripRightSleeve, HabitId.SeekGripLeftSleeve },
+                s.Opponent.Habits.Select(h => h.Id).ToArray(),
+                "목록 순서가 곧 규칙이다 — 좁은 조건부터");
         }
 
         /// <summary>
@@ -300,11 +331,14 @@ namespace CounterTime.Brain.Tests
             Assert.AreEqual(HabitId.BigThrowOnGripEdge, ladder.Next(s, gripEdge).Habit.Id, "턴 3: 다시 뜬다");
 
             // 쿨다운은 막을 뿐 사다리를 멈추지 않는다 — 아래 칸이 조건을 만족하면 그게 나온다.
+            // 잡기가 우위면 H1 이 후보인데, 쿨다운에 걸리면 H4 로 안 내려간다(조건 배타).
+            // 대신 잡기를 내주면 H4 가 받는다.
             var fresh = FreshMatch();
-            var afterShido = new Ctx { OwnEffectiveGrip = 2, TurnsSinceOwnShido = 0 };
-            Assert.AreEqual(HabitId.BigThrowOnGripEdge, AlwaysFires().Next(fresh, afterShido).Habit.Id);
-            Assert.AreEqual(HabitId.LegTechAfterShido, AlwaysFires().Next(fresh, afterShido).Habit.Id,
-                "H1 이 쿨다운이면 H2 로 내려간다");
+            Assert.AreEqual(HabitId.BigThrowOnGripEdge,
+                AlwaysFires().Next(fresh, new Ctx { OwnEffectiveGrip = 2 }).Habit.Id, "턴 0: H1");
+            Assert.AreEqual(HabitId.SeekGripRightSleeve,
+                AlwaysFires().Next(fresh, new Ctx { OwnEffectiveGrip = 0 }).Habit.Id,
+                "턴 1: H1 은 쿨다운이고 잡기도 열세다 — H4 가 받는다");
         }
 
         /// <summary>

@@ -36,6 +36,13 @@ namespace CounterTime.Brain.Tests
             /// 각 습관이 몇 번째 교환에 확정에 닿았는가. 없으면 그 경기에 못 닿았다.
             public readonly Dictionary<HabitId, int> ConfirmedAt = new Dictionary<HabitId, int>();
 
+            /// 5교환마다, 그리고 종료 시점의 양쪽 체력. §5.6 은 스팸 시퀀스 10점만
+            /// 검증했고 한 경기 전체의 체력 경제는 아직 아무도 안 봤다.
+            public readonly List<string> StaminaTrace = new List<string>();
+
+            /// 2행(A 공격 + B 비공격 습관 + 확정)이 뜬 교환의 판정식 5항 그대로.
+            public readonly List<string> RowTwoTerms = new List<string>();
+
             public void Fire(HabitId id) => Fires[id] = (Fires.TryGetValue(id, out int n) ? n : 0) + 1;
 
             public void Score(Judgement j, FighterId by)
@@ -60,6 +67,9 @@ namespace CounterTime.Brain.Tests
                 sb.AppendLine($"   (counters {Counters})");
                 sb.AppendLine($"  scored by: A={(ScoredBy.TryGetValue(FighterId.A, out int sa) ? sa : 0)}"
                             + $"  B={(ScoredBy.TryGetValue(FighterId.B, out int sbb) ? sbb : 0)}");
+                sb.AppendLine("  stamina: " + string.Join("  ", StaminaTrace));
+                sb.AppendLine($"  row-2 judgements ({RowTwoTerms.Count}):");
+                foreach (var t in RowTwoTerms) sb.AppendLine("    " + t);
                 return sb.ToString();
             }
         }
@@ -110,7 +120,11 @@ namespace CounterTime.Brain.Tests
                 m.Turns++;
                 if (brain.LastUsedFallback) m.FallbackTurns++;
                 if (brain.LastDecision.Fired) m.Fire(brain.LastDecision.Habit.Id);
-                m.Rows[RowOf(attacker, read)]++;
+
+                int row = RowOf(attacker, read);
+                m.Rows[row]++;
+                if (turn % 5 == 0)
+                    m.StaminaTrace.Add($"[{turn}] A{engine.Stamina.Get(FighterId.A)}/B{engine.Stamina.Get(FighterId.B)}");
 
                 var events = engine.ResolveExchange(a, b, new ExchangeScript
                 {
@@ -124,6 +138,15 @@ namespace CounterTime.Brain.Tests
                     {
                         m.Score(js.Judgement, js.ScoredBy);
                         if (js.IsCounter) m.Counters++;
+
+                        // 2행이 뜬 교환의 판정식을 항 그대로 남긴다 — FullRead +3 인데
+                        // 유효가 안 나면 다섯 항 중 어디서 깎였는지 봐야 한다.
+                        if (row == 2)
+                            m.RowTwoTerms.Add(
+                                $"ex{turn}: terms[grip,read,stam,tech,posture]=[{string.Join(",", js.Terms)}]"
+                                + $" sum={js.Sum} -> {js.Judgement} by {js.ScoredBy}"
+                                + $" (counter={js.IsCounter}, Bhabit={(brain.LastDecision.ConditionHeld ? brain.LastDecision.Habit.Id.ToString() : "-")}"
+                                + $", Bcore={b.Core}, Blegs={b.Legs}, gripA={engine.Grip.EffectiveGrip(FighterId.A)})");
                     }
 
                 // §4.2 피해 — 관측 기록보다 <b>먼저</b> 본다. 그래야 "A 가 이미 읽을 수
@@ -144,6 +167,8 @@ namespace CounterTime.Brain.Tests
                 ctx.ObserveExchange(events);
                 window.Record(a);      // 창은 지난 커밋만 든다 — 해결 뒤에 넣는다
             }
+
+            m.StaminaTrace.Add($"[end] A{engine.Stamina.Get(FighterId.A)}/B{engine.Stamina.Get(FighterId.B)}");
 
             // 종료 사유는 MatchEnded 가 안 실어 보낸다(Winner 만 든다) — 보드에서 되짚는다.
             if (engine.Board.IsFinished)
