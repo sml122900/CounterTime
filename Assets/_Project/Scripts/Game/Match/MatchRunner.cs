@@ -60,6 +60,28 @@ namespace CounterTime.Game.Match
 
         public void Begin() => EnterNode(startNodeId);
 
+        /// <summary>
+        /// 대조용 메인라인. CORE_DESIGN 은 <c>m15→…→m36</c> 으로 가운데를 비워뒀는데,
+        /// 최단 경로를 고르면 그쳐로 풀린 그립을 다시 안 잡아 m36 의 잡기 항이 0 이 된다.
+        ///
+        /// m2 가 스스로 말한다 — "모든 '그쳐' 후 재개는 여기로 회귀". 다시 잡는 것이
+        /// 허브가 있는 이유다. 그래서 재개 후 첫 회차와 같은 잡기 경로(m3→m4→m8→m9)를
+        /// 한 번 더 탄다. §2 의 전제조건(소매·깃 먼저, 그다음 틀어잡기)도 그 경로가
+        /// 이미 만족시킨다.
+        /// </summary>
+        public static readonly string[] Mainline =
+        {
+            "m1", "m2", "m3", "m4", "m8", "m9", "m13", "m14", "m15",
+            "m2", "m3", "m4", "m8", "m9",     // 그쳐 후 재개 — 잡기 +2 복구
+            "m31", "m35", "m36",
+        };
+
+        /// <summary>사람 입력 없이 <see cref="Mainline"/> 을 그대로 걷는다 — 42노드 대조용.</summary>
+        public void RunMainline()
+        {
+            foreach (var id in Mainline) EnterNode(id);
+        }
+
         /// <summary>자식이 없으면 false — 종단이다.</summary>
         public bool Advance(int childIndex)
         {
