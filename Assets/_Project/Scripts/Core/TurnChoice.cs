@@ -24,6 +24,12 @@ namespace CounterTime.Core
         public bool IsExtremeDefense =>
             Hand == HandTarget.Evade && Core == CoreStance.Defensive && Legs == LegAction.Defend;
 
+        /// default(TurnChoice) 는 중립이 아니다 — CoreStance.Aggressive 와 LegAction.Attack
+        /// 이 각각 enum 0 이라서 '공격적·공격' 이 나온다. enum 순서는 값에 의존하는 코드가
+        /// 있어 바꾸지 않는다. 중립이 필요하면 반드시 이 값을 쓸 것.
+        public static readonly TurnChoice Neutral =
+            new TurnChoice(HandTarget.None, CoreStance.Neutral, LegAction.Neutral);
+
         public bool IsAllNeutral =>
             Hand == HandTarget.None && Core == CoreStance.Neutral && Legs == LegAction.Neutral;
     }

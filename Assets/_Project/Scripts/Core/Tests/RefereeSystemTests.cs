@@ -29,6 +29,27 @@ namespace CounterTime.Core.Tests
             return r.ConsumeShidoIfDue(who) != null ? 1 : 0;
         }
 
+        /// default(TurnChoice) is NOT neutral: CoreStance.Aggressive and LegAction.Attack
+        /// are both enum 0, so a zeroed struct reads as 공격적·공격 and slips past the
+        /// §6.1 all-neutral rung entirely. This bug was live and silent — the accumulator
+        /// simply ran low. Pinned here because the enum order is load-bearing elsewhere
+        /// and must not be "fixed" instead.
+        [Test]
+        public void DefaultTurnChoice_IsNotNeutral_AndAccruesNothing()
+        {
+            var zeroed = default(TurnChoice);
+            Assert.AreEqual(CoreStance.Aggressive, zeroed.Core);
+            Assert.AreEqual(LegAction.Attack, zeroed.Legs);
+            Assert.IsFalse(zeroed.IsAllNeutral, "a zeroed struct is not a neutral commit");
+
+            Assert.IsTrue(TurnChoice.Neutral.IsAllNeutral, "TurnChoice.Neutral is the real thing");
+
+            // 12 turns of the zeroed struct accrue nothing; 12 declared-neutral turns
+            // reach the standard threshold exactly.
+            Assert.AreEqual(0, AccViaShido(Ref(), FighterId.A, zeroed, 12));
+            Assert.AreEqual(1, AccViaShido(Ref(), FighterId.A, TurnChoice.Neutral, 12));
+        }
+
         // ---- patch 1.1: exclusive categories ----
 
         [Test]

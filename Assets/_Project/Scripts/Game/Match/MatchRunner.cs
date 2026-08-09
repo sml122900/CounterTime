@@ -26,15 +26,15 @@ namespace CounterTime.Game.Match
         MatchRulesConfig _cfg;
         ScenarioExchangeScript _script;
 
-        /// 러너가 드는 유일한 상태는 '입력'이다. 말한 적 없는 커밋은 근거가 아니므로
-        /// 노드마다 새로 세운다 — 노드가 밝힌 선수만 그 자세를 갖고, 나머지는 중립이다.
-        /// 자세를 이어붙이는 것은 없는 데이터를 만들어내는 것이다.
-        readonly TurnChoice[] _commit = new TurnChoice[2];
-
-        /// default(TurnChoice) 는 중립이 아니다 — Aggressive/Attack 이 enum 0 이라서
-        /// 심판의 §6.1 '전부 중립'(+1) 에도 안 걸린다. 중립은 명시해야 중립이다.
-        static readonly TurnChoice Neutral =
-            new TurnChoice(HandTarget.None, CoreStance.Neutral, LegAction.Neutral);
+        /// 러너가 드는 유일한 상태는 '입력'이다.
+        ///
+        /// 자세는 <b>다음 선언 또는 그쳐까지 유지된다</b> — m13 의 극단적 방어가 m14 의 네
+        /// 교환 내내 살아 있어야 문서의 상대수비 −2 가 나온다. 끊는 지점은 그쳐다:
+        /// 그립이 풀릴 때 선수도 일어서서 다시 선다.
+        ///
+        /// null = 아직 선언된 적이 없다(화면 밖). 중립을 '고른' 것과 다르므로 심판이
+        /// 관찰하지 않는다 — <see cref="ExchangeScript.DeclaredA"/> 참조.
+        readonly TurnChoice?[] _commit = new TurnChoice?[2];
 
         public MatchEngine Engine { get; private set; }
         public ScenarioRunner Scenario { get; private set; }
@@ -51,7 +51,7 @@ namespace CounterTime.Game.Match
             Engine = new MatchEngine(_cfg, refereeProfile, new SystemRandomSource(randomSeed));
             _script = new ScenarioExchangeScript(_cfg);
             Scenario = new ScenarioRunner(new ScenarioGraph(JsonUtility.FromJson<ScenarioData>(json.text)));
-            _commit[0] = _commit[1] = Neutral;
+            _commit[0] = _commit[1] = null;
         }
 
         public void Begin() => EnterNode(startNodeId);
@@ -71,7 +71,6 @@ namespace CounterTime.Game.Match
             var node = Scenario.Current;
             if (node == null) return;
 
-            _commit[0] = _commit[1] = Neutral;
             if (ScenarioTurnChoices.TryParse(node, out var who, out var commit))
                 _commit[(int)who] = commit;
 
@@ -83,13 +82,21 @@ namespace CounterTime.Game.Match
             if (!hasTechnique && !isActor) return;
 
             foreach (var s in scripts)
-                foreach (var e in Engine.ResolveExchange(_commit[0], _commit[1], s))
+            {
+                // 기술을 던지는 쪽은 그 자체가 선언이다 — 자세를 따로 안 밝힌 판정 노드
+                // (m36 같은)에서도 심판은 실제 시도(§6.1 −4)를 봐야 한다.
+                s.DeclaredA = _commit[0].HasValue || s.Attacker == FighterId.A;
+                s.DeclaredB = _commit[1].HasValue || s.Attacker == FighterId.B;
+
+                foreach (var e in Engine.ResolveExchange(_commit[0] ?? TurnChoice.Neutral,
+                                                         _commit[1] ?? TurnChoice.Neutral, s))
                 {
                     Present(node, e);
-                    // 그쳐는 그립만 푸는 게 아니다 — 선수가 일어서서 다시 선다.
-                    // 자세도 같이 초기화해야 노드 안의 남은 교환이 옛 자세를 물려받지 않는다.
-                    if (e is MatteCalled) _commit[0] = _commit[1] = Neutral;
+                    // 그쳐가 끊는 지점이다. 그립이 풀리듯 자세도 풀린다 — 아무도 아직
+                    // 아무것도 선언하지 않은 상태로 돌아간다.
+                    if (e is MatteCalled) _commit[0] = _commit[1] = null;
                 }
+            }
         }
 
         void Present(ScenarioNode node, MatchEvent e)

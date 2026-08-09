@@ -13,6 +13,11 @@ namespace CounterTime.Core
         // No DefenseQuality here — §5.2 keys it off the read, so it is derived in
         // StaminaSystem.DefenseQualityFor. A script field would be a second source.
         public bool AttackEntryA, AttackEntryB;
+        /// §6.1 — 이 턴에 그 선수가 실제로 커밋을 선언했는가. false 면 심판이 관찰하지
+        /// 않는다: '전부 중립 +1' 은 중립을 <b>고른</b> 턴에만 붙는 항이고, 시나리오가
+        /// 언급조차 안 한 선수는 고른 게 아니라 화면 밖이다. 거기에 +1 을 매기면 없는
+        /// 데이터를 만들어내는 것이다.
+        public bool DeclaredA = true, DeclaredB = true;
         public int DurationA = 3, DurationB = 3;     // §2 time costs, seconds
         public bool CallMatte;
     }
@@ -56,9 +61,9 @@ namespace CounterTime.Core
             bool entryA = script.AttackEntryA && !crA;
             bool entryB = script.AttackEntryB && !crB;
 
-            // 1. referee observes both commits
-            Referee.ObserveTurn(FighterId.A, a, entryA, attacker == FighterId.A);
-            Referee.ObserveTurn(FighterId.B, b, entryB, attacker == FighterId.B);
+            // 1. referee observes both commits — but only the ones actually declared.
+            if (script.DeclaredA) Referee.ObserveTurn(FighterId.A, a, entryA, attacker == FighterId.A);
+            if (script.DeclaredB) Referee.ObserveTurn(FighterId.B, b, entryB, attacker == FighterId.B);
 
             // 2. grip resolution
             ResolveGrip(FighterId.A, a, b, ev);
