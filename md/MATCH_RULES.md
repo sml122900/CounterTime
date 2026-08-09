@@ -1,11 +1,12 @@
-<!-- v3.2 | body:e11de04 -->
-# MATCH_RULES.md — COUNTER TIME judo match system (v3.2)
+<!-- v3.3 | body:9b466ae -->
+# MATCH_RULES.md — COUNTER TIME judo match system (v3.3)
 
 Single source of truth for match logic. `CounterTime.Core` implements THIS file;
 if code and this file disagree, this file wins. All numbers are v1 tunables unless
 marked FIXED. Korean technique/UI terms are kept as-is (UI language is Korean).
 
 Companion docs: `CORE_DESIGN_MatchEngine.md` (implementation design),
+`OPPONENT_BRAIN.md` (where ReadLevel comes from once B is an algorithm),
 `counter-time-match-scenario-v2.json` (42-node reference match on the board format;
 its `[판정식]` lines are computed with the formulas below and double as test vectors).
 
@@ -138,7 +139,11 @@ opponent handed you a throwable posture, NOT how deeply they turtled.
 Reading levels, operationally: *full read* = you predicted the opponent's exact
 commitment and they were mid-commitment into you (e.g. reaching for a grip, mid
 rotation); *read* = correct anticipation; *got read* = your attempt was predicted.
-v1: the scenario/AI layer supplies the ReadLevel; Core only consumes it.
+**Core never derives ReadLevel.** It is supplied per exchange by the
+commit-source layer and Core only consumes it — this is unchanged from v3.2, but
+the supplier is no longer only the scenario. Derivation rules (habit observation,
+player-tendency window, scouting) live in `OPPONENT_BRAIN.md`. The scripted
+regression path (대조 모드) keeps supplying it from scenario nodes.
 
 ### 4.1 Canonical validations (MUST pass as unit tests — from the designer's oral match)
 1. **Attack spam vs turtled opponent**: grip+2, read 0, stam 0, standard +1,
@@ -218,6 +223,7 @@ everything and still being thrown is the intended feel.
 Clean defense (won the read) 2 / neutral 4 / pushed but no score 6.
 **극단적 방어: additional −1 per turn held** (turtling drains you into the
 opponent's stamina bonus — intended death spiral).
+Osaekomi escape exchanges have their own cost — see §9.3.
 
 ### 5.3 Recovery
 Matte: **+3** once per matte. Osaekomi stalling (advantaged side, no pin scored):
@@ -292,6 +298,8 @@ At 90 %: referee steps closer + crowd murmur SE. Coach panel drops hints
 | Referee accumulator | never — tells only (§6.4) |
 | Opponent habits | only what the 수 노트 has logged |
 | Opponent surprise tech | hidden until first use |
+| Own tendency exposure (내 성향) | **exact** — the bar the opponent reads is public (§4) |
+| Opponent's scouting level | pre-match notice, never a live number |
 
 **Grip HUD is a hard requirement, not a presentation preference.** Measured on
 `spike/lowres-render`: a hand is 5.8 px wide at 320×180, so the player can see *that*
@@ -306,8 +314,65 @@ it implicit in the animation.
   counter-ready effect and its sign (§4.2), simultaneous clock cost, time-up boundary.
 - RESOLVED v3.2: defensive stance is Core == Defensive only, suppressed by
   카운터 준비 (§4). Derived in exactly one place, JudgementCalculator.IsDefensivePosture.
-- DEFERRED to the 42-node audit: counter ignition threshold (option ⓐ vs ⓒ), judged
-  by distribution of ignition conditions, after the 대파열 presentation is checked.
-- Osaekomi escape resolution (v1: scripted by scenario nodes).
+- RESOLVED v3.2 (by 360-combination sweep, not the 42-node audit): counter ignition
+  threshold **ⓐ (−3)** — ignition splits into two families (read-led / grip-led) and
+  CounterReady already fires at grip +1.
+- RESOLVED v3.3: ReadLevel supplier generalised out of the scenario layer (§4,
+  `OPPONENT_BRAIN.md`); osaekomi entry gate and escape resolution (§9).
+- Escape choice set is 2×2 in v1; a third option and the `adv` constants are
+  tunables to revisit after play.
 - Whether Locked should also raise big-throw cost beyond the grip-cap effect (v1: no).
 - Golden-score fatigue floor (v1: none — both <25 stamina makes any yuko end it).
+
+## 9. Osaekomi — entry & escape (굳히기)
+
+Osaekomi is **not** a free follow-up to any score. Entry is gated by the throw
+that preceded it: a yuko-grade throw rarely leaves the thrower in a position to
+hold, while a waza-ari-grade one usually does. Grip at entry and the defender's
+stamina decide the rest. The hold itself contributes nothing on its own.
+
+### 9.1 Entry gate — automatic, never a player choice
+
+| Judgement that just resolved | Osaekomi |
+|---|---|
+| Ippon | n/a (match ends) |
+| **Waza-ari** | enters |
+| **Yuko** | enters ONLY if attacker's effective grip ≥ +1 AND defender stamina < 50 |
+| None, or counter with \|sum\| ≤ 1 | never |
+
+### 9.2 Hold advantage — computed once, at entry
+
+```
+adv = (waza-ari entry ? +2 : 0)
+    + attacker effective grip at entry        (−2 … +2)
+    + (defender stamina <25 ? +2 : <50 ? +1 : 0)
+
+escapesNeeded = clamp(1 + floor(adv / 2), 1, 3)
+```
+
+`adv` is **frozen at entry**. Nothing recomputes it mid-hold — the hold is decided
+by how you got there, which is the whole point of this section.
+
+### 9.3 Escape exchange — one per 5 s of hold
+
+Simultaneous 2-choice commit, same shape as a standing exchange:
+
+| Defender (escaping) | Holder |
+|---|---|
+| 뒤집기 | 따라가기 |
+| 빠져나가기 | 눌러붙기 |
+
+- **맞물림** (뒤집기×따라가기, 빠져나가기×눌러붙기): hold continues, defender pays
+  **3 stamina**. Holder recovery is §5.3 unchanged (+2 per 10 s stalled).
+- **어긋남** (the two cross pairs): one escape credited. At `escapesNeeded` the
+  hold breaks.
+- **Ordering at each 5 / 10 / 20 s mark: the osaekomi score is awarded FIRST, the
+  escape exchange resolves after.** Same principle as the time-up boundary in §1 —
+  an escape landing exactly on 5 s does not erase the yuko.
+
+### 9.4 On escape
+
+Standing restart **without matte**: the clock does not stop and no matte recovery
+(§5.3) is granted. All grips reset to **Free** and both fighters' stances reset —
+a fighter who went to the mat cannot carry a grip back up. Passivity accumulators
+are untouched.
