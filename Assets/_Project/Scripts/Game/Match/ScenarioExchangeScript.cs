@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using CounterTime.Core;
 using CounterTime.Core.Scenario;
@@ -36,26 +37,63 @@ namespace CounterTime.Game.Match
         }
 
         /// <summary>
-        /// 노드에 <c>[판정식]</c> 줄이 없으면 이번 교환에는 기술이 없다 — 잡기싸움 턴(§2 5초).
+        /// 한 노드가 몇 교환인지는 노드가 정한다. 대개 1개지만, 제목이 기술을 여러 개
+        /// 나열하면 그만큼 전개된다 — m14 "밭다리·발목받치기·밭다리·허리후리기" 가
+        /// 그 경우이고, 문서가 적은 체력 −10(3+1+3+3)은 4교환으로 굴려야만 나온다.
+        ///
+        /// 노드에 <c>[판정식]</c> 줄이 없으면 기술이 없다 — 잡기싸움 턴(§2 5초) 하나.
         /// 있으면 기술 교환(§2 3초)으로 조립한다.
         /// </summary>
-        public ExchangeScript For(ScenarioNode node)
+        public IReadOnlyList<ExchangeScript> For(ScenarioNode node)
         {
             var line = node == null ? null : node.content;
             var m = string.IsNullOrEmpty(line) ? null : FormulaLine.Match(line);
             if (m == null || !m.Success)
-                return new ExchangeScript { DurationA = _cfg.GripTurnSec, DurationB = _cfg.GripTurnSec };
+                return new[] { new ExchangeScript { DurationA = _cfg.GripTurnSec, DurationB = _cfg.GripTurnSec } };
 
             string terms = m.Groups["terms"].Value;
-            return new ExchangeScript
+            var attacker = m.Groups["who"].Value == "B" ? FighterId.B : FighterId.A;
+            var read = ReadOf(terms, node.id);
+            var techClass = ClassOf(terms, node.id);
+
+            var names = TechniqueSequence(node.title);
+            var scripts = new List<ExchangeScript>(Math.Max(1, names.Length));
+            if (names.Length < 2)
+                scripts.Add(Exchange(attacker, read, node.id, ActionCost.BigThrow, techClass));
+            else
+                foreach (var name in names)
+                    scripts.Add(Exchange(attacker, read, name, CostOf(name), techClass));
+            return scripts;
+        }
+
+        ExchangeScript Exchange(FighterId attacker, ReadLevel read, string techId,
+                                ActionCost cost, TechniqueClass techClass) =>
+            new ExchangeScript
             {
-                Attacker = m.Groups["who"].Value == "B" ? FighterId.B : FighterId.A,
-                Read = ReadOf(terms, node.id),
-                Technique = new TechniqueSpec(node.id, ActionCost.BigThrow, ClassOf(terms, node.id)),
+                Attacker = attacker,
+                Read = read,
+                Technique = new TechniqueSpec(techId, cost, techClass),
                 DurationA = _cfg.ExchangeSec,
                 DurationB = _cfg.ExchangeSec,
             };
+
+        /// 제목의 마지막 '—' 뒤를 '·' 로 끊는다. 2개 이상일 때만 기술 나열로 본다 —
+        /// 1개면 그냥 제목 꼬리라서 기술 이름이 아니다.
+        static string[] TechniqueSequence(string title)
+        {
+            if (string.IsNullOrEmpty(title)) return Array.Empty<string>();
+            int dash = title.LastIndexOf('—');
+            var parts = (dash >= 0 ? title.Substring(dash + 1) : title).Split('·');
+            for (int i = 0; i < parts.Length; i++) parts[i] = parts[i].Trim();
+            return parts;
         }
+
+        // §5.1 견제기. m14 의 체력 내역 3+1+3+3 이 발목받치기를 Poke 로 못 박는다
+        // (잡기+2 계수 0.6 → 큰기술 3, 견제기 1). 나머지는 전부 큰기술.
+        static readonly string[] Pokes = { "발목받치기" };
+
+        static ActionCost CostOf(string techName) =>
+            Array.IndexOf(Pokes, techName) >= 0 ? ActionCost.Poke : ActionCost.BigThrow;
 
         static ReadLevel ReadOf(string terms, string nodeId)
         {
