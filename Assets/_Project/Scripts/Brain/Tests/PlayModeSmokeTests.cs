@@ -36,9 +36,9 @@ namespace CounterTime.Brain.Tests
             /// §4.3 (v3.4) — 그쳐가 몇 번 났는가. 회복이 여기에 묶여 있다.
             public int Mattes;
 
-            /// §9.1 (step 5, 야간 작업) — 굳히기 진입 횟수. 이 루프는 ResolveOsaekomiExchange
-            /// 를 안 부른다(그 배선은 6단계) — 그래서 굳히기가 열려도 다음 교환은 평범한
-            /// 서기 교환으로 처리된다. 숫자만 기록한다, 안 고친다.
+            /// §9.1 (step 5, 야간 작업) — 굳히기 진입 횟수. 실제 입력 UI 는 6단계 몫이라
+            /// 이 루프는 고정 정책(항상 빠져나가기×따라가기 — 어긋남)으로 즉시 턴다.
+            /// 숫자만 기록한다, 튜닝은 안 한다.
             public int OsaekomiEntries;
 
             /// 각 습관이 몇 번째 교환에 확정에 닿았는가. 없으면 그 경기에 못 닿았다.
@@ -160,6 +160,15 @@ namespace CounterTime.Brain.Tests
                                 + $", Bcore={b.Core}, Blegs={b.Legs}, gripA={engine.Grip.EffectiveGrip(FighterId.A)})");
                     }
                 }
+
+                // §9 — ResolveExchange 는 굳히기가 열린 채로 다시 불리면 예외를 던진다
+                // (MatchEngine 가드, stage 6 배선 전까지의 안전장치). 이 루프엔 아직 실제
+                // 입력이 없으므로 고정 정책으로 즉시 턴다: 어긋남(빠져나가기×따라가기)을
+                // 계속 선택해 escapesNeeded 이내에 무조건 닫는다 — §9.3 의 5s 마크가
+                // 스코어를 낼 수는 있지만(그러면 매치가 끝날 수도 있다), 그건 실제 판정
+                // 결과지 이 정책이 만든 인위적 종료가 아니다.
+                while (engine.Osaekomi.Active && !engine.Board.IsFinished)
+                    engine.ResolveOsaekomiExchange(OsaekomiDefenderChoice.Escape, OsaekomiHolderChoice.Follow);
 
                 // §4.2 피해 — 관측 기록보다 <b>먼저</b> 본다. 그래야 "A 가 이미 읽을 수
                 // 있었던 상태에서 벌준 것" 만 세어진다. 이번 턴의 발화는 아직 원장에

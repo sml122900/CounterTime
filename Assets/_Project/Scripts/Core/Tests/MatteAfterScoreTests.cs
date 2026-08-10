@@ -130,38 +130,48 @@ namespace CounterTime.Core.Tests
                 "그쳐가 시간을 더 태우면 안 된다 — 교환 비용만큼만 준다");
         }
 
+        /// §4.3 — 경기를 끝내는 점수는 그쳐를 안 부른다.
+        ///
+        /// 원래는 절반 두 개(각각 별도 ResolveExchange)를 합산 한판으로 엮는
+        /// 시나리오였다. MatchEngine 에 §9 가드(a165872)가 붙은 뒤 그 설계가 더 이상
+        /// 성립하지 않는다는 게 드러났다 — §9.1 표에서 절반은 게이트 없이 무조건
+        /// 굳히기에 들어가므로(피할 조합 자체가 없다), 첫 절반이 연 굳히기가 열린
+        /// 채로 둘째 절반을 별개의 ResolveExchange 로 부르는 것은 가드가 막는 상태고,
+        /// 애초에 그 조합(절반+절반→한판)의 "진짜" 경로는 이미
+        /// OsaekomiTests.WazaAriEntryPlusTenSecondHold_CombinesToAwaseteIppon 이
+        /// ResolveOsaekomiExchange 를 통해 올바르게 덮고 있다.
+        ///
+        /// 그래서 이 테스트는 §4.3 클레임 하나로 좁힌다: §4.1 canonical validation 3
+        /// (grip+2, 완전간파+3, 시그니처+2 ⇒ 7 ⇒ 한판, 체력 보정 불필요)과 정확히
+        /// 같은 수로 단일 교환이 그 자리에서 한판을 내게 하고, 그 교환이 그쳐도
+        /// 굳히기도 새로 열지 않는지만 본다 — !Board.IsFinished 가드가 이 단일 교환
+        /// 안에서도 똑같이 작동하므로 §4.3 이 검증하려던 분기는 그대로 탄다.
         [Test]
         public void MatchEndingScore_DoesNotCallMatte()
         {
-            // 완전간파 +3 + 시그니처 +2 = 5 → 절반. 두 번이면 합해서 한판이다.
-            ExchangeScript WazaAri() => new ExchangeScript
+            // 양손으로 잡아 grip+2.
+            _e.ResolveExchange(
+                new TurnChoice(HandTarget.RightSleeve, CoreStance.Neutral, LegAction.Neutral, Hand.Right),
+                Idle, new ExchangeScript());
+            _e.ResolveExchange(
+                new TurnChoice(HandTarget.LeftSleeve, CoreStance.Neutral, LegAction.Neutral, Hand.Left),
+                Idle, new ExchangeScript());
+            Assert.AreEqual(2, _e.Grip.EffectiveGrip(FighterId.A), "전제: 양손 잡기로 grip+2");
+
+            // grip+2 + 완전간파+3 + 체력0 + 시그니처+2 = 7 → 한판, 단일 교환.
+            var ev = _e.ResolveExchange(Idle, Idle, new ExchangeScript
             {
                 Attacker = FighterId.A,
-                Technique = new TechniqueSpec("밭다리", ActionCost.BigThrow, TechniqueClass.Signature),
+                Technique = new TechniqueSpec("틀어잡고 밭다리", ActionCost.BigThrow, TechniqueClass.Signature),
                 Read = ReadLevel.FullRead,
-            };
+            });
 
-            var first = _e.ResolveExchange(Idle, Idle, WazaAri());
-            Assert.AreEqual(Judgement.WazaAri, first.OfType<JudgementScored>().Single().Judgement);
-            Assert.IsFalse(_e.Board.IsFinished, "전제: 첫 절반으로는 안 끝난다");
-            // §9.1 (step 5) — waza-ari ALWAYS enters osaekomi, never matte. This
-            // replaces the old "unfinished score always calls matte" premise on
-            // purpose; MatteAfterScoreTests.ScoreCallsMatte_UnlessOsaekomiWouldFollow
-            // covers the case that still lands on matte (a yuko without the grip/
-            // stamina edge).
-            Assert.IsEmpty(first.OfType<MatteCalled>(), "절반은 그쳐가 아니라 굳히기로 들어간다");
-            Assert.IsNotEmpty(first.OfType<OsaekomiEntered>(), "절반은 무조건 굳히기 진입");
-            Assert.IsTrue(_e.Osaekomi.Active);
-
-            // 두 번째는 별개 교환으로 A 를 다시 공격자로 세운다 — 첫 절반이 연 굳히기가
-            // 여전히 열려 있어도 ResolveExchange 는 그 상태를 안 본다(§9 배선은 6단계
-            // 몫). 둘째 절반이 합산 한판을 내고, 그 시점엔 이미 끝났으니 그쳐도
-            // 굳히기 진입도 없다.
-            var second = _e.ResolveExchange(Idle, Idle, WazaAri());
-            Assert.IsTrue(_e.Board.IsFinished, "전제: 절반 둘이 합해져 경기가 끝났다");
-            Assert.IsEmpty(second.OfType<MatteCalled>(), "다시 세울 것이 없으면 그쳐도 없다");
-            Assert.IsEmpty(second.OfType<OsaekomiEntered>(), "경기가 끝났으면 굳히기도 새로 안 연다");
-            Assert.IsNotNull(second.OfType<MatchEnded>().SingleOrDefault());
+            Assert.AreEqual(Judgement.Ippon, ev.OfType<JudgementScored>().Single().Judgement,
+                "전제: 이 교환 하나로 한판이다");
+            Assert.IsTrue(_e.Board.IsFinished);
+            Assert.IsEmpty(ev.OfType<MatteCalled>(), "경기를 끝내는 점수는 그쳐를 안 부른다");
+            Assert.IsEmpty(ev.OfType<OsaekomiEntered>(), "경기가 끝났으면 굳히기도 새로 안 연다");
+            Assert.IsNotNull(ev.OfType<MatchEnded>().SingleOrDefault());
         }
 
         /// 심판이 이미 그쳐를 불렀으면 두 번 부르지 않는다 — 회복이 두 배가 된다.

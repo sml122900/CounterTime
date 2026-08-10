@@ -67,14 +67,23 @@ namespace CounterTime.Core.Tests
             _e.ResolveExchange(Idle, Idle, BigThrow(ReadLevel.FullRead, TechniqueClass.Signature));
 
         /// 유효로 진입 — 잡기 +1, B 체력을 [25,50) 대역까지 깎아 게이트를 통과시킨다.
-        /// sum = 잡기1 + 수싸움0 + 체력+2(44는 25~49) + 기술+1 + 자세0 = 4 → 유효.
+        /// sum = 잡기1 + 수싸움0 + 체력+2(48은 25~49) + 기술+1 + 자세0 = 4 → 유효.
         /// adv = 0(절반 아님) + 1(잡기) + 1(체력<50 대역) = 2 → escapesNeeded = 2.
         /// waza-ari 진입과 달리, 굳히기 자체가 10초째 주는 절반이 진입 절반과 합산
         /// (awasete-ippon)되어 버리는 충돌이 없다 — 그 충돌은 별도 테스트로 고정한다.
+        ///
+        /// DrainB 는 13회다, 14 아니다 — 잡기가 이미 +1 로 고정된 채로 도는 루프라
+        /// sum = 1 + 체력항이고, 체력항은 B 체력이 (턴 시작 시점 기준) 50 밑으로
+        /// 떨어지는 순간 +2 로 붙는다. 13회 뒤 체력은 48(아직 세이프), 14회째면 그
+        /// 13회 시점 체력(48)을 이 루프의 마지막 호출이 그대로 물고 스스로 득점·굳히기
+        /// 진입까지 해버려서, 그 다음 줄의 '의도된' 진입 호출이 이미 열린 굳히기 위에서
+        /// 또 한 번 ResolveExchange 를 부르는 꼴이 된다 — 가드를 달기 전엔 조용히
+        /// 통과했지만 실제로는 늘 이중 진입이었다(계측해서 잡음). 13회로 루프를 세워
+        /// 전부 노포인트로만 깎고, 득점·진입은 이 함수의 마지막 줄 단 한 번으로 고정한다.
         System.Collections.Generic.IReadOnlyList<MatchEvent> EnterViaYuko()
         {
             GripUp();
-            DrainB(14);
+            DrainB(13);
             return _e.ResolveExchange(Idle, Idle, BigThrow(ReadLevel.Neutral, TechniqueClass.Standard));
         }
 
@@ -257,12 +266,19 @@ namespace CounterTime.Core.Tests
             EnterViaWazaAri();
             Assert.AreEqual(1, _e.Board.WazaAri(FighterId.A), "전제: 진입 절반 1개");
 
-            _e.ResolveOsaekomiExchange(OsaekomiDefenderChoice.Reversal, OsaekomiHolderChoice.Follow); // 5s
+            var ev5 = _e.ResolveOsaekomiExchange(OsaekomiDefenderChoice.Reversal, OsaekomiHolderChoice.Follow); // 5s
             var ev = _e.ResolveOsaekomiExchange(OsaekomiDefenderChoice.Reversal, OsaekomiHolderChoice.Follow); // 10s
 
             Assert.IsTrue(_e.Board.HasIppon(FighterId.A), "절반 두 개가 합쳐져 한판");
             Assert.IsTrue(_e.Board.IsFinished);
             Assert.IsNotEmpty(ev.OfType<MatchEnded>());
+            // §4.3 — 굳히기로 합산되는 한판도 그쳐를 안 부른다. ResolveOsaekomiExchange
+            // 는 애초에 MatteCalled 를 내는 경로가 없어서(§9.3/§9.4는 그쳐가 아니라
+            // 탈출로 닫는다) 이 단언은 그 사실을 §4.3 관점에서 고정한다 —
+            // MatteAfterScoreTests 축소로 없어진, "합산으로 끝나는 경로"의 그쳐
+            // 미발생 커버리지를 여기서 메운다.
+            Assert.IsEmpty(ev5.OfType<MatteCalled>(), "5초째 절반도 그쳐를 안 부른다");
+            Assert.IsEmpty(ev.OfType<MatteCalled>(), "10초째 합산 한판도 그쳐를 안 부른다");
         }
 
         /// 알려진 공백(STATUS 참고) 가드 — ResolveExchange 는 굳히기가 열려 있는 동안

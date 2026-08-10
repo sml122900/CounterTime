@@ -35,6 +35,35 @@
    못 보고 새로 한 번 더 판단한다. 스크립트 경로도 A-전용 입력 UI(6단계)도
    아직 `ResolveOsaekomiExchange` 를 안 부르므로 오늘 밤은 이 상태로 뒀다 —
    6단계 배선 때 반드시 다시 볼 것.
+   - **2026-08-11 갱신**: 커밋 `a165872` 가 이 항목의 "조용히 처리한다" 절반을
+     닫았다 — `MatchEngine.ResolveExchange` 맨 앞에 `if (Clock.Phase ==
+     MatchPhase.Osaekomi) throw new InvalidOperationException(...)` 가드가
+     생겼다(§9 — a standing exchange cannot land while a hold is open). 지금은
+     "조용히 잘못 처리" 대신 "예외로 무조건 거부" 다 — 하지만 그 거부가 맞는
+     규칙인지는 여전히 미정이라 아래 4번으로 남긴다.
+4. **열린 굳히기 위에 서기 교환이 오는 경우가 §9/§4.3 어디에도 없다.** 금지인지,
+   가능하되 어떻게 처리인지 미정.
+   - 코드 사실만: `MatchEngine.ResolveExchange` (Assets/_Project/Scripts/Core/
+     MatchEngine.cs) 맨 앞의 가드가 현재 하는 일은 "`Clock.Phase ==
+     MatchPhase.Osaekomi` 이면 무조건 `InvalidOperationException`" 하나뿐이다
+     — 어떤 종류의 서기 입력이 왜 왔는지는 안 가리고, 예외적으로 허용해야 할
+     경우와 진짜 버그를 구분하지 않는다.
+   - MATCH_RULES §9 는 `ResolveExchange`(서기)와 `ResolveOsaekomiExchange`
+     (탈출)가 서로 다른 진입점이라는 것만 전제할 뿐, 굳히기가 열린 동안
+     `ResolveExchange` 가 불리는 경우 자체를 어디서도 다루지 않는다 — 금지해야
+     하는 입력(물리적으로 눌려 있는데 새 서기 기술을 던질 수 없다)인지, 아니면
+     정의는 필요하지만 언젠가 유효한 입력(예: 관전 판정 재조정 같은 것)인지
+     문서가 침묵한다.
+   - 이 침묵이 실제로 부딪힌 사례: `MatteAfterScoreTests.MatchEndingScore_
+     DoesNotCallMatte` 가 원래 "절반 두 개를 각각 별도 `ResolveExchange` 로
+     합산 한판을 낸다"는 시나리오였는데, 첫 절반이 §9.1 표상 게이트 없이
+     무조건 굳히기를 열기 때문에 둘째 절반 호출이 정확히 이 미정 케이스였다.
+     그 조합 자체의 "진짜" 경로(`ResolveOsaekomiExchange` 로 §9.3 안에서 두
+     번째 절반이 나오는 것)는 `OsaekomiTests.
+     WazaAriEntryPlusTenSecondHold_CombinesToAwaseteIppon` 이 이미 올바르게
+     덮고 있어서, 이번엔 테스트를 단일 교환 직격 한판으로 좁혀 피해갔다
+     (2026-08-11) — 하지만 "열린 굳히기 위 서기 교환"이라는 입력 자체가 rules
+     차원에서 뭘 의미해야 하는지는 그걸로 답해지지 않는다.
 
 ## 1. 작업 1 — 4b 인프라 (`979a4f2`)
 
@@ -135,3 +164,76 @@ stamina end A23/B25` 로 정확히 일치했다 — 그 값이 실제로 §9 이
    `MatchRunner`/scripted 경로에 실제로 연결 — 그때 "판단 대기 §3" 이 실제
    버그가 되는지 다시 볼 것.
 4. `md/STATUS.md` 는 이 문서와 함께 갱신했다(영문, 아래 커밋).
+
+## 5. 후속 (2026-08-11) — 가드 추가 후 사실관계
+
+커밋 `a165872` 가 `MatchEngine.ResolveExchange` 에 `MatchPhase.Osaekomi` 가드를
+달았다(굳히기가 열린 채로 다시 불리면 예외). 그 직후 확인한 사실 두 가지.
+
+**§9.3 탈출 교환의 호출 경로.** `ResolveExchange` 내부 라우팅이 아니라 별도
+공개 메서드 `MatchEngine.ResolveOsaekomiExchange(OsaekomiDefenderChoice,
+OsaekomiHolderChoice)` 다. `ResolveExchange` 와 `ResolveOsaekomiExchange` 는
+서로 다른 진입점이고, 후자는 가드 대상이 아니다.
+
+**어제 그린이던 `OsaekomiTests` 4개가 걸린 정확한 지점.** 4개(
+`AdvFrozenAtEntry_DefenderStaminaDropDoesNotRaiseIt`,
+`EscapeResetsGripsToFree_ButGrantsNoMatteRecovery`,
+`IpponDuringHold_EndsMatch_ButDoesNotEmitOsaekomiEnded`,
+`HolderRecovery_OnlyOnCompletedTenSecondMarks`) 전부 자기 테스트 본문의
+`ResolveOsaekomiExchange` 호출에서 걸린 게 **아니다** — 공유 헬퍼
+`EnterViaYuko()` 안에서 걸린다. 그 헬퍼는 `GripUp()`(잡기 +1 고정) →
+`DrainB(14)`(무점수 교환 반복) → 마지막 명시적 `ResolveExchange` 한 번(의도된
+진입)의 3단 구조였다. 그런데 `DrainB` 루프 내내 잡기가 이미 +1 로 고정돼
+있어서 그 교환의 sum 은 `1 + 체력항`이고, 체력항은 B 의 (지불 전) 체력이
+50 밑으로 처음 떨어지는 순간 0→+2 로 붙는다 — 그 시점이 정확히 **14번째**
+`DrainB` 호출(지불 전 체력 48)이었다. 즉 그 14번째 호출 자체가 이미 무점수가
+아니라 유효를 내고(잡기+1·체력<50 게이트를 만족해) 굳히기까지 스스로
+연다 — 헬퍼가 "의도된" 진입으로 삼았던 그다음 줄의 명시적 호출은 사실
+**이미 열린 굳히기 위에서 두 번째로 `ResolveExchange` 를 부르는 꼴**이었다.
+가드가 없던 어제까지는 이게 조용히 통과했다(§9.1 이 아무 오류 없이
+`EnterOsaekomi` 를 두 번째로 다시 실행해 `Adv`/`EscapesNeeded` 를 덮어썼을
+뿐 — 두 번의 체력 대역이 우연히 같아서 값이 같게 나왔다). 가드가 이 이중
+진입을 처음으로 드러냈다.
+
+Root cause 는 위 "판단 대기 §3"(및 실제 지시문의 항목 0)에서 요구한 그대로
+"헬퍼가 서기 교환을 굳히기 오픈 상태로 다시 부르고 있었다"는 사실 확인이고,
+수정은 `DrainB(14)`→`DrainB(13)` 한 줄 — 루프 전체를 무점수 대역에 묶어두고
+그다음 줄의 명시적 호출 한 번만 득점·진입을 내게 했다(2026-08-11, 아래
+커밋에서 반영).
+
+`PlayModeSmokeTests` 4개는 다른 원인이다 — 헬퍼 버그가 아니라 헤드리스
+루프 자체가 `ResolveOsaekomiExchange` 를 한 번도 안 불렀다(설계상 미배선,
+"판단 대기 §3" 원문 그대로). 고정 정책(어긋남 — 빠져나가기×따라가기)으로
+굳히기가 열릴 때마다 즉시 턴다는 한 줄을 루프에 추가해 해결했다.
+
+`MatteAfterScoreTests.MatchEndingScore_DoesNotCallMatte` 는 위 둘과 성격이
+다르다 — 헬퍼 버그도 미배선도 아니라, 테스트 자신의 명시된 의도가 가드와
+직접 충돌한다. 테스트 주석이 "둘째 절반이... 그 시점엔 이미 열려 있어도
+`ResolveExchange` 는 그 상태를 안 본다(§9 배선은 6단계 몫)"이라고 못박고
+그 재호출 자체를 검증 대상으로 삼는다. 가드는 정확히 이 재호출을 막으려고
+만든 것이므로, 테스트를 그린으로 되돌리는 유일한 길은 검증 대상 자체를
+바꾸는 것뿐이다 — 그래서 고치지 않고 사람 판단으로 남겼다.
+
+### 5.1 스모크 3프로필 재실행 (seed 1234, 지터 0, 굳히기 실제 해소 후)
+
+`PlayModeSmokeTests.RunMatch` 에 고정 정책(어긋남 반복) 배선을 추가한
+결과다. 숫자만 옮긴다 — 튜닝 안 했다. `MatchRunner`/프로덕션 경로는 안
+건드렸으므로 이 표는 스모크 하니스 자체의 측정치이지 실제 게임 수치가
+바뀐 게 아니다.
+
+| 프로필 | 교환 수 | 그쳐 | 굳히기 진입 | 잔여 시간 |
+|---|---|---|---|---|
+| 반복(A 한 수 고정) | 4 | 0 | 1 | 218s |
+| 변주(4주기) | 27 | 11 | 1 | 149s |
+| 현실적(6주기, 공격 ~1/3) | 31 | 12 | 1 | 137s |
+
+**이전 기록(§3.2, 굳히기를 조용히 건너뛰던 상태)**: 반복 27/17/1/159s,
+변주 29/11/1/153s, 현실적 26/9/2/162s.
+
+반복 프로필이 27 → 4 교환으로 크게 줄었다 — 이전엔 굳히기가 열려도
+`ResolveOsaekomiExchange` 를 아무도 안 불러 그 열림이 사실상 무시됐고
+매치가 그냥 계속 갔다. 지금은 실제로 5/10/20초 마크의 §9.3 판정을 받는다:
+이 프로필은 절반으로 진입해서 10초째(2틱) 합산 한판으로 바로 끝난다 —
+전에는 통과됐던 득점 기회가 처음으로 실제로 잡힌 것이다. 변주·현실적은
+거의 그대로(굳히기 진입이 매치 끝물에 한 번뿐이라 조기 종료가 안 걸림).
+숫자를 손대진 않았다 — 경기 길이 판단은 여전히 6단계 이후 사람 몫.
