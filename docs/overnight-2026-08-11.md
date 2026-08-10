@@ -89,3 +89,7 @@ MATCH_RULES v3.6 → v3.7 **[초안 — 사람 검토 전]**. §2 손 선택지 
 187/187 green(179→187), fingerprint IDENTICAL(off가 기본이라 메인라인은 전혀 안 건드림).
 Unity 에디터(MCP 연결 확인됨, GetConsoleLogs 로 재확인)에서도 0 에러/0 경고 —
 `KuzushiTests.cs.meta`는 `AssetDatabase.Refresh()`로 생성 확인.
+
+작은 실수 하나 발견 즉시 수정: 첫 커밋(2e161b4)에서 문서 헤더 버전 태그를
+v3.6 그대로 두고 커밋했다 — `tools/stamp.sh`는 본문 해시만 재계산하고 `vX.Y`
+숫자는 사람이 올려야 한다는 걸 놓쳤다. 뒤이은 커밋(b9618b2)으로 v3.7 태그 반영.
