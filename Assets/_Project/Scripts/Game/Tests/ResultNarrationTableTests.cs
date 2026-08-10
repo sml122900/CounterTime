@@ -76,6 +76,42 @@ namespace CounterTime.Game.Tests
         /// 틀린 답은 어느 스크립트 경로 타입이든 필드·프로퍼티·메서드 시그니처에
         /// ResultNarrationTable 이 등장하는 것이다.
         /// </summary>
+        /// <summary>
+        /// docs/step4-narration-worksheet.md 배정 9건이 전부 <see cref="ResultNarrationTable.CreateDefault"/>
+        /// 에 등록돼 폴백이 아니어야 한다. m18 은 워크시트가 지시한 그대로 TechniqueId="밭다리"로
+        /// 등록돼 있다 — 본문상 실제 기술은 안뒤축감아치기(H2)이지만, 밤 지시가 명시적으로
+        /// "밭다리"를 키로 쓰라고 했으므로 그대로 따랐다(overnight 문서에 오디티로 기록).
+        /// </summary>
+        [Test]
+        public void CreateDefault_HasAllNineWorksheetEntries_NoneAreFallback()
+        {
+            var table = ResultNarrationTable.CreateDefault();
+
+            Assert.IsFalse(table.Narrate(Judgement.Yuko, "업어치기", isCounter: true).IsFallback);
+            Assert.IsFalse(table.Narrate(Judgement.Yuko, "업어치기", isCounter: false).IsFallback);
+            Assert.IsFalse(table.Narrate(Judgement.None, "밭다리", isCounter: false).IsFallback);
+            Assert.IsFalse(table.Narrate(Judgement.None, "허리후리기", isCounter: false).IsFallback);
+            Assert.IsFalse(table.Narrate(Judgement.WazaAri, "밭다리", isCounter: false).IsFallback);
+            Assert.IsFalse(table.Narrate(Judgement.Yuko, "밭다리", isCounter: true).IsFallback);
+            Assert.IsFalse(table.Narrate(Judgement.WazaAri, "말아업어치기", isCounter: false).IsFallback);
+            Assert.IsFalse(table.Narrate(Judgement.Ippon, "말아업어치기", isCounter: true).IsFallback);
+            Assert.IsFalse(table.Narrate(Judgement.Ippon, "밭다리", isCounter: false).IsFallback);
+        }
+
+        /// <summary>
+        /// m27·m34는 워크시트 결정대로 등록하지 않는다 — 폴백을 유지해야 한다.
+        /// 이 표의 어떤 (판정, 기술) 조합으로 물어도 노드 id "m27"/"m34" 는 등록된 적이
+        /// 없으므로 항상 폴백이다.
+        /// </summary>
+        [Test]
+        public void CreateDefault_M27AndM34_StayFallback()
+        {
+            var table = ResultNarrationTable.CreateDefault();
+
+            Assert.IsTrue(table.Narrate(Judgement.Yuko, "m27", isCounter: false).IsFallback);
+            Assert.IsTrue(table.Narrate(Judgement.WazaAri, "m34", isCounter: false).IsFallback);
+        }
+
         [Test]
         public void ModeIsolation_ScriptedPathTypes_NeverReferenceNarrationTable()
         {

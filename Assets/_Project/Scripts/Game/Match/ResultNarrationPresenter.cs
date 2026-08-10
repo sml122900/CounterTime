@@ -14,14 +14,14 @@ namespace CounterTime.Game.Match
     /// 컴포넌트는 play mode 씬에만 있다"로 지킨다 — MatchRunner 는 어느 쪽이든 같은
     /// 클래스이기 때문이다.
     ///
-    /// 문구를 실제로 그리는 UI는 6단계(A 전용 입력 UI) 배선 때 여기에 붙는다. 오늘 밤은
-    /// 그릇과 배선까지만 — <c>docs/step4-narration-worksheet.md</c> 가 채워지기 전에는
-    /// 표가 비어 있으므로 전부 폴백이다.
+    /// 문구를 실제로 그리는 UI는 6단계(A 전용 입력 UI) 배선 때 여기에 붙는다.
+    /// <c>docs/step4-narration-worksheet.md</c> 배정 9건은 <see cref="ResultNarrationTable.CreateDefault"/>
+    /// 로 등록돼 있다 — m27·m34는 그 워크시트의 결정대로 폴백 유지.
     /// </summary>
     [RequireComponent(typeof(MatchRunner))]
     public sealed class ResultNarrationPresenter : MonoBehaviour
     {
-        [SerializeField] ResultNarrationTable table = new ResultNarrationTable();
+        [SerializeField] ResultNarrationTable table = ResultNarrationTable.CreateDefault();
 
         MatchRunner _runner;
 

@@ -57,6 +57,46 @@ namespace CounterTime.Game.Match
         public void Add(Judgement judgement, string techniqueId, bool isCounter, string text) =>
             _entries[new Key(judgement, techniqueId, isCounter)] = text;
 
+        /// <c>docs/step4-narration-worksheet.md</c> 배정을 그대로 옮긴 9개 엔트리.
+        /// m27·m34는 등록하지 않는다 — 사유는 워크시트 원문에 있다 (폴백 유지).
+        public static ResultNarrationTable CreateDefault()
+        {
+            var table = new ResultNarrationTable();
+
+            table.Add(Judgement.Yuko, "업어치기", isCounter: true,
+                "들어오는 회전을 그대로 당겨 눕힌다. 되치기 체력 -2 (상대 힘 이용). " +
+                "소매를 쥔 채라 곁누르기 연계 가능.");
+
+            table.Add(Judgement.Yuko, "업어치기", isCounter: false,
+                "B의 업어치기가 반쯤 들어갔다. 잡기 열세라 회전이 얕아 유효. " +
+                "유효는 몇 개를 쌓아도 절반이 되지 않는다 — 그러나 골든스코어에선 이것만으로 이긴다.");
+
+            table.Add(Judgement.None, "밭다리", isCounter: false,
+                "굳힌 상대에겐 점수가 안 난다 — 대신 지도가 난다.");
+            table.Add(Judgement.None, "허리후리기", isCounter: false,
+                "굳힌 상대에겐 점수가 안 난다 — 대신 지도가 난다.");
+
+            table.Add(Judgement.WazaAri, "밭다리", isCounter: false,
+                "자세를 풀던 B가 반 박자 늦었다. 회전 90도. 그대로 굳히기 진입.");
+
+            table.Add(Judgement.Yuko, "밭다리", isCounter: true,
+                "같은 밭다리, 세 번째. B가 축발을 걸어 되받는다. " +
+                "반복은 읽힌다. 습관은 상대에게도 생긴다.");
+
+            table.Add(Judgement.WazaAri, "말아업어치기", isCounter: false,
+                "2025 개정으로 합법화된 그 기술. B 체력 30↓ 1회 한정 발동. " +
+                "소매를 말아쥐고 몸째 구른다 — 정석 업어치기와 초동이 같다.");
+
+            table.Add(Judgement.Ippon, "말아업어치기", isCounter: true,
+                "\"초동이 같아도 말아쥔 손목은 숨길 수 없다.\" 회전을 흘리고 등 뒤를 취한다.");
+
+            table.Add(Judgement.Ippon, "밭다리", isCounter: false,
+                "종반. B가 A의 가슴깃을 잡으러 손을 뻗는 중 — 방어가 완전히 비었다. " +
+                "체력 보정 없이도 한판은 난다 — 한판은 지치게 해서가 아니라 '읽어서' 만드는 것.");
+
+            return table;
+        }
+
         public Result Narrate(Judgement judgement, string techniqueId, bool isCounter)
         {
             var key = new Key(judgement, techniqueId, isCounter);
