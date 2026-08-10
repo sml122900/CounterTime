@@ -249,3 +249,48 @@ A 의 공격 성향을 실제로 갈라놓지 못하는 것도 여전하다(docs
 
 199 → 200 green(신규 테스트 1개), fingerprint IDENTICAL. `RunMatch` 시그니처 변경은
 기본값으로 막아서 기존 3개 테스트 동작 무변화 — 재확인 완료.
+
+## 작업 7 — 마감
+
+**전체 그린 + 지문.** 최종 확인(`tools/dotnet-harness`, `dotnet run -- --check`):
+`TESTS: 200/200 passed, 0 failed, 0 skipped`, `CHECK: fingerprint matches
+fingerprint-baseline.txt`(작업0 시작 baseline 그대로 — 이번 밤은 지문 갱신이 한 번도
+필요 없었다, 작업1 스타일의 의도된 변경이 없었기 때문이다). Unity 에디터도 세션
+내내 0 에러/0 경고(매 작업 후 MCP `GetConsoleLogs` 재확인).
+
+**md 3종 최종 스탬프** (`sh tools/stamp.sh --check md/*.md` exit 0로 확인):
+
+| 문서 | 스탬프 |
+|---|---|
+| `md/MATCH_RULES.md` | `<!-- v3.7 \| body:17d3a61 -->` — **v3.7 [초안 — §4.4 쿠즈시, 사람 검토 전]** |
+| `md/OPPONENT_BRAIN.md` | `<!-- v1.0 \| body:5d5a8c7 -->` — 무수정 |
+| `md/CORE_DESIGN_MatchEngine.md` | `<!-- v3.2 \| body:a24d23c -->` — 무수정 |
+
+**STATUS.md 갱신 완료** — "야간 자율 실행 2차" 요약 블록, Document stamps 라인,
+Next Up, Session Log 전부 갱신.
+
+**최종 커밋 전 전체 커밋 목록** (브랜치 `feat/match-engine`, 작업0 baseline 이후):
+
+```
+6bd5a06 docs: overnight 2026-08-11 log start — 작업0 선행 확인 (v3.6 이미 커밋됨)
+1b61921 feat(game): 작업2 — 서술 사전 워크시트 9키 등록
+2e161b4 feat(core): 작업3 — 쿠즈시 Core 규칙 [초안], 플래그 기본 off
+b9618b2 docs: MATCH_RULES version tag v3.6 -> v3.7
+9e1ca22 docs: note the v3.7 tag miss and its fix in the overnight log
+a93218a feat(brain): 작업4 — B 브레인 쿠즈시 선행 데코레이터
+d447401 feat(game): 작업5 — 6단계 LiveAssembler + A 입력 UI
+a9614cb test(brain): 작업6 — 쿠즈시 off/on 스모크 실측 3프로필 x 2
+```
+
+**판단 대기 5개 — 이 문서 맨 위 요약이 최신이다.** 짧게 다시:
+1. m18 서술 키의 TechniqueId="밭다리"가 실제 기술(안뒤축감아치기)과 다르다(지시 문자 그대로 등록)
+2. 쿠즈시 선행 데코레이터와 읽기 사다리(LiveReadResolver)의 타이밍 미스매치 — 아직 안 배선돼 있어 관측되는 버그는 아님
+3. 뜯기·잡기 유지의 LiveAssembler 게이트는 §2 표가 아니라 §3.2 서술에서 추론했다
+4. 동시 공격(A Legs=공격 + B 브레인 발화) 시 우선순위는 PlayModeSmokeTests 선례("B 가 이긴다")를 그대로 물려받았다 — 진짜 해소 규칙 없음
+5. B 의 굳히기 선택은 고정 정책(어긋남)이다 — 진짜 B 굳히기 AI 없음
+
+**가장 중요한 미완 항목: `LiveMatchRunner`/`LiveMatchPanel` 화면 실행 확인 안 됨.**
+컴파일은 Unity 에디터에서 `typeof` 로드까지 확인했지만, 씬에 컴포넌트를 붙이고
+Play 모드에서 버튼을 눌러보는 것은 이 세션이 할 수 없는 일이다 — 그건 사람 몫이다.
+
+이걸로 이번 밤 작업을 마친다. 최종 커밋 다음.
