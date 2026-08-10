@@ -24,6 +24,9 @@ namespace CounterTime.Game.Editor
             if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
+            var camGo = new GameObject("Main Camera", typeof(Camera));
+            camGo.tag = "MainCamera";
+
             new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
 
             var go = new GameObject("LiveMatch", typeof(LiveMatchRunner), typeof(LiveMatchPanel));

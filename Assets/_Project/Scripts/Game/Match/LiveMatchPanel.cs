@@ -301,7 +301,7 @@ namespace CounterTime.Game.Match
             _legsColumn = BuildColumnRoot(root.transform, "하체", new Vector2(0.62f, 0.5f));
 
             var confirmBtn = MakeButton(root.transform, "확정", Confirm);
-            var confirmRt = (RectTransform)confirmBtn.transform.parent;
+            var confirmRt = (RectTransform)confirmBtn.transform;
             confirmRt.anchorMin = confirmRt.anchorMax = new Vector2(0.9f, 0.5f);
             confirmRt.pivot = new Vector2(0.5f, 0.5f);
             confirmRt.anchoredPosition = Vector2.zero;
@@ -340,14 +340,14 @@ namespace CounterTime.Game.Match
             rt.anchoredPosition = Vector2.zero;
 
             _osaekomiOptionA = MakeButton(root.transform, "", null);
-            var aRt = (RectTransform)_osaekomiOptionA.transform.parent;
+            var aRt = (RectTransform)_osaekomiOptionA.transform;
             aRt.anchorMin = aRt.anchorMax = new Vector2(0.35f, 0.5f);
             aRt.anchoredPosition = Vector2.zero;
             aRt.sizeDelta = new Vector2(280, 80);
             _osaekomiLabelA = _osaekomiOptionA.GetComponentInChildren<TMP_Text>();
 
             _osaekomiOptionB = MakeButton(root.transform, "", null);
-            var bRt = (RectTransform)_osaekomiOptionB.transform.parent;
+            var bRt = (RectTransform)_osaekomiOptionB.transform;
             bRt.anchorMin = bRt.anchorMax = new Vector2(0.65f, 0.5f);
             bRt.anchoredPosition = Vector2.zero;
             bRt.sizeDelta = new Vector2(280, 80);
