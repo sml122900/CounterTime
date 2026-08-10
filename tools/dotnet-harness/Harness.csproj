@@ -40,10 +40,12 @@
     <Compile Include="..\..\Assets\_Project\Scripts\Game\Match\ScriptedReadResolver.cs" />
     <Compile Include="..\..\Assets\_Project\Scripts\Game\Match\MatchRunner.cs" />
     <Compile Include="..\..\Assets\_Project\Scripts\Game\Match\ResultNarrationTable.cs" />
+    <Compile Include="..\..\Assets\_Project\Scripts\Game\Match\LiveAssembler.cs" />
 
     <Compile Include="..\..\Assets\_Project\Scripts\Game\Tests\ScenarioTurnChoicesTests.cs" />
     <Compile Include="..\..\Assets\_Project\Scripts\Game\Tests\ScriptedReadResolverTests.cs" />
     <Compile Include="..\..\Assets\_Project\Scripts\Game\Tests\ResultNarrationTableTests.cs" />
+    <Compile Include="..\..\Assets\_Project\Scripts\Game\Tests\LiveAssemblerTests.cs" />
     <!-- MatchRunnerHandActionTests.cs is deliberately NOT included — it needs
          GameObject/AddComponent/DestroyImmediate (Unity's real object model),
          which this shim does not attempt to fake. Run it in the Unity Test Runner. -->

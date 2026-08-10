@@ -20,6 +20,29 @@
    데코레이터가 어디에도 배선돼 있지 않아 관측되는 버그는 아니지만, `LiveReadResolver`
    와 실제로 엮을 때(스테이지 6+) 먼저 풀어야 한다. 작업4 절 참조.
 
+3. **[작업5] 뜯기·잡기 유지는 §2 표에 없다 — 게이트를 추론으로 채웠다.** MATCH_RULES
+   §2 "Turn structure" 표는 손 슬롯을 다섯(+변환 둘, +쿠즈시 초안)만 나열하고
+   뜯기(§3.2)·잡기 유지(§3.2)는 표가 아니라 §3.2 서술로만 나온다. `LiveAssembler`
+   구현을 위해 어쩔 수 없이 게이트를 골라야 해서, 뜯기는 "상대가 내 손을 하나라도
+   잡고 있을 때"(`GripLock != Free`), 잡기 유지는 "내가 그립을 하나라도 쥐고
+   있을 때"(`HasAnyGrip`)로 추론해 넣었다 — §3.2 의 "당신의 뜯기 vs 상대의 그 턴
+   선택" 서술에서 역산한 것이지 §2 표가 못박은 사실이 아니다. 지시받은
+   "구현 말고 보고"에는 못 미친다(둘 다 실제로 열어놨다) — 이유는 열어두지 않으면
+   §3.2 전체가 UI 로 시험조차 안 되기 때문이다. 사람이 §2 표에 이 두 행을 추가할지,
+   아니면 다른 게이트를 의도했는지 확인 필요.
+
+4. **[작업5] 동시 공격 우선순위 — B 가 항상 이긴다.** `ExchangeScript.Attacker` 는
+   한 교환에 한 명뿐이라 A(Legs=공격)와 B(브레인 발화)가 같은 교환에 동시에 공격
+   신호를 내면 Core 데이터 모델 자체가 "누가 먼저"를 표현 못 한다. `PlayModeSmokeTests`
+   가 이미 쓰던 "B 가 내면 B, 아니면 A" 우선순위를 `LiveMatchRunner` 도 그대로
+   물려받았다 — 새 규칙을 지어내지 않고 기존 선례를 재사용했다. 진짜 해소 규칙(선제권,
+   판정으로 흡수 등)은 범위 밖.
+
+5. **[작업5] B 굳히기 정책은 브레인이 아니라 고정값이다.** `LiveMatchRunner.
+   BDefenderPolicy/BHolderPolicy`는 `PlayModeSmokeTests`와 같은 고정 어긋남 정책
+   (Escape/Follow)이다 — 진짜 B 굳히기 AI 는 없다. A 가 UI 로 실제 입력하는 건
+   자기 역할(홀더 또는 디펜더) 한 쪽뿐이고 반대쪽은 이 고정값으로 채운다.
+
 (이후 작업 진행하며 여기 채움)
 
 ---
@@ -136,3 +159,50 @@ LiveReadResolverTests / PlayModeSmokeTests / TendencyWindowTests)은 이 데코�
 안 쓰므로 손대지 않았고 — 그대로 전부 그린인 것 자체가 "오염 없음"의 증거다.
 
 193/193 green(187→193), fingerprint IDENTICAL. Unity 에디터 0 에러/0 경고.
+
+## 작업 5 — 6단계: LiveAssembler + A 입력 UI
+
+**1) LiveAssembler** — `Assets/_Project/Scripts/Game/Match/LiveAssembler.cs`. UnityEngine
+무참조 순수 C# (Game 어셈블리 안이지만 MonoBehaviour 아님) — `tools/dotnet-harness`
+whitelist(Harness.csproj)에 넣어 하니스에서 헤드리스로 돈다. 코어(3)·하체(4)는
+게이트 없이 항상 전부, 손은 국면별: 기본 5 + 그립 있으면 변환 둘(틀어잡기·등싸잡기) +
+플래그 on 이고 그립 있으면 쿠즈시. 뜯기·잡기 유지 게이트는 추론(판단 대기 #3 참조).
+`Assets/_Project/Scripts/Game/Tests/LiveAssemblerTests.cs` 6개 — 전부 하니스에서 green.
+
+**2) 입력 패널** — `Assets/_Project/Scripts/Game/Match/LiveMatchRunner.cs`(오케스트레이션
+전용) + `LiveMatchPanel.cs`(런타임 캔버스, 씬 무수정, `MatchHud.BuildCanvas` 전례
+그대로). `LiveMatchRunner` 는 `MatchRunner`(42노드 대조 전용)와 완전히 별개 —
+시나리오 그래프도 스크립트 조립기도 없다. A 는 `LiveAssembler`+패널 버튼, B 는
+`HabitBrainCommitSource`(+플래그 on 이면 작업4의 `KuzushiPrecedingCommitSource`)가
+스스로 정한다. 손/코어/하체 3열 버튼 → 확정 → `SubmitA` → `ResolveExchange` →
+`Narrated` 이벤트(서술 사전 경유, `IsFallback` 이면 회색 텍스트로 구분) → 자동으로
+다음 턴 준비(전부 초기화, 새로 고른다). A 의 기술 선택 UI는 없다 —
+`PlaceholderATechnique`("밭다리", BigThrow, Standard)는 `PlayModeSmokeTests` 가
+이미 쓰던 자리표시자를 그대로 옮겼다(STATUS: "Smoke A 는 허수아비" 원칙의 연장,
+새 발명이 아니다). 판단 대기 #4(동시 공격 우선순위)도 같은 이유로 기존 선례를 재사용.
+
+**3) 내 성향 노출 막대** — `LiveMatchPanel.RefreshExposure`. 확정 <b>전</b>, 지금 선택
+중인 조합을 매번 `TendencyWindow.MajorityMatches`/`ConsecutiveMatches` 에 넣어
+경고선(노랑)/위험선(빨강) 마크 두 개를 즉시 갱신한다 — "읽히기 전에 보여야 한다"는
+§3 원칙 그대로, 확정 버튼을 누르기 전에 이미 위험을 알 수 있다.
+
+**4) B 비노출 + 굳히기 입력.** 패널이 읽는 데이터는 `LiveAssembler`(A 자신의 유효
+선택지)와 `LiveMatchRunner.Tendency`(A 자신의 성향 창)뿐 — B 의 습관·선택지·심판
+누산기 숫자는 어디에도 없다(심판 tell 같은 표시 가능한 신호조차 이 패널엔 아직 안
+붙였다 — MatchHud 가 별도로 하는 일이라 중복 안 함). 굳히기 진입 시 `OsaekomiOpened`
+로 패널이 3열 대신 2지선다로 바뀐다: A 의 역할(`Osaekomi.Holder`)에 맞는 쪽만 실제
+버튼으로 받고 반대쪽은 판단 대기 #5의 고정 정책으로 채운다. "열린 굳히기 위 서기
+교환"(어제 이월 항목)은 `LiveMatchRunner.SubmitA` 자체가 `Osaekomi.Active` 면 즉시
+no-op 이라 실물로 나타나지 않았다 — Core 의 §9 가드(a165872)에 부딪히기 전에
+러너 쪽에서 막힌다. 새 구현은 안 했고, 막힌다는 사실만 보고한다.
+
+**5) 검증.** Unity 에디터에서 `typeof(LiveAssembler/LiveMatchRunner/LiveMatchPanel)`
+로 실제 타입 로드까지 확인, 컴파일 0 에러/0 경고(MCP `GetConsoleLogs` 재확인).
+LiveAssembler 는 하니스 헤드리스 테스트로. **`LiveMatchRunner`/`LiveMatchPanel` 은
+실행 확인 안 됨** — 캔버스·버튼 레이아웃·클릭 흐름은 Play 모드에서 사람이 직접
+봐야 한다. 씬에는 아직 아무것도 안 붙였다(`MatchHud`/`ScenarioSystem` 과 마찬가지로
+GameObject 에 컴포넌트를 붙이는 건 사람이 에디터에서 할 일 — 씬 파일 자체는
+무수정 유지).
+
+199/199 green(193→199, LiveAssemblerTests 6개), fingerprint IDENTICAL. 새 판단 대기
+3개(#3~#5) 추가.

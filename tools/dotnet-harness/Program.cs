@@ -98,7 +98,7 @@ class Program
 
         Console.WriteLine();
         Console.WriteLine("COVERAGE: CounterTime.Core.Tests + CounterTime.Brain.Tests (full) + CounterTime.Game.Tests PARTIAL");
-        Console.WriteLine("  (ScenarioTurnChoicesTests / ScriptedReadResolverTests / ResultNarrationTableTests ran here;");
+        Console.WriteLine("  (ScenarioTurnChoicesTests / ScriptedReadResolverTests / ResultNarrationTableTests / LiveAssemblerTests ran here;");
         Console.WriteLine("   MatchRunnerHandActionTests needs the real Unity Test Runner, not run by this harness)");
 
         Console.WriteLine();
