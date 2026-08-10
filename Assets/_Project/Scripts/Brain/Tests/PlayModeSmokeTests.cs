@@ -40,6 +40,8 @@ namespace CounterTime.Brain.Tests
             /// 이 루프는 고정 정책(항상 빠져나가기×따라가기 — 어긋남)으로 즉시 턴다.
             /// 숫자만 기록한다, 튜닝은 안 한다.
             public int OsaekomiEntries;
+            /// §4.4 [초안] 실측(작업6) — 굳히기가 어떻게 끝났는가. 튜닝 대상 아님, 관찰만.
+            public int OsaekomiEndedByEscape, OsaekomiEndedByScore;
 
             /// 각 습관이 몇 번째 교환에 확정에 닿았는가. 없으면 그 경기에 못 닿았다.
             public readonly Dictionary<HabitId, int> ConfirmedAt = new Dictionary<HabitId, int>();
@@ -62,7 +64,8 @@ namespace CounterTime.Brain.Tests
             public override string ToString()
             {
                 var sb = new StringBuilder();
-                sb.AppendLine($"  turns={Turns}  fallback={FallbackTurns} ({100f * FallbackTurns / Turns:0.0}%)  mattes={Mattes}  osaekomiEntries={OsaekomiEntries}");
+                sb.AppendLine($"  turns={Turns}  fallback={FallbackTurns} ({100f * FallbackTurns / Turns:0.0}%)  mattes={Mattes}"
+                            + $"  osaekomiEntries={OsaekomiEntries} (escape={OsaekomiEndedByEscape} score={OsaekomiEndedByScore})");
                 sb.AppendLine($"  ending: {Ending}");
                 foreach (HabitId id in Enum.GetValues(typeof(HabitId)))
                     sb.AppendLine($"  habit {id,-22} fired {(Fires.TryGetValue(id, out int n) ? n : 0)}"
@@ -94,10 +97,15 @@ namespace CounterTime.Brain.Tests
             return read == ReadLevel.FullRead ? 2 : read == ReadLevel.Read ? 3 : 5;
         }
 
-        /// <summary>한 경기를 굴린다. <paramref name="aCommit"/> 이 A 의 성향을 정한다.</summary>
-        static Metrics RunMatch(Func<int, TurnChoice> aCommit, int seed)
+        /// <summary>한 경기를 굴린다. <paramref name="aCommit"/> 이 A 의 성향을 정한다.
+        /// <paramref name="kuzushiEnabled"/> (작업6, §4.4 [초안]) — true 면
+        /// <see cref="MatchRulesConfig.KuzushiGateEnabled"/> 를 켜고 B 의 커밋을
+        /// <see cref="KuzushiPrecedingCommitSource"/> 로 감싼다. 습관 카탈로그·읽기
+        /// 사다리·판정식은 이 매개변수로 아무것도 안 바뀐다 — 켜고 끄는 것은 §4.4 경로
+        /// 하나뿐이다.</summary>
+        static Metrics RunMatch(Func<int, TurnChoice> aCommit, int seed, bool kuzushiEnabled = false)
         {
-            var cfg = new MatchRulesConfig { ThresholdJitter = 0 };
+            var cfg = new MatchRulesConfig { ThresholdJitter = 0, KuzushiGateEnabled = kuzushiEnabled };
             var rng = new SystemRandomSource(seed);
             var engine = new MatchEngine(cfg, RefereeProfile.Standard, rng);
 
@@ -107,27 +115,50 @@ namespace CounterTime.Brain.Tests
             var window = new TendencyWindow();
             var resolver = new LiveReadResolver(ledger, window);
             var ctx = new MatchBrainContext(engine, FighterId.B);
-            var brain = new HabitBrainCommitSource(FighterId.B, state, ctx, ctx, rng, resolver);
+            var brainInner = new HabitBrainCommitSource(FighterId.B, state, ctx, ctx, rng, resolver);
+            // 작업4 데코레이터 — off 면 그냥 안 만든다(브레인 호출 지점 자체가 갈린다,
+            // 켜져 있지도 않은 경로를 "비활성 상태로 통과"시키는 게 아니라).
+            var brainWrapped = kuzushiEnabled
+                ? new KuzushiPrecedingCommitSource(brainInner, ctx, enabled: true)
+                : null;
 
             var m = new Metrics { Ledger = ledger };
 
             for (int turn = 0; turn < Exchanges && !engine.Board.IsFinished; turn++)
             {
                 var a = aCommit(turn);
-                brain.TryNext(out _, out var b);
+
+                TurnChoice b;
+                TechniqueSpec brainTechnique;
+                HabitDecision brainDecision;
+                bool brainUsedFallback;
+                if (kuzushiEnabled)
+                {
+                    brainWrapped.TryNext(out _, out b);
+                    brainTechnique = brainWrapped.LastTechnique;
+                    brainDecision = brainWrapped.LastDecision;
+                    brainUsedFallback = brainWrapped.LastUsedFallback;
+                }
+                else
+                {
+                    brainInner.TryNext(out _, out b);
+                    brainTechnique = brainInner.LastTechnique;
+                    brainDecision = brainInner.LastDecision;
+                    brainUsedFallback = brainInner.LastUsedFallback;
+                }
 
                 // B 가 기술을 들었으면 B 가 공격자, 아니면 A 가 던진다 — 양방향을 다 태운다.
-                bool bAttacks = brain.LastTechnique != null;
+                bool bAttacks = brainTechnique != null;
                 var attacker = bAttacks ? FighterId.B : FighterId.A;
                 var technique = bAttacks
-                    ? brain.LastTechnique
+                    ? brainTechnique
                     : new TechniqueSpec("밭다리", ActionCost.BigThrow, TechniqueClass.Standard);
 
                 var read = resolver.For(attacker, a, b);
 
                 m.Turns++;
-                if (brain.LastUsedFallback) m.FallbackTurns++;
-                if (brain.LastDecision.Fired) m.Fire(brain.LastDecision.Habit.Id);
+                if (brainUsedFallback) m.FallbackTurns++;
+                if (brainDecision.Fired) m.Fire(brainDecision.Habit.Id);
 
                 int row = RowOf(attacker, read);
                 m.Rows[row]++;
@@ -156,7 +187,7 @@ namespace CounterTime.Brain.Tests
                             m.RowTwoTerms.Add(
                                 $"ex{turn}: terms[grip,read,stam,tech,posture]=[{string.Join(",", js.Terms)}]"
                                 + $" sum={js.Sum} -> {js.Judgement} by {js.ScoredBy}"
-                                + $" (counter={js.IsCounter}, Bhabit={(brain.LastDecision.ConditionHeld ? brain.LastDecision.Habit.Id.ToString() : "-")}"
+                                + $" (counter={js.IsCounter}, Bhabit={(brainDecision.ConditionHeld ? brainDecision.Habit.Id.ToString() : "-")}"
                                 + $", Bcore={b.Core}, Blegs={b.Legs}, gripA={engine.Grip.EffectiveGrip(FighterId.A)})");
                     }
                 }
@@ -168,22 +199,31 @@ namespace CounterTime.Brain.Tests
                 // 스코어를 낼 수는 있지만(그러면 매치가 끝날 수도 있다), 그건 실제 판정
                 // 결과지 이 정책이 만든 인위적 종료가 아니다.
                 while (engine.Osaekomi.Active && !engine.Board.IsFinished)
-                    engine.ResolveOsaekomiExchange(OsaekomiDefenderChoice.Escape, OsaekomiHolderChoice.Follow);
+                {
+                    var osaekomiEvents = engine.ResolveOsaekomiExchange(
+                        OsaekomiDefenderChoice.Escape, OsaekomiHolderChoice.Follow);
+                    // 작업6 실측 — 이 마크가 끝을 냈다면 어떻게 끝났는지만 센다. 정책
+                    // (어긋남 고정)은 손대지 않는다.
+                    foreach (var e in osaekomiEvents)
+                        if (e is OsaekomiEnded) m.OsaekomiEndedByEscape++;
+                }
+                if (engine.Board.IsFinished && m.OsaekomiEntries > m.OsaekomiEndedByEscape + m.OsaekomiEndedByScore)
+                    m.OsaekomiEndedByScore++;
 
                 // §4.2 피해 — 관측 기록보다 <b>먼저</b> 본다. 그래야 "A 가 이미 읽을 수
                 // 있었던 상태에서 벌준 것" 만 세어진다. 이번 턴의 발화는 아직 원장에
                 // 안 들어갔다.
-                if (brain.LastDecision.Fired)
+                if (brainDecision.Fired)
                     foreach (var e in events)
                         if (e is JudgementScored j && j.ScoredBy == FighterId.A
                             && (j.IsCounter || j.Judgement != Judgement.None))
-                            state.RegisterDamage(brain.LastDecision.Habit.Id, ledger);
+                            state.RegisterDamage(brainDecision.Habit.Id, ledger);
 
                 // 관측: 실제로 발화한 턴만 센다 — 구조가 그걸 강제한다.
-                ledger.Record(brain.LastDecision);
-                if (brain.LastDecision.Fired && ledger.IsConfirmed(brain.LastDecision.Habit.Id)
-                    && !m.ConfirmedAt.ContainsKey(brain.LastDecision.Habit.Id))
-                    m.ConfirmedAt[brain.LastDecision.Habit.Id] = turn;
+                ledger.Record(brainDecision);
+                if (brainDecision.Fired && ledger.IsConfirmed(brainDecision.Habit.Id)
+                    && !m.ConfirmedAt.ContainsKey(brainDecision.Habit.Id))
+                    m.ConfirmedAt[brainDecision.Habit.Id] = turn;
 
                 ctx.ObserveExchange(events);
                 window.Record(a);      // 창은 지난 커밋만 든다 — 해결 뒤에 넣는다
@@ -313,6 +353,44 @@ namespace CounterTime.Brain.Tests
 
             Assert.AreEqual(0, varying.Rows[4], "4주기는 4/6 최빈이 구조적으로 불가능하다");
             Assert.AreEqual(0, varying.Rows[5], "3연속도 안 서므로 A 가 읽히지 않는다");
+        }
+
+        /// <summary>
+        /// 작업6 실측 — 3프로필(반복/변주/현실적) × 쿠즈시(off/on) = 6회. 튜닝 안 함,
+        /// 숫자를 판정하지 않는다. §4.4 는 아직 [초안]이고 <c>KuzushiGateEnabled</c>
+        /// 기본값은 off — 이 테스트가 켜는 건 이 6회 실측 안에서만이다.
+        ///
+        /// <b>A 는 여전히 허수아비다.</b> B 가 공격 안 하는 턴에만 A 가 고정 밭다리를
+        /// 던진다(§6.4 STATUS 원칙 그대로) — 세 프로필이 A 의 공격 성향을 실제로
+        /// 갈라놓지 못하는 것도 그대로다. 이 실측이 보는 것은 B 의 쿠즈시 선행이
+        /// 수치에 미치는 영향 하나뿐이다.
+        /// </summary>
+        [Test]
+        public void KuzushiOffVsOn_SixProfileMeasurements()
+        {
+            var profiles = new (string name, Func<int, TurnChoice> commit)[]
+            {
+                ("반복", _ => Same),
+                ("변주", t => Varied[t % Varied.Length]),
+                ("현실적", t => Realistic[t % Realistic.Length]),
+            };
+
+            var sb = new StringBuilder();
+            foreach (var (name, commit) in profiles)
+            {
+                var off = RunMatch(commit, seed: 1234, kuzushiEnabled: false);
+                var on = RunMatch(commit, seed: 1234, kuzushiEnabled: true);
+
+                sb.AppendLine($"=== {name} — 쿠즈시 off ===");
+                sb.AppendLine(off.ToString());
+                sb.AppendLine($"=== {name} — 쿠즈시 on ===");
+                sb.AppendLine(on.ToString());
+
+                Assert.Greater(off.Turns, 0);
+                Assert.Greater(on.Turns, 0);
+            }
+
+            Console.WriteLine(sb.ToString());
         }
     }
 }
