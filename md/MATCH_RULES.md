@@ -1,5 +1,5 @@
-<!-- v3.6 | body:622153e -->
-# MATCH_RULES.md — COUNTER TIME judo match system (v3.6)
+<!-- v3.7 | body:17d3a61 -->
+# MATCH_RULES.md — COUNTER TIME judo match system (v3.7)
 
 Single source of truth for match logic. `CounterTime.Core` implements THIS file;
 if code and this file disagree, this file wins. All numbers are v1 tunables unless
