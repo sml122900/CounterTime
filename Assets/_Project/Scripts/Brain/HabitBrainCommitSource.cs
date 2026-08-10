@@ -24,9 +24,13 @@ namespace CounterTime.Brain
         readonly IHabitContext _habitContext;
         readonly IBrainContext _brainContext;
         readonly IRandomSource _rng;
-        readonly LiveReadResolver _resolver;
 
         /// 이번 턴 사다리 2단의 결론. 관측 원장이 이걸 받는다.
+        ///
+        /// <b>이 결정 시점 ≠ 교환 제출 시점.</b> 쿠즈시 데코레이터(<see cref="KuzushiPrecedingCommitSource"/>)가
+        /// 감싸면 이 결정이 한 교환 늦게 나갈 수 있다 — 그래서 <see cref="LiveReadResolver.NoteOpponentHabit"/>
+        /// 는 여기서 부르지 않는다. 실제로 그 교환에 제출되는 커밋을 아는 쪽(호출자)이,
+        /// 제출 시점에 불러야 한다.
         public HabitDecision LastDecision { get; private set; }
         /// 이번 턴 커밋에 딸린 기술. <c>null</c> = 기술 없음(잡기싸움·방어 턴).
         public TechniqueSpec LastTechnique { get; private set; }
@@ -34,15 +38,13 @@ namespace CounterTime.Brain
         public bool LastUsedFallback { get; private set; }
 
         public HabitBrainCommitSource(FighterId me, HabitState state, IHabitContext habitContext,
-                                      IBrainContext brainContext, IRandomSource rng,
-                                      LiveReadResolver resolver = null)
+                                      IBrainContext brainContext, IRandomSource rng)
         {
             _me = me;
             _state = state;
             _habitContext = habitContext;
             _brainContext = brainContext;
             _rng = rng;
-            _resolver = resolver;
             _ladder = new HabitLadder(rng);
         }
 
@@ -52,9 +54,6 @@ namespace CounterTime.Brain
 
             var decision = _ladder.Next(_state, _habitContext);
             LastDecision = decision;
-            // 매 턴 알린다 — 습관이 안 나온 턴은 default 로. 안 지우면 지난 턴의
-            // 발화가 이번 턴 읽기로 샌다.
-            _resolver?.NoteOpponentHabit(decision);
 
             HabitAction action = decision.Fired ? decision.Habit.Action : Fallback();
             LastUsedFallback = !decision.Fired;

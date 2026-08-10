@@ -5,7 +5,6 @@
         "CounterTime.Core",
         "CounterTime.Brain",
         "CounterTime.Game",
-        "UnityEngine.UI",
         "Unity.TextMeshPro",
         "Unity.InputSystem"
     ],

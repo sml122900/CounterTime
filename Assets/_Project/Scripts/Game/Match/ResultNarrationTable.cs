@@ -57,11 +57,17 @@ namespace CounterTime.Game.Match
         public void Add(Judgement judgement, string techniqueId, bool isCounter, string text) =>
             _entries[new Key(judgement, techniqueId, isCounter)] = text;
 
-        /// <c>docs/step4-narration-worksheet.md</c> 배정을 그대로 옮긴 9개 엔트리.
+        /// <c>docs/step4-narration-worksheet.md</c> 배정을 옮긴 8개 엔트리.
         /// m27·m34는 등록하지 않는다 — 사유는 워크시트 원문에 있다 (폴백 유지).
+        /// m18도 등록하지 않는다 — 문구가 횟수("세 번째")를 명시해 오정보가 되므로
+        /// 시나리오 개정 대기 (docs/42-node-audit.md §6).
         public static ResultNarrationTable CreateDefault()
         {
             var table = new ResultNarrationTable();
+
+            // m18("같은 밭다리, 세 번째...")은 등록하지 않는다 — 문구가 횟수를 명시해서
+            // play 모드(브레인 경로)의 첫 되치기에도 그대로 뜨면 오정보가 된다.
+            // 시나리오 개정 대기 — docs/42-node-audit.md §6 목록 참조.
 
             table.Add(Judgement.Yuko, "업어치기", isCounter: true,
                 "들어오는 회전을 그대로 당겨 눕힌다. 되치기 체력 -2 (상대 힘 이용). " +
@@ -78,10 +84,6 @@ namespace CounterTime.Game.Match
 
             table.Add(Judgement.WazaAri, "밭다리", isCounter: false,
                 "자세를 풀던 B가 반 박자 늦었다. 회전 90도. 그대로 굳히기 진입.");
-
-            table.Add(Judgement.Yuko, "밭다리", isCounter: true,
-                "같은 밭다리, 세 번째. B가 축발을 걸어 되받는다. " +
-                "반복은 읽힌다. 습관은 상대에게도 생긴다.");
 
             table.Add(Judgement.WazaAri, "말아업어치기", isCounter: false,
                 "2025 개정으로 합법화된 그 기술. B 체력 30↓ 1회 한정 발동. " +

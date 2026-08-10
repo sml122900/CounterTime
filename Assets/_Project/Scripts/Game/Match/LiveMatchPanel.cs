@@ -39,7 +39,7 @@ namespace CounterTime.Game.Match
 
         Transform _handColumn, _coreColumn, _legsColumn;
         GameObject _standingRoot, _osaekomiRoot;
-        TMP_Text _resultText, _exposureText;
+        TMP_Text _resultText, _exposureText, _preemptedText;
         Image _warningMark, _dangerMark;
         Button _osaekomiOptionA, _osaekomiOptionB;
         TMP_Text _osaekomiLabelA, _osaekomiLabelB;
@@ -55,6 +55,7 @@ namespace CounterTime.Game.Match
             _runner.Narrated += OnNarrated;
             _runner.OsaekomiOpened += OnOsaekomiOpened;
             _runner.OsaekomiClosed += OnOsaekomiClosed;
+            _runner.APreempted += OnAPreempted;
         }
 
         void OnDisable()
@@ -62,6 +63,7 @@ namespace CounterTime.Game.Match
             _runner.Narrated -= OnNarrated;
             _runner.OsaekomiOpened -= OnOsaekomiOpened;
             _runner.OsaekomiClosed -= OnOsaekomiClosed;
+            _runner.APreempted -= OnAPreempted;
         }
 
         void Start() => RefreshStanding();
@@ -71,6 +73,12 @@ namespace CounterTime.Game.Match
         void OnNarrated(ResultNarrationTable.Result r)
         {
             _resultText.text = r.IsFallback ? $"<color=#999999>{r.Text}</color>" : r.Text;
+        }
+
+        /// [v1 임시 시스템 문구 — 카피 교체 목록에 올릴 것, md/STATUS.md 결정 대기 참조]
+        void OnAPreempted()
+        {
+            _preemptedText.text = "B 선행 — A 공격 불발";
         }
 
         // ── 굳히기 전환 ──────────────────────────────────────────────────────────
@@ -141,6 +149,10 @@ namespace CounterTime.Game.Match
 
         void Confirm()
         {
+            // 지난 턴의 선점 표시를 먼저 지운다 — 이번 SubmitA 가 새로 띄우면 그 뒤에
+            // 남는다. RefreshStanding 에서 지우면 같은 프레임에 방금 띄운 것까지
+            // 지워진다.
+            _preemptedText.text = "";
             var choice = _runner.A.Build(_hand, _core, _legs);
             _runner.SubmitA(choice);
             if (!_runner.Engine.Osaekomi.Active) RefreshStanding();
@@ -211,7 +223,8 @@ namespace CounterTime.Game.Match
 
         void BuildCanvas()
         {
-            var go = new GameObject("LiveMatchCanvas", typeof(Canvas), typeof(CanvasScaler));
+            var go = new GameObject("LiveMatchCanvas",
+                typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             go.transform.SetParent(transform, false);
             var canvas = go.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -222,6 +235,7 @@ namespace CounterTime.Game.Match
 
             BuildExposureBar(go.transform);
             BuildResultText(go.transform);
+            BuildPreemptedText(go.transform);
             _standingRoot = BuildStandingRoot(go.transform);
             _osaekomiRoot = BuildOsaekomiRoot(go.transform);
             _osaekomiRoot.SetActive(false);
@@ -261,6 +275,14 @@ namespace CounterTime.Game.Match
         {
             _resultText = MakeText(parent, "", TextAlignmentOptions.Center,
                 new Vector2(0, -70), new Vector2(900, 80), new Vector2(0.5f, 1));
+        }
+
+        /// [v1 임시 시스템 문구용 슬롯 — 카피 교체 목록에 올릴 것]
+        void BuildPreemptedText(Transform parent)
+        {
+            _preemptedText = MakeText(parent, "", TextAlignmentOptions.Center,
+                new Vector2(0, -130), new Vector2(900, 40), new Vector2(0.5f, 1));
+            _preemptedText.color = Warning;
         }
 
         GameObject BuildStandingRoot(Transform parent)

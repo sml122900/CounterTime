@@ -1,4 +1,4 @@
-<!-- v3.7 | body:17d3a61 -->
+<!-- v3.7 | body:1d15c97 -->
 # MATCH_RULES.md — COUNTER TIME judo match system (v3.7)
 
 Single source of truth for match logic. `CounterTime.Core` implements THIS file;
@@ -41,9 +41,16 @@ commit by both fighters. Per-turn choice =
 |---|---|---|
 | Hand (ONE hand only) | target opponent's: 오른소매 / 왼소매 / 왼가슴 / 오른가슴 / 회피 | Committing both hands in one turn is not offered (real-judo suicide). |
 | Hand — unlocked conversions | 틀어잡기(back-collar twist), 등싸잡기 | Only available while the OTHER hand already holds a sleeve/lapel. |
+| Hand — 뜯기(tear) | resolves per §3.2's simultaneous mind-game | Gate: opponent holds at least one of your hands (`GripLock != Free`). |
+| Hand — 잡기 유지(maintain grip) | the defending side of §3.2's tear contest | Gate: you hold at least one grip (`HasAnyGrip`). |
 | Hand — **[초안 — 사람 검토 전]** 쿠즈시(무너뜨리기) | 상대를 무너뜨려 다음 교환의 큰기술에 정당성을 준다 (§4.4) | `KuzushiGateEnabled` 플래그 뒤. 자기 그립이 하나라도 있어야 선언 가능. 판정 미발화(견제 발기술과 동급), 별도 상성표 rung 없음. |
 | Core | 공격적 / 중립 / 수비적 | |
 | Legs (발기술) | 공격 / 중립 / 수비 / 카운터 준비 | Legs act even while gripping. |
+
+**동시 공격 우선순위 [v1 임시 규칙].** 한 교환에는 공격자가 하나뿐이다 — A가 Legs=공격을
+선언한 같은 교환에 상대(B)도 기술을 낸다면, v1은 **B가 항상 선행**한다: A의 공격은 그
+교환에서 성립하지 않는다(판정 자체가 안 열린다). 선제권을 별도로 판정할지, 다른 해소
+규칙(예: 판정으로 흡수)을 둘지는 **미결**이다.
 
 **극단적 방어** = hand 회피 + core 수비 + legs 수비 (all-in defense). Special
 handling in referee (§6) and stamina (§5).

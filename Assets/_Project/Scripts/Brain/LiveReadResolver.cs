@@ -27,11 +27,15 @@ namespace CounterTime.Brain
         }
 
         /// <summary>
-        /// 이번 교환에 B 가 무엇을 냈는지 알린다. <c>HabitBrainCommitSource</c> 가
-        /// B 의 커밋을 정할 때 부른다.
+        /// 이번 교환에 B 가 무엇을 냈는지 알린다. 커밋이 실제로 교환에 제출되는
+        /// 시점(예: <c>LiveMatchRunner.SubmitA</c>)에서, 그 교환에 쓰일 결정으로 불러야
+        /// 한다 — <c>HabitBrainCommitSource.TryNext</c> 가 사다리를 굴린 시점이 아니다.
+        /// 쿠즈시 데코레이터(<see cref="KuzushiPrecedingCommitSource"/>)가 결정을 한
+        /// 교환 늦게 낼 수 있어서, 결정 시점과 제출 시점이 다를 수 있다.
         ///
-        /// <b>매 교환 부른다</b> — 습관이 안 나온 턴은 <c>default</c> 로. 안 지우면
-        /// 지난 턴의 발화가 이번 턴 읽기로 새고, 그건 조용히 틀린다.
+        /// <b>매 교환 부른다</b> — 습관이 안 나온 턴(쿠즈시 설치 교환 포함)은
+        /// <c>default</c> 로. 안 지우면 지난 턴의 발화가 이번 턴 읽기로 새고, 그건
+        /// 조용히 틀린다.
         /// </summary>
         public void NoteOpponentHabit(in HabitDecision decision) => _bHabit = decision;
 

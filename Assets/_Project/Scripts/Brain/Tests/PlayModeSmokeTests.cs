@@ -115,7 +115,7 @@ namespace CounterTime.Brain.Tests
             var window = new TendencyWindow();
             var resolver = new LiveReadResolver(ledger, window);
             var ctx = new MatchBrainContext(engine, FighterId.B);
-            var brainInner = new HabitBrainCommitSource(FighterId.B, state, ctx, ctx, rng, resolver);
+            var brainInner = new HabitBrainCommitSource(FighterId.B, state, ctx, ctx, rng);
             // 작업4 데코레이터 — off 면 그냥 안 만든다(브레인 호출 지점 자체가 갈린다,
             // 켜져 있지도 않은 경로를 "비활성 상태로 통과"시키는 게 아니라).
             var brainWrapped = kuzushiEnabled
@@ -146,6 +146,11 @@ namespace CounterTime.Brain.Tests
                     brainDecision = brainInner.LastDecision;
                     brainUsedFallback = brainInner.LastUsedFallback;
                 }
+
+                // 커밋이 실제로 이번 교환에 제출되는 시점에 알린다 — 쿠즈시 설치
+                // 교환에서는 brainDecision 이 default(발화 없음)라 알림이 안 나가고,
+                // 다음 교환(진짜 기술 제출)에서 실제 결정이 나간다.
+                resolver.NoteOpponentHabit(brainDecision);
 
                 // B 가 기술을 들었으면 B 가 공격자, 아니면 A 가 던진다 — 양방향을 다 태운다.
                 bool bAttacks = brainTechnique != null;

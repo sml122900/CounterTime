@@ -60,6 +60,10 @@ namespace CounterTime.Game.Match
         /// §9.4 — 굳히기가 빠져나가기로 끝났다(한판으로 경기가 끝난 경우는 MatchEnded
         /// 가 대신 Presented 로 나간다).
         public event Action OsaekomiClosed;
+        /// [v1 임시 규칙, MATCH_RULES §2] A 가 Legs=공격을 선언한 같은 교환에 B 의
+        /// 브레인도 기술을 냈다 — 한 교환엔 공격자가 하나뿐이라 B 가 선행하고 A 의
+        /// 공격은 이번 교환에 성립하지 않는다. 선제권 판정은 미결.
+        public event Action APreempted;
 
         void Awake() => Build();
 
@@ -77,7 +81,7 @@ namespace CounterTime.Game.Match
             var opponent = Jindoyun.Create(_cfg);
             _habitState = new HabitState(opponent);
             _bContext = new MatchBrainContext(Engine, FighterId.B);
-            _bInner = new HabitBrainCommitSource(FighterId.B, _habitState, _bContext, _bContext, _rng, _resolver);
+            _bInner = new HabitBrainCommitSource(FighterId.B, _habitState, _bContext, _bContext, _rng);
             _bSource = new KuzushiPrecedingCommitSource(_bInner, _bContext, kuzushiEnabled);
         }
 
@@ -89,9 +93,16 @@ namespace CounterTime.Game.Match
             if (Engine.Osaekomi.Active || Engine.Board.IsFinished) return;
 
             _bSource.TryNext(out _, out var b);
+            // 커밋이 실제로 이번 교환에 제출되는 시점 — 결정 시점(TryNext 내부, 사다리가
+            // 굴러간 순간)이 아니다. 쿠즈시 설치 교환에서는 LastDecision 이 default(발화
+            // 없음)이므로, 여기서 그대로 알리면 그 교환엔 습관 알림이 안 나가고 다음
+            // 교환(진짜 기술 제출)에서 알림이 나간다.
+            _resolver.NoteOpponentHabit(_bSource.LastDecision);
 
             bool bAttacks = _bSource.LastTechnique != null;
             bool aAttacks = !bAttacks && a.Legs == LegAction.Attack;
+            // [v1 임시 규칙] 동시 공격 — A 도 공격을 선언했는데 B 가 먼저 낸 경우.
+            if (bAttacks && a.Legs == LegAction.Attack) APreempted?.Invoke();
             FighterId? attacker = bAttacks ? FighterId.B : aAttacks ? FighterId.A : (FighterId?)null;
             TechniqueSpec technique = bAttacks ? _bSource.LastTechnique
                                     : aAttacks ? PlaceholderATechnique : null;

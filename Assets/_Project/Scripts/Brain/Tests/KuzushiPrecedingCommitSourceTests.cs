@@ -121,6 +121,38 @@ namespace CounterTime.Brain.Tests
                 "같은 발화가 쿠즈시 교환과 기술 교환 양쪽에서 세어지면 원장이 오염된다");
         }
 
+        /// <summary>
+        /// 아침 결정 반영 — 습관 관측 알림(<see cref="LiveReadResolver.NoteOpponentHabit"/>)은
+        /// 이제 <c>TryNext</c> 의 결정 시점이 아니라, 그 결정이 실제로 교환에 제출되는
+        /// 시점(호출자 책임)에 이뤄진다. 실제 소비자(<c>LiveMatchRunner.SubmitA</c> /
+        /// <c>PlayModeSmokeTests.RunMatch</c>)와 같은 순서 — <c>TryNext</c> → 곧바로
+        /// <c>NoteOpponentHabit(decorator.LastDecision)</c> — 로 불러서, 쿠즈시 설치
+        /// 교환에서는 알림이 없고 다음 교환(진짜 기술 제출)에만 알림이 오는지를
+        /// <see cref="LiveReadResolver.For"/> 의 실제 반환값으로 확인한다.
+        /// </summary>
+        [Test]
+        public void ObservationTiming_NoHabitNoteOnKuzushiExchange_NoteArrivesOnRealSubmission()
+        {
+            var (engine, _, decorator) = Build(enabled: true, grantGrip: true);
+
+            var ledger = new ObservationLedger();
+            for (int i = 0; i < ObservationLedger.CertainObservations; i++)
+                ledger.Record(new HabitDecision(AlwaysFiresBigThrow(), fired: true));
+            var resolver = new LiveReadResolver(ledger, new TendencyWindow());
+
+            decorator.TryNext(out _, out var kuzushiChoice);
+            resolver.NoteOpponentHabit(decorator.LastDecision);
+            Assert.AreEqual(ReadLevel.Neutral, resolver.For(FighterId.B, Idle, kuzushiChoice),
+                "쿠즈시 설치 교환 자체는 습관 알림을 안 낸다 — 확정 관측이 있어도 B 는 아직 안 읽힌다");
+
+            engine.ResolveExchange(Idle, kuzushiChoice, new ExchangeScript());
+
+            decorator.TryNext(out _, out var realChoice);
+            resolver.NoteOpponentHabit(decorator.LastDecision);
+            Assert.AreEqual(ReadLevel.GotRead, resolver.For(FighterId.B, Idle, realChoice),
+                "진짜 기술이 제출되는 교환에는 실제 결정이 실려야 B 가 읽힌다");
+        }
+
         /// H1(업어치기) 카탈로그 습관과 실제로 엮이는지 확인하는 통합 테스트 —
         /// 커스텀 픽스처가 아니라 HabitCatalogue.Build 그대로를 쓴다.
         [Test]

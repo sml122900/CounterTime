@@ -77,13 +77,11 @@ namespace CounterTime.Game.Tests
         /// ResultNarrationTable 이 등장하는 것이다.
         /// </summary>
         /// <summary>
-        /// docs/step4-narration-worksheet.md 배정 9건이 전부 <see cref="ResultNarrationTable.CreateDefault"/>
-        /// 에 등록돼 폴백이 아니어야 한다. m18 은 워크시트가 지시한 그대로 TechniqueId="밭다리"로
-        /// 등록돼 있다 — 본문상 실제 기술은 안뒤축감아치기(H2)이지만, 밤 지시가 명시적으로
-        /// "밭다리"를 키로 쓰라고 했으므로 그대로 따랐다(overnight 문서에 오디티로 기록).
+        /// docs/step4-narration-worksheet.md 배정 중 8건이 <see cref="ResultNarrationTable.CreateDefault"/>
+        /// 에 등록돼 폴백이 아니어야 한다.
         /// </summary>
         [Test]
-        public void CreateDefault_HasAllNineWorksheetEntries_NoneAreFallback()
+        public void CreateDefault_HasAllEightWorksheetEntries_NoneAreFallback()
         {
             var table = ResultNarrationTable.CreateDefault();
 
@@ -92,10 +90,23 @@ namespace CounterTime.Game.Tests
             Assert.IsFalse(table.Narrate(Judgement.None, "밭다리", isCounter: false).IsFallback);
             Assert.IsFalse(table.Narrate(Judgement.None, "허리후리기", isCounter: false).IsFallback);
             Assert.IsFalse(table.Narrate(Judgement.WazaAri, "밭다리", isCounter: false).IsFallback);
-            Assert.IsFalse(table.Narrate(Judgement.Yuko, "밭다리", isCounter: true).IsFallback);
             Assert.IsFalse(table.Narrate(Judgement.WazaAri, "말아업어치기", isCounter: false).IsFallback);
             Assert.IsFalse(table.Narrate(Judgement.Ippon, "말아업어치기", isCounter: true).IsFallback);
             Assert.IsFalse(table.Narrate(Judgement.Ippon, "밭다리", isCounter: false).IsFallback);
+        }
+
+        /// <summary>
+        /// m18 (Yuko, "밭다리", true)는 더 이상 등록하지 않는다 — 문구가 "같은 밭다리,
+        /// 세 번째"로 횟수를 명시해서, play 모드(브레인 경로)에서 몇 번째 발생이든 뜨는
+        /// 이 키에 그대로 물리면 오정보가 된다. 시나리오 개정 대기
+        /// (docs/42-node-audit.md §6). 등록 안 됐으므로 항상 폴백이다.
+        /// </summary>
+        [Test]
+        public void CreateDefault_M18_StaysFallback_TextWouldMisstateOccurrenceCount()
+        {
+            var table = ResultNarrationTable.CreateDefault();
+
+            Assert.IsTrue(table.Narrate(Judgement.Yuko, "밭다리", isCounter: true).IsFallback);
         }
 
         /// <summary>
