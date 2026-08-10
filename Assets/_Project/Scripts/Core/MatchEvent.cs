@@ -143,6 +143,15 @@ namespace CounterTime.Core
         public OsaekomiEnded(FighterId defender) => Defender = defender;
     }
 
+    /// §4.4 [초안] — a kuzushi hand action resolved (gate passed). Its effect (next
+    /// exchange's BigThrow keeps its TechniqueClass instead of downgrading to Sloppy)
+    /// is silent — this event exists so a HUD can show the setup landed.
+    public sealed class KuzushiDeclared : MatchEvent
+    {
+        public readonly FighterId Who;
+        public KuzushiDeclared(FighterId who) => Who = who;
+    }
+
     public sealed class MatchEnded : MatchEvent
     {
         public readonly FighterId? Winner;

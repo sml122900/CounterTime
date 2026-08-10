@@ -54,6 +54,9 @@ namespace CounterTime.Core
         /// the hold continues and the defender pays for staying under control.
         public void PayOsaekomiStay(FighterId who) => Spend(who, _cfg.OsaekomiStayCost);
 
+        /// §4.4 [초안] — kuzushi's own flat cost, distinct from the §5.1 ActionCost table.
+        public void PayKuzushi(FighterId who) => Spend(who, _cfg.KuzushiCost);
+
         /// §5.3. "Once per matte" is the caller's contract — MatchEngine calls this
         /// exactly once when matte is declared.
         public void RecoverMatte(FighterId who) => Gain(who, _cfg.MatteRecovery);

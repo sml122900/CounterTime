@@ -57,3 +57,35 @@ m27·m34는 워크시트 결정대로 등록하지 않음(폴백 유지).
 테스트 2개 추가(`CreateDefault_HasAllNineWorksheetEntries_NoneAreFallback`,
 `CreateDefault_M27AndM34_StayFallback`). 179/179 green(177→179), 지문 IDENTICAL
 (narration table은 MatchRunner.Mainline 지문 경로에 안 들어가므로 예상대로 무변화).
+
+## 작업 3 — 쿠즈시 Core 규칙 (플래그 기본 off)
+
+MATCH_RULES v3.6 → v3.7 **[초안 — 사람 검토 전]**. §2 손 선택지 표에 쿠즈시 행 추가
+(초안 표기 포함), §4.4 신설(강등 규칙 전문, 초안 표기). 스탬프는 pre-commit 훅이
+커밋 시점에 자동 재생성(`git config core.hooksPath` = `tools/githooks` 확인됨).
+
+코드:
+- `MatchRulesConfig`: `KuzushiGateEnabled`(기본 false) + `KuzushiCost`(기본 1).
+- `Enums.HandTarget`: 기존 9개 뒤에 `Kuzushi` 추가(순서 유지, 값 안 바뀜).
+- `TechniqueSpec`: `SurpriseExempt`(기본 false) 필드 + 생성자 선택 인자 추가.
+- `GripSystem.HasAnyGrip`: `CanUseConversion`과 동일한 술어(`Value(who) > 0`)를
+  다른 이름으로 노출 — 호출부의 의도(쿠즈시 게이트 vs 변환 게이트)가 다르다.
+- `StaminaSystem.PayKuzushi`: `KuzushiCost`를 직접 쓰는 전용 지불 메서드
+  (§5.1 `ActionCost` 표를 안 탄다 — Poke 비용과 우연히 같은 값(1)이어도 출처가 다르다).
+- `MatchEvent.KuzushiDeclared(Who)` 신설.
+- `MatchEngine`: `_kuzushiActive[2]`(이번 교환에 들어올 때의 상태) /
+  `_kuzushiDeclaredThisExchange[2]`(이번 교환에 새로 선언됐는지, 스크래치) 두 배열로
+  1교환 지속을 구현. `ResolveGrip`의 `HandTarget.Kuzushi` case가 게이트+비용+이벤트를
+  처리하고, `ResolveTechnique`는 판정 직전에 `techClass`를 계산해 `JudgementContext`와
+  `terms[3]`(판정식 덤프) 양쪽에 일관되게 먹인다 — `JudgementCalculator`는 한 글자도
+  안 건드렸다(grep으로 재확인). `ResolveExchange` 끝에서 그쳐/굳히기 진입/경기 종료를
+  감지해 그 경우 무조건 소멸시키고, 아니면 이번 교환의 선언만 다음 교환으로 넘긴다.
+
+테스트: `Assets/_Project/Scripts/Core/Tests/KuzushiTests.cs` 8개 — 플래그 off 시
+완전 비활성(성립 자체가 안 됨 + 강등 로직 미작동) / 그립 없이 게이트 불통과 / 성립 시
+비용·이벤트 / 미선행 강등(그립+1로 브래킷 경계를 넘겨 None↔Yuko로 가시화, 틀린 답도
+명시) / 선행 시 급 유지 / 정확히 1교환 후 소멸 / 변칙기 면제 / 그쳐로 소멸.
+
+187/187 green(179→187), fingerprint IDENTICAL(off가 기본이라 메인라인은 전혀 안 건드림).
+Unity 에디터(MCP 연결 확인됨, GetConsoleLogs 로 재확인)에서도 0 에러/0 경고 —
+`KuzushiTests.cs.meta`는 `AssetDatabase.Refresh()`로 생성 확인.

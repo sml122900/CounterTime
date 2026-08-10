@@ -67,6 +67,9 @@ namespace CounterTime.Core
         /// §2 — 틀어잡기/등싸잡기 need the other hand to already hold something.
         public bool CanUseConversion(FighterId who) => Value(who) > 0;
 
+        /// §4.4 [초안] — 쿠즈시 게이트: 자기 그립이 하나라도 있어야 선언 가능.
+        public bool HasAnyGrip(FighterId who) => Value(who) > 0;
+
         /// §3.2 — `who` tries to tear the opponent's grip off their own `hand`.
         /// Pure read-based in v1: no RNG.
         public TearOutcome ResolveTear(FighterId who, Hand hand, bool opponentChoseMaintain)
