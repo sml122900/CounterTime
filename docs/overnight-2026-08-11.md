@@ -12,6 +12,14 @@
    IsCounter=true` 로 등록했다 — 고치지 않았다. 아침에 TechniqueId를 "안뒤축감아치기"로
    바꿀지, 아니면 "밭다리"(A가 반복한 기술 기준)로 의도된 것인지 확인 필요.
 
+2. **[작업4] 쿠즈시 선행 데코레이터와 읽기 사다리의 타이밍 미스매치.**
+   `HabitBrainCommitSource.TryNext` 가 결정 즉시 `LiveReadResolver.NoteOpponentHabit`
+   를 부르는데, 그 호출은 사다리 내부(수정 금지 범위)에 있어 데코레이터가 가로챌 수
+   없다. 그래서 A 의 읽기는 쿠즈시(설치) 교환에서 이미 그 결정을 보고, 진짜 기술이
+   나오는 다음 교환엔 새 알림이 없다 — 읽기가 한 교환 당겨져 있다. 지금은 이
+   데코레이터가 어디에도 배선돼 있지 않아 관측되는 버그는 아니지만, `LiveReadResolver`
+   와 실제로 엮을 때(스테이지 6+) 먼저 풀어야 한다. 작업4 절 참조.
+
 (이후 작업 진행하며 여기 채움)
 
 ---
@@ -93,3 +101,38 @@ Unity 에디터(MCP 연결 확인됨, GetConsoleLogs 로 재확인)에서도 0 �
 작은 실수 하나 발견 즉시 수정: 첫 커밋(2e161b4)에서 문서 헤더 버전 태그를
 v3.6 그대로 두고 커밋했다 — `tools/stamp.sh`는 본문 해시만 재계산하고 `vX.Y`
 숫자는 사람이 올려야 한다는 걸 놓쳤다. 뒤이은 커밋(b9618b2)으로 v3.7 태그 반영.
+
+## 작업 4 — B 브레인 쿠즈시 선행 데코레이터
+
+`Assets/_Project/Scripts/Brain/KuzushiPrecedingCommitSource.cs` 신설.
+`HabitBrainCommitSource`(습관 카탈로그·읽기 사다리 모두 포함)는 한 글자도 안
+건드렸다 — 데코레이터가 이미 나온 결정을 한 턴 버퍼링해서 늦춰 내보낼 뿐이다.
+플래그 on + `IBrainContext.OwnEffectiveGrip >= 1`(그립 게이트 대리— H1/H2 둘 다
+자기 조건으로 이미 grip ≥ +1 을 요구하므로 실전에서는 항상 일치) + 감싸인 결정이
+BigThrow 기술을 들고 있을 때만 삽입한다. 삽입 교환에서는 `LastTechnique=null`,
+`LastDecision=default`, `LastUsedFallback=false`를 낸다 — `ObservationLedger.Record`
+는 `Fired`가 false면 즉시 리턴하므로 같은 발화가 쿠즈시 교환과 진짜 기술 교환
+양쪽에서 두 번 세어지지 않는다.
+
+**판단 대기 2. 읽기 사다리와의 타이밍 미스매치 (수정 안 함, 범위 밖).**
+`HabitBrainCommitSource.TryNext` 는 결정 즉시(사다리 내부에서) `LiveReadResolver.
+NoteOpponentHabit` 를 부른다 — 그 호출 자체가 사다리/읽기 코드 안에 있어서
+데코레이터가 가로챌 수 없고, 가로채려면 금지된 파일(`LiveReadResolver` 또는
+`HabitBrainCommitSource`)을 고쳐야 한다. 그 결과 A 의 읽기 레이어는 쿠즈시(설치)
+교환에서 이미 그 결정을 보고, 진짜 기술이 나오는 다음 교환에는 새 알림이 없다 —
+읽기가 한 교환 당겨져 있다. 오늘 밤 범위 밖으로 남긴다: 이 데코레이터는 지금
+어디에도 실제로 배선돼 있지 않으므로(스테이지 6 전) 당장 관측 가능한 버그는
+아니지만, `LiveReadResolver` 와 실제로 엮는 사람이 이 타이밍부터 풀어야 한다.
+
+**B 쿠즈시는 현재 100% 정직한 tell이다.** 쿠즈시가 보이면 다음 교환에 반드시
+진짜 큰기술이 온다 — 페이크(쿠즈시만 하고 안 던지기)는 구현하지 않았다. 후속 설계.
+
+테스트: `Assets/_Project/Scripts/Brain/Tests/KuzushiPrecedingCommitSourceTests.cs`
+6개. 결정론적 커스텀 `HabitDefinition`(HabitCatalogue.cs 미수정, 테스트 픽스처
+전용)으로 삽입/버퍼링/게이트 미통과 시 즉시통과/원장 안전성을 좁혀서 확인하고,
+`HabitCatalogue.Build(HabitId.BigThrowOnGripEdge, ...)` 실물 습관으로 엮이는 통합
+테스트 1개를 추가로 확인. 기존 브레인 테스트 4개 파일(HabitBrainTests /
+LiveReadResolverTests / PlayModeSmokeTests / TendencyWindowTests)은 이 데코레이터를
+안 쓰므로 손대지 않았고 — 그대로 전부 그린인 것 자체가 "오염 없음"의 증거다.
+
+193/193 green(187→193), fingerprint IDENTICAL. Unity 에디터 0 에러/0 경고.
