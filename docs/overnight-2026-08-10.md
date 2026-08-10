@@ -237,3 +237,139 @@ Root cause 는 위 "판단 대기 §3"(및 실제 지시문의 항목 0)에서 �
 전에는 통과됐던 득점 기회가 처음으로 실제로 잡힌 것이다. 변주·현실적은
 거의 그대로(굳히기 진입이 매치 끝물에 한 번뿐이라 조기 종료가 안 걸림).
 숫자를 손대진 않았다 — 경기 길이 판단은 여전히 6단계 이후 사람 몫.
+
+## 6. 사후 검증 (2026-08-11, a165872/a036e75 커밋 후)
+
+### 6.0 지문 베이스라인 신뢰성 — 사실관계
+
+**52줄 지문 비교의 출처는 리포에 커밋된 파일이 아니다.** `git log --all
+--diff-filter=A --name-only` 로 전체 히스토리를 뒤져도 fingerprint/harness
+관련 파일이 커밋된 적이 한 번도 없다 — "byte-identical" 언급은 전부 커밋
+메시지·문서의 **서술**이지, 대조할 저장된 값이 아니다. `md/STATUS.md`
+84행("하니스는 리포에 안 들어간다 — 세션마다 다시 만든다")이 근거다.
+
+밤 세션(182f0e5/979a4f2/478d46c/a8e89af)의 IDENTICAL 주장도, 오늘 세션
+전반부(a165872/a036e75)의 IDENTICAL 주장도 둘 다 **세션 내부 자기비교**였다
+— 세션이 그 자리에서 하니스를 새로 만들고, 그 세션 안에서만 전/후를
+비교했다. 저장된 정답과 비교한 적은 없다. **그래서 "밤 IDENTICAL"은
+재검증이 필요했다.**
+
+**재검증 결과(2026-08-11 수행)**: `git worktree add --detach` 로 5개 지점
+(182f0e5^, 182f0e5, 979a4f2, 478d46c, a8e89af) 을 격리된 워크트리에 체크아웃
+하고, 그때마다 오늘 새로 만든 독립적인 하니스로 지문을 재생성해 인접한
+지점끼리 diff 했다. **5개 전부 byte-identical** — `182f0e5^ == 182f0e5 ==
+979a4f2 == 478d46c == a8e89af`. 밤 세션의 주장은 사후 재현으로 확인됐다
+(그때와 다른 하니스 코드로, 진짜 그 커밋의 파일로 — 자기비교가 아니다).
+`a8e89af` 지점 결과는 오늘 세션 전반부가 자체 생성했던 베이스라인
+(`fingerprint_before.txt`, git stash 로 재구성)과도 별도로 대조해 일치를
+확인했다.
+
+### 6.1 하니스를 리포에 커밋
+
+`tools/dotnet-harness/` (Harness.csproj, Program.cs, UnityEngineShim.cs,
+README.md, fingerprint-baseline.txt). "하니스는 리포에 안 들어간다"는 이전
+세션들의 관행이었고 `md/STATUS.md` 에 명시돼 있었다(위 6.0 인용) — 지시받은
+적은 없이 그 관행을 그대로 따른 것이었다. 이번엔 명시 지시로 뒤집혔다.
+`*.csproj` 는 리포 전체에 gitignore 돼 있어서(Unity 재생성 IDE 파일 규칙)
+`.gitignore` 에 `!/tools/dotnet-harness/*.csproj` 부정 규칙을 추가해 이
+파일만 되살렸다. `dotnet run -- --check` 로 다음 세션이 재구축 없이
+`fingerprint-baseline.txt` 와 자동 비교할 수 있다.
+
+### 6.2 스탬프·문서 정합
+
+- `md/MATCH_RULES.md`: `tools/stamp.sh --check` 통과(exit 0), 1행
+  `<!-- v3.5 | body:d97f45d -->` 가 본문과 일치. 불일치 없어서 재생성 불필요.
+- `md/OPPONENT_BRAIN.md`(v1.0 body:5d5a8c7), `md/CORE_DESIGN_MatchEngine.md`
+  (v3.2 body:a24d23c) 도 같이 확인 — 둘 다 현재.
+- **`HANDOFF_session_2026-08-10.md` 는 이 리포에 존재하지 않는다** —
+  `git log --all` 로도 그런 파일이 만들어진 적이 없다. 존재하는 HANDOFF 문서는
+  `md/HANDOFF_claude_code_runner.md` 와 `md/HANDOFF_claudecode_opponent-brain.md`
+  둘뿐이고, 둘 다 "현재 값" 스탬프 블록이 없다(작업 지시 문서지, 상태를 들고
+  있는 살아있는 참조 문서가 아니다). 추측으로 다른 파일을 대신 고치지 않았다
+  — 파일명 확인이 필요하다.
+- `md/STATUS.md` 는 a165872/a036e75 이후 상태(테스트 수 128/40/9+3=180,
+  MATCH_RULES v3.5, 하니스 커밋됨)로 갱신했다.
+
+### 6.3 굳히기 진입 저조 원인 — 현실적 A, seed 1234, 1회 실행
+
+숫자만이다, 튜닝 없음. 스모크가 실제로 도는 조건(§9 실제 해소 포함) 그대로
+재현했다 — RunMatch 와 같은 습관 관측/피해 기록 순서를 그대로 옮겨서 B 의
+습관 발화가 진짜 스모크와 갈라지지 않게 했다.
+
+```
+judgements: None=11 Yuko=9 WazaAri=0 Ippon=0
+WazaAri: 0 scored, 0 entered osaekomi (rule: always — matches)
+Yuko: 9 scored (0 countered, 9 uncountered), 1 entered osaekomi
+Yuko entry failures (8): grip<+1 only=5  stamina>=50 only=0  both=3
+```
+
+읽는 법: 이 실행에선 절반·한판이 한 번도 안 났다(전부 유효 아니면 노포인트)
+— 그래서 굳히기 진입 저조의 원인이 "절반이 드물다"가 아니라 "유효 게이트를
+못 넘는다"에 있다. 유효 9건 중 8건이 굳히기에 안 들어갔고, 그 8건 전부
+잡기<+1 이 걸려 있다(단독 5 + 체력 동반 실패 3) — 체력≥50 단독 실패는
+0건. 즉 이 프로필에서 유효 굳히기 진입을 막는 병목은 거의 전부 **잡기**
+쪽이지 체력 쪽이 아니다.
+
+### 6.4 스모크 A 프로필 3종 — 실제 행동 정책 (코드 그대로, 손 안 댐)
+
+출처: `Assets/_Project/Scripts/Brain/Tests/PlayModeSmokeTests.cs`.
+
+**손·코어·하체를 정하는 규칙**: 세 프로필 전부 고정 배열을 턴 번호로
+순환 인덱싱한다(`array[turn % array.Length]`) — 매치 상태를 보고 고르지
+않는다.
+
+```csharp
+static readonly TurnChoice Same =
+    new TurnChoice(HandTarget.None, CoreStance.Aggressive, LegAction.Attack);
+
+static readonly TurnChoice[] Varied =
+{
+    new TurnChoice(HandTarget.None, CoreStance.Aggressive, LegAction.Attack),
+    new TurnChoice(HandTarget.RightSleeve, CoreStance.Neutral, LegAction.Neutral),
+    new TurnChoice(HandTarget.None, CoreStance.Defensive, LegAction.Defend),
+    new TurnChoice(HandTarget.None, CoreStance.Neutral, LegAction.CounterReady),
+};
+
+static readonly TurnChoice[] Realistic =
+{
+    new TurnChoice(HandTarget.None, CoreStance.Aggressive, LegAction.Attack),
+    new TurnChoice(HandTarget.RightSleeve, CoreStance.Neutral, LegAction.Neutral),
+    new TurnChoice(HandTarget.None, CoreStance.Defensive, LegAction.Defend),
+    new TurnChoice(HandTarget.None, CoreStance.Aggressive, LegAction.Attack),
+    new TurnChoice(HandTarget.LeftSleeve, CoreStance.Neutral, LegAction.Neutral),
+    new TurnChoice(HandTarget.None, CoreStance.Neutral, LegAction.CounterReady),
+};
+```
+
+호출부: `RunMatch(_ => Same, seed: 1234)` / `RunMatch(t => Varied[t %
+Varied.Length], seed: 1234)` / `RunMatch(t => Realistic[t %
+Realistic.Length], seed: 1234)`.
+
+**난수를 쓰는 지점**: A 의 커밋 선택 자체엔 RNG 가 없다 — `aCommit(turn)`
+은 `turn` 만의 순수 함수다. RNG(`SystemRandomSource(seed)`) 는 (1)
+`MatchEngine` 내부(§6.2 지도 임계 지터 — 이 스모크는 `ThresholdJitter = 0`
+이라 사실상 꺼져 있다)와 (2) B 의 `HabitBrainCommitSource`(습관들 사이
+동률 처리 등, OPPONENT_BRAIN §4 폴백 가중)에만 쓰인다. **A 의 공격
+빈도(현실적=6주기 중 2회≈1/3)는 튜닝된 확률이 아니라 배열에 박힌 고정
+패턴이다.**
+
+**"큰기술 시도 빈도"를 실제로 결정하는 것 — 이게 A 의 Core/Legs 선택이
+아니다.** `RunMatch` 의 공격자·기술 배정 로직을 그대로 옮긴다:
+
+```csharp
+bool bAttacks = brain.LastTechnique != null;
+var attacker = bAttacks ? FighterId.B : FighterId.A;
+var technique = bAttacks
+    ? brain.LastTechnique
+    : new TechniqueSpec("밭다리", ActionCost.BigThrow, TechniqueClass.Standard);
+```
+
+B 의 습관 브레인이 그 턴에 기술을 하나라도 냈으면(`LastTechnique != null`)
+B 가 공격자다. **아니면 A 가 무조건 공격자가 되고, 기술은 항상 고정된
+"밭다리"(BigThrow, Standard)다** — `a`(A 의 그 턴 TurnChoice)의 Core/Legs
+값은 이 배정에 전혀 관여하지 않는다. 즉 A 가 그 턴에 `LegAction.Defend`나
+`CounterReady`를 선언했어도, B 가 기술을 안 냈으면 A 는 여전히 밭다리를
+던진다 — "현실적 A 는 6턴 중 2회만 공격"이라는 프로필 설명(주석)은 A 의
+*선언*(Core/Legs) 패턴을 가리키는 것이지, A 가 실제로 공격자로 배정되는
+빈도를 직접 제어하는 게 아니다. 후자는 순전히 B 의 습관 발화 여부로
+갈린다. 코드를 그대로 옮겨 적은 사실이고, 고치지 않았다.

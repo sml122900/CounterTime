@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <AssemblyName>Harness</AssemblyName>
+    <NoWarn>CS0618;CS0612;CS0414;CS0169;CS0067</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Unity resolves this package into Library/PackageCache with a version hash in the
+         folder name (…@<hash>) that can change across Unity/package-manager resolves.
+         If this path is stale on your clone, find the current one with:
+           find Library/PackageCache -iname nunit.framework.dll
+         and update the HintPath below. -->
+    <Reference Include="nunit.framework">
+      <HintPath>..\..\Library\PackageCache\com.unity.ext.nunit@d8c07649098d\net40\unity-custom\nunit.framework.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- CounterTime.Core (pure C#) -->
+    <Compile Include="..\..\Assets\_Project\Scripts\Core\**\*.cs" Exclude="..\..\Assets\_Project\Scripts\Core\Tests\**\*.cs" />
+    <Compile Include="..\..\Assets\_Project\Scripts\Core\Tests\*.cs" />
+
+    <!-- CounterTime.Brain (pure C#, references Core) -->
+    <Compile Include="..\..\Assets\_Project\Scripts\Brain\*.cs" />
+    <Compile Include="..\..\Assets\_Project\Scripts\Brain\Tests\*.cs" />
+
+    <!-- CounterTime.Game subset that compiles against the UnityEngine shim below.
+         See docs/overnight-2026-08-10.md §0 for which Game files can/can't be
+         included and why (Canvas/TMP/Animator/coroutines can't be shimmed cheaply). -->
+    <Compile Include="..\..\Assets\_Project\Scripts\Game\Scenario\ScenarioLoader.cs" />
+    <Compile Include="..\..\Assets\_Project\Scripts\Game\Match\ScenarioTurnChoices.cs" />
+    <Compile Include="..\..\Assets\_Project\Scripts\Game\Match\ScriptedCommitSource.cs" />
+    <Compile Include="..\..\Assets\_Project\Scripts\Game\Match\ScriptedAssembler.cs" />
+    <Compile Include="..\..\Assets\_Project\Scripts\Game\Match\ScriptedReadResolver.cs" />
+    <Compile Include="..\..\Assets\_Project\Scripts\Game\Match\MatchRunner.cs" />
+    <Compile Include="..\..\Assets\_Project\Scripts\Game\Match\ResultNarrationTable.cs" />
+
+    <Compile Include="..\..\Assets\_Project\Scripts\Game\Tests\ScenarioTurnChoicesTests.cs" />
+    <Compile Include="..\..\Assets\_Project\Scripts\Game\Tests\ScriptedReadResolverTests.cs" />
+    <Compile Include="..\..\Assets\_Project\Scripts\Game\Tests\ResultNarrationTableTests.cs" />
+    <!-- MatchRunnerHandActionTests.cs is deliberately NOT included — it needs
+         GameObject/AddComponent/DestroyImmediate (Unity's real object model),
+         which this shim does not attempt to fake. Run it in the Unity Test Runner. -->
+
+    <Compile Include="UnityEngineShim.cs" />
+    <Compile Include="Program.cs" />
+  </ItemGroup>
+
+</Project>

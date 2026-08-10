@@ -1,0 +1,14 @@
+[m3] 잡기 A Left→RightSleeve (Normal)
+[m8] 잡기 A Right→TwistGrip (Dominant)
+[m14] 판정 None sum=1 by=A [2,0,0,1,-2]
+[m14] 판정 None sum=1 by=A [2,0,0,1,-2]
+[m14] 심판 tell B → Minor
+[m14] 판정 None sum=1 by=A [2,0,0,1,-2]
+[m14] 지도 B #1 (소극)
+[m14] 그쳐
+[m14] 심판 tell B → None
+[m3] 잡기 A Left→RightSleeve (Normal)
+[m8] 잡기 A Right→TwistGrip (Dominant)
+[m36] 판정 Ippon sum=7 by=A [2,3,0,2,0]
+[m36] 경기 종료 — 승자 A
+STATE: A_stam=88 B_stam=81 clock_remaining=205s finished=True winner=A osaekomi_active=False

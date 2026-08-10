@@ -11,11 +11,18 @@
 [Mm]emoryCaptures/
 [Rr]ecordings/
 
+# tools/dotnet-harness 는 진짜 .NET 콘솔 프로젝트라 dotnet build 산출물이 생긴다.
+# obj/ 는 위 [Oo]bj/ 로 이미 잡히지만 bin/ 은 Unity 쪽 규칙에 없어서 따로 잡는다.
+/tools/dotnet-harness/bin/
+
 # .meta 는 원본 에셋이 무시될 때만 무시 (원본이 살아있으면 .meta 는 반드시 커밋)
 !/[Aa]ssets/**/*.meta
 
 # Unity 가 재생성하는 IDE 프로젝트 파일 (커밋 불필요)
 *.csproj
+# tools/dotnet-harness/Harness.csproj 는 Unity 가 재생성하는 게 아니라 직접 작성한
+# .NET 콘솔 프로젝트다 — 위 블랭킷 규칙에서 이거 하나만 되살린다 (README 참조).
+!/tools/dotnet-harness/*.csproj
 *.unityproj
 *.sln
 *.slnx
