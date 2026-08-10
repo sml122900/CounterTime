@@ -1,0 +1,23 @@
+{
+    "name": "CounterTime.Game.Editor",
+    "rootNamespace": "CounterTime.Game.Editor",
+    "references": [
+        "CounterTime.Core",
+        "CounterTime.Brain",
+        "CounterTime.Game",
+        "UnityEngine.UI",
+        "Unity.TextMeshPro",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
