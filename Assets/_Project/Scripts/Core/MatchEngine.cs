@@ -42,6 +42,14 @@ namespace CounterTime.Core
         readonly MatchRulesConfig _cfg;
         readonly IRandomSource _rng;
         readonly RefereeTell[] _lastTell = new RefereeTell[2];
+        /// §9.1 (v3.6) — the osaekomi gate's "체력 <50" reads the SAME snapshot as
+        /// §4's stamina bonus term: pre-payment, captured once in ResolveTechnique
+        /// before Stamina.PayAttack/PayDefense/PayCounter run. Set for whichever
+        /// fighter ends up as Opp(scorer) — that differs from `defender` when the
+        /// score is a counter. Only ResolveTechnique writes it, only TryEnterOsaekomi
+        /// (called later in the same ResolveExchange, never across exchanges — see
+        /// that method's comment) reads it.
+        int _scorerOpponentStaminaPrePayment;
 
         public GripSystem Grip { get; }
         public StaminaSystem Stamina { get; }
@@ -153,21 +161,29 @@ namespace CounterTime.Core
         /// still always enters, and a countered yuko now uses the SAME gate as an
         /// uncountered one — the scorer's grip and the thrown fighter's stamina,
         /// `j.IsCounter` no longer excludes it.
+        ///
+        /// §9.1 (v3.6) — "체력 <50" reads the pre-payment snapshot §4 already used
+        /// for this exchange's judgment, not a fresh (post-payment) read taken here.
+        /// Before v3.6 this method called `Stamina.Get(Opp(j.ScoredBy))` directly,
+        /// which runs AFTER ResolveTechnique's PayAttack/PayDefense/PayCounter have
+        /// already spent stamina for this same exchange — a different, lower number
+        /// than the one that decided the judgment a few lines above. One exchange,
+        /// one stamina snapshot now: `_scorerOpponentStaminaPrePayment`.
         bool TryEnterOsaekomi(JudgementScored j, List<MatchEvent> ev)
         {
             if (j.Judgement == Judgement.WazaAri)
             {
                 EnterOsaekomi(j.ScoredBy, wazaAriEntry: true,
-                    Grip.EffectiveGrip(j.ScoredBy), Stamina.Get(Opp(j.ScoredBy)), ev);
+                    Grip.EffectiveGrip(j.ScoredBy), _scorerOpponentStaminaPrePayment, ev);
                 return true;
             }
             if (j.Judgement == Judgement.Yuko)
             {
                 int grip = Grip.EffectiveGrip(j.ScoredBy);
-                int defenderStamina = Stamina.Get(Opp(j.ScoredBy));
-                if (grip >= 1 && defenderStamina < 50)
+                int opponentStamina = _scorerOpponentStaminaPrePayment;
+                if (grip >= 1 && opponentStamina < 50)
                 {
-                    EnterOsaekomi(j.ScoredBy, wazaAriEntry: false, grip, defenderStamina, ev);
+                    EnterOsaekomi(j.ScoredBy, wazaAriEntry: false, grip, opponentStamina, ev);
                     return true;
                 }
             }
@@ -342,11 +358,18 @@ namespace CounterTime.Core
 
             int grip = Grip.EffectiveGrip(attacker);
             int defenderStamina = Stamina.Get(defender);
+            int attackerStamina = Stamina.Get(attacker);
             // §4 — derived in exactly one place. Do NOT re-derive inline here; an
             // inline `Core == Defensive` is what produced the v3.1 counter-ready bug.
             bool defensive = JudgementCalculator.IsDefensivePosture(defenderChoice);
             var ctx = new JudgementContext(grip, read, defenderStamina, script.Technique.Class, defensive);
             var result = JudgementCalculator.Evaluate(attacker, ctx, _cfg);
+
+            // §9.1 (v3.6) — same pre-payment snapshot §4 just used above, just
+            // re-pointed at whichever fighter Opp(scorer) turns out to be (that's
+            // `defenderStamina` unless this is a counter, in which case the scorer
+            // is `defender` and Opp(scorer) is `attacker`).
+            _scorerOpponentStaminaPrePayment = result.ScoredBy == attacker ? defenderStamina : attackerStamina;
 
             // 4. stamina — attacker pays for the commit …
             Stamina.PayAttack(attacker, script.Technique, grip);

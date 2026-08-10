@@ -1,5 +1,5 @@
-<!-- v3.5 | body:d97f45d -->
-# MATCH_RULES.md — COUNTER TIME judo match system (v3.5)
+<!-- v3.6 | body:9e178aa -->
+# MATCH_RULES.md — COUNTER TIME judo match system (v3.6)
 
 Single source of truth for match logic. `CounterTime.Core` implements THIS file;
 if code and this file disagree, this file wins. All numbers are v1 tunables unless
@@ -381,6 +381,12 @@ stamina decide the rest. The hold itself contributes nothing on its own.
 §9.1의 '공격자'는 그 판정의 득점자를 가리킨다. 되치기 득점도 동일하게 적용한다 —
 절반은 이행, 유효는 득점자 잡기 ≥ +1 AND 상대 체력 < 50일 때만. (v3.5)
 
+체력 <50 은 **그 교환의 지불 전 체력**을 가리킨다 — §4 판정식의 체력 보너스
+항이 읽는 것과 같은 스냅샷이다. 한 교환 안에서 공격·방어 스태미나 지불(§5.1)이
+끝난 뒤 다시 읽은 값이 아니다 — 판정과 굳히기 진입은 같은 순간의 상태를 봐야
+하고, 지불 전/후로 갈리면 같은 교환의 판정식과 굳히기 게이트가 서로 다른 두
+숫자로 "체력 <50"을 묻는 모순이 생긴다. (v3.6)
+
 ### 9.2 Hold advantage — computed once, at entry
 
 ```
@@ -410,6 +416,13 @@ Simultaneous 2-choice commit, same shape as a standing exchange:
 - **Ordering at each 5 / 10 / 20 s mark: the osaekomi score is awarded FIRST, the
   escape exchange resolves after.** Same principle as the time-up boundary in §1 —
   an escape landing exactly on 5 s does not erase the yuko.
+- **v1 default when there is no real input** (headless/scripted drivers with
+  nobody actually choosing 뒤집기/빠져나가기/따라가기/눌러붙기): 어긋남 —
+  specifically 빠져나가기×따라가기. A stand-in only; a real player picks for
+  real once stage 6 wires actual input. Under this default a hold always
+  resolves via escape at `escapesNeeded × 5` s (5–15 s) unless an absolute
+  score mark (10 s awasete-ippon, 20 s ippon) ends the match first — it can
+  never itself reach the 20 s mark, since escapesNeeded caps at 3. (v3.6)
 
 ### 9.4 On escape
 
