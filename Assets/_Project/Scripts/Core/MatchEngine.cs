@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace CounterTime.Core
@@ -62,6 +63,15 @@ namespace CounterTime.Core
 
         public IReadOnlyList<MatchEvent> ResolveExchange(TurnChoice a, TurnChoice b, ExchangeScript script)
         {
+            // §9 — a standing exchange cannot land while a hold is open. Left unguarded,
+            // this method would re-evaluate matte-vs-osaekomi as if nothing were open
+            // (a known gap, not a design choice — stage 6 wires the real osaekomi input
+            // path via ResolveOsaekomiExchange; until then, calling this here is a bug).
+            if (Clock.Phase == MatchPhase.Osaekomi)
+                throw new InvalidOperationException(
+                    "ResolveExchange 는 굳히기 진행 중(MatchPhase.Osaekomi)에는 호출할 수 없다 — " +
+                    "ResolveOsaekomiExchange 를 써야 한다.");
+
             var ev = new List<MatchEvent>();
             if (Board.IsFinished) return ev;
 
@@ -138,11 +148,11 @@ namespace CounterTime.Core
         /// "Attacker" in §9.1/§9.2 is read here as the fighter who just scored
         /// (`j.ScoredBy`), not the original technique declarer (`script.Attacker`
         /// elsewhere in this file) — physically, the scorer is who ends up on top to
-        /// hold, which for a counter is the ORIGINAL DEFENDER. MATCH_RULES §9 does not
-        /// spell this out, so for a countered score (`j.IsCounter`) this is a judgment
-        /// call, not a literal reading of the doc; see the overnight report. It only
-        /// matters for Yuko, since Waza-ari enters regardless — a countered Yuko is
-        /// deliberately left NOT entering osaekomi rather than guess further.
+        /// hold, which for a counter is the ORIGINAL DEFENDER. §9.1 (v3.5) makes this
+        /// explicit and applies it uniformly to countered scores: a countered waza-ari
+        /// still always enters, and a countered yuko now uses the SAME gate as an
+        /// uncountered one — the scorer's grip and the thrown fighter's stamina,
+        /// `j.IsCounter` no longer excludes it.
         bool TryEnterOsaekomi(JudgementScored j, List<MatchEvent> ev)
         {
             if (j.Judgement == Judgement.WazaAri)
@@ -151,7 +161,7 @@ namespace CounterTime.Core
                     Grip.EffectiveGrip(j.ScoredBy), Stamina.Get(Opp(j.ScoredBy)), ev);
                 return true;
             }
-            if (j.Judgement == Judgement.Yuko && !j.IsCounter)
+            if (j.Judgement == Judgement.Yuko)
             {
                 int grip = Grip.EffectiveGrip(j.ScoredBy);
                 int defenderStamina = Stamina.Get(Opp(j.ScoredBy));

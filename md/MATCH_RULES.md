@@ -1,5 +1,5 @@
-<!-- v3.4 | body:cf5e220 -->
-# MATCH_RULES.md — COUNTER TIME judo match system (v3.4)
+<!-- v3.5 | body:d97f45d -->
+# MATCH_RULES.md — COUNTER TIME judo match system (v3.5)
 
 Single source of truth for match logic. `CounterTime.Core` implements THIS file;
 if code and this file disagree, this file wins. All numbers are v1 tunables unless
@@ -377,6 +377,9 @@ stamina decide the rest. The hold itself contributes nothing on its own.
 | **Waza-ari** | enters |
 | **Yuko** | enters ONLY if attacker's effective grip ≥ +1 AND defender stamina < 50 |
 | None, or counter with \|sum\| ≤ 1 | never |
+
+§9.1의 '공격자'는 그 판정의 득점자를 가리킨다. 되치기 득점도 동일하게 적용한다 —
+절반은 이행, 유효는 득점자 잡기 ≥ +1 AND 상대 체력 < 50일 때만. (v3.5)
 
 ### 9.2 Hold advantage — computed once, at entry
 

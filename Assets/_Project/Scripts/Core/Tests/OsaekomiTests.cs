@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using NUnit.Framework;
 using CounterTime.Core;
@@ -46,6 +47,20 @@ namespace CounterTime.Core.Tests
                 _e.ResolveExchange(Idle, NotIdle, BigThrow(ReadLevel.Neutral, TechniqueClass.Sloppy));
         }
 
+        /// DrainB 의 대칭 버전 — 공수를 바꿔 B 가 A 를 몰아붙이고, 이번엔 A 가 NotIdle
+        /// 로 소극 누산을 피한다. 되치기 유효 테스트에서 쓴다: 되치기의 득점자는 원래
+        /// 방어자(B)이므로 §9.1 게이트가 보는 '당한 쪽' 체력은 A 다.
+        void DrainA(int times)
+        {
+            for (int i = 0; i < times; i++)
+                _e.ResolveExchange(NotIdle, Idle, new ExchangeScript
+                {
+                    Attacker = FighterId.B,
+                    Technique = new TechniqueSpec("밭다리", ActionCost.BigThrow, TechniqueClass.Sloppy),
+                    Read = ReadLevel.Neutral,
+                });
+        }
+
         /// 절반으로 진입 — 잡기 0, 체력 100(<50 아님) 이어도 절반은 무조건 들어간다.
         /// adv = 2(절반 진입) + 0(잡기) + 0(체력 보너스) = 2 → escapesNeeded = 2.
         System.Collections.Generic.IReadOnlyList<MatchEvent> EnterViaWazaAri() =>
@@ -72,6 +87,51 @@ namespace CounterTime.Core.Tests
             Assert.AreEqual(Judgement.Yuko, ev.OfType<JudgementScored>().Single().Judgement);
             Assert.IsFalse(_e.Osaekomi.Active, "잡기 +1 미만이면 굳히기로 안 들어간다");
             Assert.IsNotEmpty(ev.OfType<MatteCalled>(), "대신 그쳐로 착지한다");
+        }
+
+        /// §9.1 (v3.5) — "공격자"는 그 판정의 득점자를 가리키고, 되치기 득점도 같은
+        /// 게이트를 쓴다. 되치기에서 득점자는 원래 방어자(B)이므로: 게이트가 보는 잡기는
+        /// B 의 것, 체력은 A(상대) 것이어야 한다.
+        ///
+        /// DrainA 의 몰아붙임은 A 만이 아니라 B(공격자)도 PayAttack 으로 깎는다 —
+        /// 14회 × 5 − 그쳐 회복 3 = B 체력도 100→33 언저리까지 떨어진다(계측해서 확인).
+        /// 그래서 마지막 판정식의 체력항이 0 이 아니라 +2 로 붙는다. 한 손 잡기(±1)로는
+        /// 그 +2 를 못 이기고 sum 이 -1에서 멎어 되치기 문턱(-3)에 못 미친다 — 처음
+        /// 시도에서 실측으로 잡은 함정이다. 양손 잡기로 A 의 grip 을 -2 까지 눌러야
+        /// (그리고 기술급을 Standard 대신 Sloppy 로) sum 이 정확히 -3 에 닿는다.
+        [Test]
+        public void CounteredYuko_UsesScorerGripAndThrownFighterStamina_EntersOsaekomi()
+        {
+            DrainA(14); // A 체력을 깎는다 — 부작용으로 B(공격자)도 100→33 언저리까지 깎인다.
+
+            // B 가 양손으로 잡는다(오른소매 왼손 + 왼소매 오른손) → EffectiveGrip(B) = +2.
+            _e.ResolveExchange(
+                Idle,
+                new TurnChoice(HandTarget.RightSleeve, CoreStance.Neutral, LegAction.Neutral, Hand.Left),
+                new ExchangeScript { DurationA = _cfg.GripTurnSec, DurationB = _cfg.GripTurnSec });
+            _e.ResolveExchange(
+                Idle,
+                new TurnChoice(HandTarget.LeftSleeve, CoreStance.Neutral, LegAction.Neutral, Hand.Right),
+                new ExchangeScript { DurationA = _cfg.GripTurnSec, DurationB = _cfg.GripTurnSec });
+            Assert.AreEqual(2, _e.Grip.EffectiveGrip(FighterId.B));
+            Assert.AreEqual(-2, _e.Grip.EffectiveGrip(FighterId.A));
+
+            // A 가 밭다리(Sloppy), B 는 카운터 준비: sum = -2(A grip) + -3(GotRead)
+            // + 2(B 체력 33, 25~49 대역) + 0(Sloppy) + 0(자세) = -3 → 되치기, 득점자 B, 유효.
+            var ev = _e.ResolveExchange(
+                Idle,
+                new TurnChoice(HandTarget.None, CoreStance.Neutral, LegAction.CounterReady),
+                BigThrow(ReadLevel.Neutral, TechniqueClass.Sloppy));
+
+            var scored = ev.OfType<JudgementScored>().Single();
+            Assert.AreEqual(-3, scored.Sum);
+            Assert.IsTrue(scored.IsCounter, "전제: 이 판정은 되치기다");
+            Assert.AreEqual(Judgement.Yuko, scored.Judgement);
+            Assert.AreEqual(FighterId.B, scored.ScoredBy);
+
+            Assert.IsTrue(_e.Osaekomi.Active,
+                "§9.1(v3.5): 되치기 유효도 득점자 기준 게이트를 통과하면 굳히기로 들어간다");
+            Assert.AreEqual(FighterId.B, _e.Osaekomi.Holder, "굳히기 위에 올라가는 쪽은 득점자다");
         }
 
         [Test]
@@ -203,6 +263,20 @@ namespace CounterTime.Core.Tests
             Assert.IsTrue(_e.Board.HasIppon(FighterId.A), "절반 두 개가 합쳐져 한판");
             Assert.IsTrue(_e.Board.IsFinished);
             Assert.IsNotEmpty(ev.OfType<MatchEnded>());
+        }
+
+        /// 알려진 공백(STATUS 참고) 가드 — ResolveExchange 는 굳히기가 열려 있는 동안
+        /// 서기 교환을 <b>보통 교환처럼 처리하지 않는다</b>. 가드가 없으면 조용히
+        /// 매트/굳히기 재판정을 다시 굴리는 게 틀린 답이라, 이름에 그 틀린 답을 부정형
+        /// 으로 박아 둔다. 정식 입력 경로(ResolveOsaekomiExchange 로 유도)는 6단계에서.
+        [Test]
+        public void ResolveExchange_CannotRunDuringOsaekomi()
+        {
+            EnterViaWazaAri();
+            Assert.IsTrue(_e.Osaekomi.Active, "전제: 굳히기 진입");
+
+            Assert.Throws<InvalidOperationException>(() =>
+                _e.ResolveExchange(Idle, Idle, new ExchangeScript()));
         }
     }
 }
