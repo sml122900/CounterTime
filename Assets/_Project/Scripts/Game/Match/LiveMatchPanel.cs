@@ -22,6 +22,12 @@ namespace CounterTime.Game.Match
     [RequireComponent(typeof(LiveMatchRunner))]
     public sealed class LiveMatchPanel : MonoBehaviour
     {
+        /// Resources.Load 이름(확장자 없음) — Assets/_Project/Art/Fonts/Resources/ 아래.
+        /// PlayModeSetupMenu 의 편집 시점 대입이 어떤 이유로든 비어 있게 도착했을 때
+        /// Awake 에서 직접 재로드하는 안전망의 유일한 진입점이라, 빌드에서도 먹혀야
+        /// 한다 — AssetDatabase(에디터 전용) 대신 Resources 를 쓰는 이유.
+        public const string KoreanFontResourceName = "NotoSansKR SDF";
+
         [SerializeField] TMP_FontAsset koreanFont;   // 기본 LiberationSans 는 한글이 두부다
         [SerializeField] int fontSize = 18;
 
@@ -47,6 +53,15 @@ namespace CounterTime.Game.Match
         void Awake()
         {
             _runner = GetComponent<LiveMatchRunner>();
+            if (koreanFont == null)
+            {
+                koreanFont = Resources.Load<TMP_FontAsset>(KoreanFontResourceName);
+                if (koreanFont == null)
+                    Debug.LogError($"[LiveMatchPanel] 한글 폰트 로드 실패 — " +
+                        $"Resources.Load<TMP_FontAsset>(\"{KoreanFontResourceName}\") 가 null. " +
+                        "Resources 폴더 아래 그 이름의 TMP_FontAsset 이 있는지 확인할 것. " +
+                        "이 상태로 진행하면 한글이 전부 □로 보인다.");
+            }
             BuildCanvas();
         }
 
