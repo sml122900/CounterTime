@@ -204,11 +204,10 @@ Stage 7 — regression + STATUS update (이 파일이 그 결과물이다 — �
 Match length is still deliberately unresolved (see step 5 note above for the post-osaekomi numbers). Judgement formula, waza-ari thresholds, cost table and per-exchange seconds all stay untouched until after stage 6
 잡기 HUD (패치 1.7 로 필수가 됐다) — Core 는 이미 GripChanged 에 부위를 실어 보낸다. Game 쪽에서 RenderTexture 바깥 풀해상도 레이어로 받아야 한다
 
-결정 대기 — `md/HANDOFF_claude_code_runner.md`/`md/HANDOFF_claudecode_opponent-brain.md` 두
-파일이 세션 시작 시점부터 unstaged 삭제 상태였다(이번 세션이 만든 변경 아님 — `git status`
-가 대화 시작 전부터 이미 이 상태였다). `md/HANDOFF_session_2026-08-11.md` §0 원문은 이
-두 파일을 "성격이 다른 문서"(작업 지시서)로 여전히 전제하고 있어 삭제와 그 전제가 어긋난다.
-커밋할지(삭제 확정) 복원할지는 판단 안 하고 그대로 뒀다 — 사람 판단 필요.
+해결됨 (2026-08-12) — `md/HANDOFF_claude_code_runner.md`/`md/HANDOFF_claudecode_opponent-brain.md`
+두 파일이 세션 시작 시점부터 unstaged 삭제 상태였던 것을 발견해 보고했고, 사용자가 삭제를
+확정(해당 단계 완료로 일회성 지시서 폐기)해 커밋했다. `md/HANDOFF_session_2026-08-11.md` §0
+이 이 두 파일을 현존 문서로 전제하던 문장도 폐기 사실을 반영해 최소 수정.
 
 결정 대기 (내가 판단 안 하고 남겨둔 취향 문제) — 선택지 버튼 높이가 111px → 82px 로 줄었다. 텍스트가 넘쳐서 TextPanel 을 키우느라 ChoiceRow 에서 떼어온 결과다. 라벨(26px)에는 충분하지만 버튼이 얇아 보이면 하단 패널을 1/3보다 키우거나 타이틀 34pt / 본문 24pt 를 줄이는 쪽으로 조정해야 한다
 카피 교체 목록 — `LiveMatchPanel` 의 "B 선행 — A 공격 불발" (동시 공격 시 표시, 2026-08-11 아침)은 v1 임시 시스템 문구다. `PlaceholderATechnique`("밭다리" 고정)와 같은 부류 — 진짜 카피/연출이 붙기 전까지 기계적 문구로 둔다. 2026-08-11 오후에 추가된 상태 HUD·교환 로그의 기계적 문구도 같은 부류다: "서기"/"굳히기 — {who} 누름 {n}초 (이탈 {a}/{b})", "변화 없음"(교환 로그 기본값), "{who} {부위} 확보"/"{who} 뜯기 — {결과}"/"{who} 쿠즈시 설치"/"{who} 카운터 준비 적중 — 상대 읽기 하락"(EventSummary 폴백 서술) — 전부 `LiveMatchPanel.EventSummary`/`FighterStatus` 에 있다.
@@ -238,6 +237,9 @@ Unity MCP 컴파일 0/0 — 전부 통과해 작업 중단 없이 진행.
 작업3 — `docs/play-checklist-2026-08-12.md` 신설 — `md/HANDOFF_session_2026-08-11.md`
 §5.1/§5.2/§6.2 를 체크박스로 옮겨 정리만 함(새 내용 없음). 커밋 3080078.
 작업4 — 이 STATUS 갱신이 그 결과물.
+후속 지시(작업4 이후) — 위 "결정 대기"(HANDOFF 2종 삭제)를 사용자가 확정: 두 파일 삭제
+커밋 + `HANDOFF_session_2026-08-11.md` §0 의 전제 문장 최소 수정, 이번 세션 미푸시 커밋
+전부 origin 에 푸시(force 없음).
 2026-08-11 (오후, 7차 — 좁은 화면 레이아웃 붕괴 수정)
 사용자 지시: 719px 스크린샷 신고("추측 수정 금지, 원인 진단 먼저") + 4개 해상도 재검증 + 최소 지원 해상도 명기.
 진단 과정: CanvasScaler 라이브 값 확인(match=0, Unity 기본값) → 공식으로 "겉보기 폭은 실제 화면폭과 무관하게 항상 1920"임을 도출 → `PlayModeWindow.SetCustomRenderingResolution`(공식 API, reflection 아님 — `System.Reflection` 은 RunCommand 샌드박스에서 막혀 있어 처음엔 GameView 리사이즈로 우회하려다 발견)로 실제 719×404 를 재현해 `RectTransform.rect`/`LayoutElement` 필드를 직접 대조 → `ScoreboardRow`/`BottomInputRow`/버튼/여러 텍스트가 폭 0으로 무너져 있는 것을 확인 → 720p 로 되돌려도 동일하게 0(해상도 무관, 구조적 버그)임을 대조 실측으로 확정. 근본 원인: 교차축에 `preferred/min/flexible` 셋 다 안 준 `LayoutElement` 는 Unity 가 무조건 0으로 접는다 — 지난 세션의 겹침 검사가 이 사각지대(폭 0 요소는 애초에 안 겹친다)를 못 잡았다.
