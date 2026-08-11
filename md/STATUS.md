@@ -134,7 +134,38 @@ Full detail, including the exact 현실적 A osaekomi-entry-shortfall breakdown 
   Unity Editor + MCP 브리지가 밤새 연결 유지(사람 없음) — 매 작업 후 AssetDatabase.Refresh() + GetConsoleLogs 로 0 에러/0 경고 재확인, RunCommand 안에서 짧은 이름(CompilationPipeline 등)이 Unity.AI.Assistant.* 네임스페이스와 충돌하는 기존 함정 재확인(전체 경로로 우회)
 
 Next Up (in priority order)
-**가장 최근 — 경기 화면 저해상도 렌더 v1 (좌상 placeholder 채움, `ArenaStageView` 신규).**
+**가장 최근 — 경기 화면 UI 도트화 진단·수정 + 캐릭터 확대 (사람 Play 실측 신고 2건 대응).**
+신고: ① UI 텍스트까지 도트화되어 안 읽힘 ② 경기 화면(캐릭터)이 너무 작음.
+**① 진단 결과 — RT 파이프라인 버그가 아니었다.** 실측으로 `LiveMatchCanvas`가
+`renderMode=ScreenSpaceOverlay`/`worldCamera=null`임을 확인 — Overlay 캔버스는
+구조적으로 씬 카메라를 거치지 않아 저해상도 RT 경로에 물릴 수 없다
+(`ArenaStageCamera.cullingMask` 가 UI 레이어를 포함했던 것도 실측으로 무관함을
+확인). 진짜 원인은 **에디터 Game View 커스텀 렌더 해상도가 지난 세션(좁은 화면
+레이아웃 테스트)의 719x404 로 그대로 남아있던 것** — `CanvasScaler`(참조
+1920x1080)가 이를 반영해 `scaleFactor=0.374`로 낮췄고, 전체 UI가 저해상도로
+그려진 뒤 창 크기로 늘어나 보인 것(1920x1080 리셋 즉시 scaleFactor=1로 크리스프,
+실측 확인). `PlayModeSetupMenu`가 실행할 때마다 1920x1080 으로 리셋하도록 고쳐
+재발을 막았다.
+**② 카메라 프레이밍 재실측 확정**: 거리 −6→−4.25, 하향 11° 추가(FOV45 유지) →
+320x180 기준 캐릭터 세로 A 100.9px/B 99.6px, 좌우(57~232/0..320)·상하(41~143/
+0..180) 클리핑 없음(`WorldToScreenPoint` 직접 실측). RawImage 는
+`AspectRatioFitter` `FitInParent`→`EnvelopeParent`로 바꿔 박스를 빈틈없이
+채운다(16:9 내용비율 유지, 넘치는 쪽만 크롭) — `ArenaBox`에 `RectMask2D` 추가로
+오버사이즈된 RawImage 가 점수판/서술 블록 위로 넘쳐 그려지는 것을 막았다.
+`ArenaBox`의 `flexibleHeight`도 1.2→4.5 로 올려 실측 높이를 173→260px 로
+키웠다(`NarrationLog`는 바닥 178px 보다 여유 있는 236px 확보).
+**판단(지시 아님, 코드 주석에도 남김)** — 좌상 블록 폭(1222px 실측) 대비 16:9
+정박스가 되려면 386px 높이가 필요한데, `NarrationLog` 바닥(178px)을 지키는 한
+최대 318px 이 한계라 완전한 무크롭·무바 동시 달성은 이 5블록 구조에서 기하학적
+으로 불가능함을 실측으로 확인했다. `EnvelopeParent`(캐릭터 머리~19%·발~14%
+가벼운 크롭)와 `FitInParent`(크롭 없지만 박스 폭 절반 이상 검은 띠) 중 전자가
+더 나은 시각적 결과라고 판단해 골랐다 — `fitter.aspectMode` 한 줄로 쉽게
+되돌릴 수 있다.
+검증: Unity MCP 컴파일 0/0. 7개 해상도(1920/1280/1024/960/719/600/320) 전부
+재실행 — zeroSize=0·겹침=0(`RectMask2D` 인지 겹침 계산으로 `ArenaView` 오버사이즈
+오탐 제외)·버튼 줄바꿈=0, `Canvas.scaleFactor`가 각 해상도에 맞게 정상 추적됨
+(더는 고정 안 됨). 하니스 209/209, 지문 IDENTICAL. 커밋 `3bc6acd`.
+**가장 최근 (그 앞) — 경기 화면 저해상도 렌더 v1 (좌상 placeholder 채움, `ArenaStageView` 신규).**
 좌상 "경기 화면 — 연출 준비 전" 자리를 실제 320x180 RenderTexture 로 채웠다 — 연출·모션
 매핑(노드별 클립 전환)은 범위 밖, 두 파이터가 Fight Idle 로 서 있는 화면까지만. Main.unity
 는 참조/추가로딩하지 않는다 — Fighter_A/B(Y Bot.fbx/Ch30_nonPBR.fbx)가 Main.unity 씬 YAML
@@ -240,6 +271,27 @@ Unity MCP 컴파일 0/0 — 전부 통과해 작업 중단 없이 진행.
 후속 지시(작업4 이후) — 위 "결정 대기"(HANDOFF 2종 삭제)를 사용자가 확정: 두 파일 삭제
 커밋 + `HANDOFF_session_2026-08-11.md` §0 의 전제 문장 최소 수정, 이번 세션 미푸시 커밋
 전부 origin 에 푸시(force 없음).
+2026-08-12 (2차 — 경기 화면 UI 도트화 진단·수정 + 캐릭터 확대)
+사용자가 Play 실측으로 2건 신고: UI 텍스트 도트화, 캐릭터가 너무 작음. "추측 수정 금지,
+진단 먼저" 지시대로 캔버스 renderMode/worldCamera/scaleFactor, ArenaStageCamera
+cullingMask/targetTexture 를 먼저 실측 — Canvas 는 ScreenSpaceOverlay/worldCamera=null 로
+구조적으로 카메라와 무관함을 확인, 대신 Game View 커스텀 렌더 해상도가 지난 세션의
+719x404 로 남아 있어 CanvasScaler scaleFactor=0.374 로 낮아진 게 진짜 원인임을 확인
+(1920 리셋 즉시 scaleFactor=1). `PlayModeSetupMenu` 에 해상도 리셋을 추가해 재발 방지.
+카메라 프레이밍은 z=-6→-4.25 + 하향 11° 로 재실측(A 100.9px/B 99.6px, 클리핑 없음).
+RawImage AspectRatioFitter 를 FitInParent→EnvelopeParent 로 바꾸고 ArenaBox 에
+RectMask2D 추가, flexibleHeight 1.2→4.5 로 박스 확대(173→260px). 상세는 위 Next Up
+"가장 최근" 항목 참조 — 무크롭·무바 동시 달성이 이 5블록 구조에서 기하학적으로 불가능함을
+실측으로 확인하고 EnvelopeParent(캐릭터 소폭 크롭)를 판단해서 골랐다고 코드 주석·STATUS
+둘 다에 남겼다.
+검증 중 발견한 방법론 함정 2개, 기록: (1) 좌표 겹침 검사에 `RectMask2D` 로 잘리는 오버사이즈
+RawImage 를 그대로 넣으면 raw RectTransform 크기가 잡혀 점수판/서술 블록과 대량의 가짜
+겹침이 나온다(22건) — 마스크를 인지해 클립한 rect 로 다시 계산하니 0건. (2) `result.Log`
+가 `{0:F1}` 같은 `.NET` 서식 지정자를 그대로 문자열로 찍어버린다(치환 안 됨) — 서식 없이
+문자열 접합으로 우회.
+7개 해상도(1920/1280/1024/960/719/600/320) 재실행 — zeroSize=0·겹침=0·줄바꿈=0, 매
+해상도에서 scaleFactor 가 화면폭/1920 그대로 정상 추적(더는 고정 안 됨). 하니스 209/209,
+지문 IDENTICAL. 커밋 3bc6acd.
 2026-08-11 (오후, 7차 — 좁은 화면 레이아웃 붕괴 수정)
 사용자 지시: 719px 스크린샷 신고("추측 수정 금지, 원인 진단 먼저") + 4개 해상도 재검증 + 최소 지원 해상도 명기.
 진단 과정: CanvasScaler 라이브 값 확인(match=0, Unity 기본값) → 공식으로 "겉보기 폭은 실제 화면폭과 무관하게 항상 1920"임을 도출 → `PlayModeWindow.SetCustomRenderingResolution`(공식 API, reflection 아님 — `System.Reflection` 은 RunCommand 샌드박스에서 막혀 있어 처음엔 GameView 리사이즈로 우회하려다 발견)로 실제 719×404 를 재현해 `RectTransform.rect`/`LayoutElement` 필드를 직접 대조 → `ScoreboardRow`/`BottomInputRow`/버튼/여러 텍스트가 폭 0으로 무너져 있는 것을 확인 → 720p 로 되돌려도 동일하게 0(해상도 무관, 구조적 버그)임을 대조 실측으로 확정. 근본 원인: 교차축에 `preferred/min/flexible` 셋 다 안 준 `LayoutElement` 는 Unity 가 무조건 0으로 접는다 — 지난 세션의 겹침 검사가 이 사각지대(폭 0 요소는 애초에 안 겹친다)를 못 잡았다.
