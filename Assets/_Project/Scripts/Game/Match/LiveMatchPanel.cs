@@ -50,7 +50,6 @@ namespace CounterTime.Game.Match
         static readonly Color RowWhiteBg = new Color(0.92f, 0.92f, 0.92f);
         static readonly Color RowBlueBg = new Color(0.1f, 0.35f, 0.75f);
         static readonly Color PanelBg = new Color(0.16f, 0.16f, 0.18f, 0.92f);
-        static readonly Color ArenaBg = new Color(0.08f, 0.08f, 0.1f);
 
         LiveMatchRunner _runner;
 
@@ -556,6 +555,10 @@ namespace CounterTime.Game.Match
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920, 1080);
 
+            // 경기 화면을 창 전체 배경으로 — RootLayout(패널들)보다 먼저 만들어야
+            // sibling 순서상 더 뒤(=아래)에 그려진다.
+            BuildArenaBackground(go.transform);
+
             var root = MakeVerticalGroup(go.transform, "RootLayout", spacing: 8);
             var rootRt = (RectTransform)root;
             rootRt.anchorMin = Vector2.zero;
@@ -566,18 +569,24 @@ namespace CounterTime.Game.Match
 
             // ① 상단 — 점수판. 고정 높이 슬롯(레이아웃 그룹 아님) — 안쪽은 기존
             // BuildScoreboard 그대로(무수정), 이 슬롯의 자식이 되도록 부모만 바뀐다.
-            var scoreboardRow = new GameObject("ScoreboardRow", typeof(RectTransform), typeof(LayoutElement));
+            var scoreboardRow = new GameObject("ScoreboardRow", typeof(RectTransform), typeof(LayoutElement), typeof(Image));
             scoreboardRow.transform.SetParent(root, false);
             SetFixedHeight(scoreboardRow.transform, 244);
+            // 경기 화면이 배경으로 깔리면서 점수판 글자가 하늘/바닥 위에 그대로 떠
+            // 안 읽힌다 — 사이드바에 이미 쓰던 PanelBg(반투명 어두운 판)를 재사용.
+            // 알파(0.92)는 스크린샷 없이 확정할 수 없어 하나 고른 값이다 — PanelBg
+            // 한 곳만 고치면 점수판·사이드바·하단 입력·서술 로그 스크림이 다 같이 바뀐다.
+            scoreboardRow.GetComponent<Image>().color = PanelBg;
             BuildScoreboard(scoreboardRow.transform);
 
-            // ② 중단 — 좌(경기 화면 자리 + 서술/로그) : 우(사이드바 3종) = 2:1.
+            // ② 중단 — 좌(서술/로그) : 우(사이드바 3종) = 2:1. 경기 화면은 더 이상
+            // 이 열의 자식이 아니다(창 전체 배경으로 이동) — 좌상에 비어 있던 자리를
+            // NarrationLog 가 그대로 이어받는다.
             var middleRow = MakeHorizontalGroup(root, "MiddleRow", spacing: 12);
             SetFlexible(middleRow, 1, 1);
 
             var leftColumn = MakeVerticalGroup(middleRow, "LeftColumn", spacing: 8);
             SetFlexible(leftColumn, 2, 1);
-            BuildArenaPlaceholder(leftColumn);
             BuildNarrationLog(leftColumn);
 
             var sidebar = MakeVerticalGroup(middleRow, "RightSidebar", spacing: 8);
@@ -587,65 +596,55 @@ namespace CounterTime.Game.Match
             BuildTendencyBox(sidebar);
 
             // ③ 하단 — 입력. 고정 높이 슬롯 — StandingInput/OsaekomiInput 이 번갈아
-            // 이 슬롯을 꽉 채운다(SetActive 토글, 기존 패턴 그대로).
-            var bottomRow = new GameObject("BottomInputRow", typeof(RectTransform), typeof(LayoutElement));
+            // 이 슬롯을 꽉 채운다(SetActive 토글, 기존 패턴 그대로). 스크림은 위
+            // ScoreboardRow 주석 참조 — PanelBg 재사용.
+            var bottomRow = new GameObject("BottomInputRow", typeof(RectTransform), typeof(LayoutElement), typeof(Image));
             bottomRow.transform.SetParent(root, false);
             SetFixedHeight(bottomRow.transform, 300);
+            bottomRow.GetComponent<Image>().color = PanelBg;
 
             _standingRoot = BuildStandingRoot(bottomRow.transform);
             _osaekomiRoot = BuildOsaekomiRoot(bottomRow.transform);
             _osaekomiRoot.SetActive(false);
         }
 
-        /// 좌상 — 경기 화면. <see cref="ArenaStageView"/> 의 320x180 RenderTexture 를
-        /// EnvelopeParent 로 박스에 빈틈없이 채운다(16:9 내용 비율 유지, 넘치는 쪽만
-        /// 잘라냄). 이 박스가 16:9 가 아니라서(실측 1222x173, 세로가 훨씬 좁다) 채워진
-        /// RawImage 가 박스보다 커진다 — RectMask2D 로 박스 밖을 잘라내지 않으면
-        /// 위(점수판)·아래(서술/로그) 블록 위로 그대로 넘쳐 그려진다. HUD·텍스트는
-        /// 전부 이 RT 밖(다른 블록)에 있다 — RT 안에는 경기 장면만 있다.
-        void BuildArenaPlaceholder(Transform parent)
+        /// 창 전체 배경 — <see cref="ArenaStageView"/> 의 320x180 RenderTexture 를 캔버스
+        /// 전체에 편다. RT 해상도·MSAA off·Point 필터·12fps 스텝은 무수정(§ArenaStageView) —
+        /// 화면에 늘려 보여주는 표시 크기만 커질 뿐 렌더 자체는 그대로다. EnvelopeParent 로
+        /// 창 비율이 16:9 가 아니어도 찌그러뜨리지 않고 빈틈없이 덮는다(16:9 창이면 크롭도
+        /// 없다 — 2026-08-12 실측: 1920x1080/1280x720 은 정확히 16:9라 크롭 0, 나머지
+        /// 해상도는 소폭 크롭 — STATUS.md 참조).
+        /// RectMask2D 는 이제 안 쓴다 — 예전엔 이 RT 가 좁은 박스 안에 있어서 박스보다
+        /// 커진 RawImage 가 옆(점수판/서술) 블록을 침범했지만, 지금은 캔버스 전체가 이
+        /// 배경의 영역이라 침범할 이웃이 없다(화면 밖으로 나가는 부분은 그 자체로 렌더
+        /// 대상 밖이라 마스크 없이도 안 보인다).
+        void BuildArenaBackground(Transform canvasRoot)
         {
-            var box = new GameObject("ArenaBox", typeof(RectTransform), typeof(Image), typeof(LayoutElement), typeof(RectMask2D));
-            box.transform.SetParent(parent, false);
-            // NarrationLog 는 minHeight 합(178px, §BuildNarrationLog 참조)이 바닥이라 더
-            // 못 줄어든다 — leftColumn 여유분(2026-08-12 실측 약 496px, NarrationLog 실측
-            // 236px 로 바닥보다 여유 있게)을 Arena 쪽에 최대한 몰아주는 비율(4.5)로 키웠다
-            // (박스 높이 173→260px 실측). 그래도 폭(1222px 실측) 대비 16:9 에는 한참 못
-            // 미쳐(box_aspect≈4.7) EnvelopeParent 가 세로 위아래를 상당히 잘라낸다 — 실측
-            // 결과 캐릭터(ArenaStageCamera 기준 세로 42~143px)가 머리 쪽 약 19%·발 쪽 약
-            // 14% 정도 잘린다(안 잘리려면 박스가 386px 이상 필요한데 NarrationLog 바닥을
-            // 지키는 한 최대 318px 이 한계). FitInParent 로 되돌리면 안 잘리지만 대신
-            // 박스 폭의 절반 이상이 검은 띠가 된다 — 둘 다 완전하진 않지만 EnvelopeParent
-            // 쪽이 낫다고 판단(사람 판단 아님, 필요하면 조정 여지 있음).
-            SetFlexible(box.transform, 1, 4.5f);
-            box.GetComponent<Image>().color = ArenaBg;
-
             var stage = GetComponent<ArenaStageView>();
-            var viewGo = new GameObject("ArenaView", typeof(RectTransform), typeof(RawImage), typeof(AspectRatioFitter));
-            viewGo.transform.SetParent(box.transform, false);
-            var viewRt = (RectTransform)viewGo.transform;
-            viewRt.anchorMin = Vector2.zero;
-            viewRt.anchorMax = Vector2.one;
-            viewRt.offsetMin = viewRt.offsetMax = Vector2.zero;
+            var go = new GameObject("ArenaBackground", typeof(RectTransform), typeof(RawImage), typeof(AspectRatioFitter));
+            go.transform.SetParent(canvasRoot, false);
+            var rt = (RectTransform)go.transform;
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.offsetMin = rt.offsetMax = Vector2.zero;
 
-            var raw = viewGo.GetComponent<RawImage>();
+            var raw = go.GetComponent<RawImage>();
             raw.texture = stage.Output;
             raw.raycastTarget = false;
 
-            var fitter = viewGo.GetComponent<AspectRatioFitter>();
-            // FitInParent 는 박스 비율이 16:9 가 아니면 안쪽에 검은 띠를 남긴다(2026-08-12
-            // Play 실측 신고 — 좌상 박스는 좌하 서술/로그와 세로를 나눠 쓰는 열이라 실제로는
-            // 16:9 가 아니다). EnvelopeParent 는 박스를 항상 빈틈없이 채우고 넘치는 쪽만
-            // 잘라낸다 — RT 해상도(320x180)·내용 비율은 그대로, 표시 크기만 커진다.
+            var fitter = go.GetComponent<AspectRatioFitter>();
             fitter.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
             fitter.aspectRatio = (float)ArenaStageView.StageWidth / ArenaStageView.StageHeight;
         }
 
         /// 좌하 — 위상/체력·그립·손 잠김 상태 줄 + 이번 교환 서술 줄 + 최근 5교환 로그.
+        /// 경기 화면이 배경으로 깔린 뒤로는 흰 글자가 하늘/바닥 위에 그대로 떠 안 읽혀서
+        /// PanelBg 스크림을 얹는다(위 ScoreboardRow 주석 참조 — 알파는 그쪽과 같은 값 재사용).
         void BuildNarrationLog(Transform parent)
         {
             var box = MakeVerticalGroup(parent, "NarrationLog", spacing: 4);
             SetFlexible(box, 1, 1f);
+            box.gameObject.AddComponent<Image>().color = PanelBg;
 
             _phaseText = MakeFlexText(box, "", TextAlignmentOptions.TopLeft, 1, 0, minHeight: 24);
             _statusTextA = MakeFlexText(box, "", TextAlignmentOptions.TopLeft, 1, 0, minHeight: 24);
