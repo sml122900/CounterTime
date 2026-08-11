@@ -51,6 +51,10 @@ namespace CounterTime.Game.Match
         public TendencyWindow Tendency => _window;
         /// HUD 표시용 — 흔들기 게이트가 켜져 있는지 판단하는 데만 쓴다.
         public MatchRulesConfig Config => _cfg;
+        /// 수 노트 HUD 용 — 습관별 관측 횟수(심증/확정 판정).
+        public ObservationLedger Ledger => _ledger;
+        /// 수 노트 HUD 용 — 상대 정의(습관 목록)와 폐기 여부.
+        public HabitState OpponentHabits => _habitState;
 
         /// 화면·로그가 붙는 지점 — Core 이벤트를 원본 그대로 낸다.
         public event Action<MatchEvent> Presented;

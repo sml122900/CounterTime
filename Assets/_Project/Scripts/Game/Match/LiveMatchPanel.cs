@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using CounterTime.Brain;
 using CounterTime.Core;
 using TMPro;
 using UnityEngine;
@@ -12,9 +13,16 @@ namespace CounterTime.Game.Match
     /// → 결과 서술 → 다음 턴. 굳히기가 열리면 3열 대신 A 의 역할에 맞는 2지선다로
     /// 바뀐다.
     ///
+    /// 화면 골격은 상단(점수판)/좌상(경기 화면 자리)/좌하(서술+로그)/우측(사이드바 3종:
+    /// 코치의 조언/수 노트/내 성향)/하단(입력) 5블록이다. 좌표를 손으로 찍지 않고
+    /// Unity <c>VerticalLayoutGroup</c>/<c>HorizontalLayoutGroup</c> 이 실제로 계산하게
+    /// 만든다 — 지난 anchorX 산술 버그(2026-08-11 오후 4차, 반폭 기준 안 맞았던 것)의
+    /// 재발 방지가 이 구조의 이유다.
+    ///
     /// <b>B 는 여기 안 나온다.</b> B 의 선택지·습관·심판 누산기 숫자는 이 패널 어디에도
     /// 읽거나 그리지 않는다 — 읽을 수 있는 것은 <see cref="LiveMatchRunner"/> 가 공개한
-    /// A 자신의 면(<see cref="LiveAssembler"/>, <see cref="LiveMatchRunner.Tendency"/>)뿐이다.
+    /// A 자신의 면(<see cref="LiveAssembler"/>, <see cref="LiveMatchRunner.Tendency"/>)과
+    /// A 가 실제로 관측한 B 의 습관(<see cref="LiveMatchRunner.Ledger"/>)뿐이다.
     ///
     /// 기능 우선, 미려함은 뒤로 — 색과 배치는 최소한이다. 화면 실행 확인은 사람 몫
     /// (Unity Test Runner 로도, 헤드리스로도 캔버스는 검증 불가).
@@ -40,6 +48,8 @@ namespace CounterTime.Game.Match
         static readonly Color ShidoYellow = new Color(0.95f, 0.85f, 0.1f);
         static readonly Color RowWhiteBg = new Color(0.92f, 0.92f, 0.92f);
         static readonly Color RowBlueBg = new Color(0.1f, 0.35f, 0.75f);
+        static readonly Color PanelBg = new Color(0.16f, 0.16f, 0.18f, 0.92f);
+        static readonly Color ArenaBg = new Color(0.08f, 0.08f, 0.1f);
 
         LiveMatchRunner _runner;
 
@@ -49,9 +59,11 @@ namespace CounterTime.Game.Match
 
         Transform _handColumn, _coreColumn, _legsColumn;
         GameObject _standingRoot, _osaekomiRoot;
-        TMP_Text _resultText, _exposureText, _preemptedText, _selectionText, _logText;
+        Transform _notesColumn;
+        TMP_Text _resultText, _selectionText, _logText, _adviceText;
         TMP_Text _phaseText, _statusTextA, _statusTextB;
         Image _warningMark, _dangerMark;
+        TMP_Text _warningLabel, _dangerLabel;
         Button _osaekomiOptionA, _osaekomiOptionB;
         TMP_Text _osaekomiLabelA, _osaekomiLabelB;
 
@@ -113,19 +125,19 @@ namespace CounterTime.Game.Match
 
         void OnPresented(MatchEvent e) => _pendingEvents.Add(e);
 
+        /// 서술 문구는 여기서 화면에 바로 안 그린다 — <see cref="BuildOutcome"/> 이
+        /// 우선순위(선점 > 판정 서술 > 이벤트 요약)를 정해 서술 줄/로그에 같은 문자열을
+        /// 한 번에 낸다. 여기서 두 번 칠하면 두 표시가 서로 다른 순간에 갱신될 수 있다.
         void OnNarrated(ResultNarrationTable.Result r)
         {
             _pendingNarrationText = r.Text;
             _pendingNarrationFallback = r.IsFallback;
-            _resultText.text = r.IsFallback ? $"<color=#999999>{r.Text}</color>" : r.Text;
         }
 
         /// [v1 임시 시스템 문구 — 카피 교체 목록에 올릴 것, md/STATUS.md 결정 대기 참조]
-        void OnAPreempted()
-        {
-            _preemptedText.text = "B 선행 — A 공격 불발";
-            _pendingPreempted = true;
-        }
+        /// 화면 표시는 <see cref="BuildOutcome"/> 을 통해 서술 줄/로그로만 나간다 —
+        /// 별도 배너는 같은 문장을 세 번째로 중복 표시하는 것이라 뺐다.
+        void OnAPreempted() => _pendingPreempted = true;
 
         // ── 굳히기 전환 ──────────────────────────────────────────────────────────
 
@@ -169,15 +181,17 @@ namespace CounterTime.Game.Match
             RefreshStatusHud();
         }
 
-        /// §9.3 — 5초 틱 하나 제출. 결과 이벤트를 모아 교환 로그에 한 줄 남기고 HUD 를
-        /// 새로고침한다. 굳히기가 계속 열려 있으면(<see cref="OnOsaekomiOpened"/> 가 다시
-        /// 안 불린다) 홀더가 안 바뀌므로 버튼 라벨은 그대로 둔다.
+        /// §9.3 — 5초 틱 하나 제출. 결과 이벤트를 모아 서술 줄·교환 로그에 반영하고
+        /// HUD 를 새로고침한다. 굳히기가 계속 열려 있으면(<see cref="OnOsaekomiOpened"/>
+        /// 가 다시 안 불린다) 홀더가 안 바뀌므로 버튼 라벨은 그대로 둔다.
         void SubmitOsaekomiChoice(OsaekomiDefenderChoice defenderChoice, OsaekomiHolderChoice holderChoice,
                                   string myChoiceLabel)
         {
             BeginPending();
             _runner.SubmitOsaekomi(defenderChoice, holderChoice);
-            PushLog(myChoiceLabel, BuildOutcome());
+            string outcome = BuildOutcome();
+            _resultText.text = outcome;
+            PushLog(myChoiceLabel, outcome);
             RefreshStatusHud();
         }
 
@@ -210,16 +224,13 @@ namespace CounterTime.Game.Match
 
         void Confirm()
         {
-            // 지난 턴의 선점 표시를 먼저 지운다 — 이번 SubmitA 가 새로 띄우면 그 뒤에
-            // 남는다. RefreshStanding 에서 지우면 같은 프레임에 방금 띄운 것까지
-            // 지워진다.
-            _preemptedText.text = "";
             string myChoiceLabel = $"{HandLabel(_hand)} · {CoreLabel(_core)} · {LegsLabel(_legs)}";
             BeginPending();
             var choice = _runner.A.Build(_hand, _core, _legs);
             _runner.SubmitA(choice);
             string outcome = BuildOutcome();
             bool matte = _pendingEvents.Exists(e => e is MatteCalled);
+            _resultText.text = outcome;
             PushLog(myChoiceLabel, outcome);
             if (!_runner.Engine.Osaekomi.Active) RefreshStanding();
             RefreshStatusHud(matte);
@@ -227,7 +238,8 @@ namespace CounterTime.Game.Match
 
         /// <summary>§3 노출 막대 — 지금 <b>선택 중인</b>(아직 확정 전) 조합이 경고선/위험선에
         /// 걸리는지를 매 선택마다 다시 계산한다. 읽히기 전에 보여야 하므로, 확정 버튼을
-        /// 누르기 전에 이미 위험을 알 수 있어야 한다.</summary>
+        /// 누르기 전에 이미 위험을 알 수 있어야 한다. 임계값 로직은 무수정 — 우측
+        /// 사이드바로 이관하며 라벨을 상시 표시로 바꾼 것뿐이다.</summary>
         void RefreshExposure()
         {
             var candidate = _runner.A.Build(_hand, _core, _legs);
@@ -235,10 +247,9 @@ namespace CounterTime.Game.Match
             bool danger = _runner.Tendency.ConsecutiveMatches(candidate);
 
             _warningMark.color = warn ? Warning : Dim;
+            _warningLabel.color = warn ? Warning : Dim;
             _dangerMark.color = danger ? Danger : Dim;
-            _exposureText.text = danger ? "위험 — 3연속 그대로면 읽힌다"
-                               : warn ? "경고 — 최근 6수 중 4수 이상 같다"
-                               : "";
+            _dangerLabel.color = danger ? Danger : Dim;
 
             _selectionText.text = $"선택: {HandLabel(_hand)} · {CoreLabel(_core)} · {LegsLabel(_legs)}";
         }
@@ -288,6 +299,17 @@ namespace CounterTime.Game.Match
             _ => "중립",
         };
 
+        /// 수 노트 — 습관 한국어 라벨. [v1 임시 문구 — 카피 교체 목록에 올릴 것]
+        static string HabitLabel(HabitId id) => id switch
+        {
+            HabitId.BigThrowOnGripEdge => "업어치기 (그립 우세)",
+            HabitId.LegTechAfterShido => "안뒤축감아치기 (지도 직후)",
+            HabitId.TurtleWhenTired => "극단적 방어 (체력 열세)",
+            HabitId.SeekGripRightSleeve => "오른소매 노림",
+            HabitId.SeekGripLeftSleeve => "왼소매 노림",
+            _ => id.ToString(),
+        };
+
         // ── 교환 로그 ────────────────────────────────────────────────────────────
 
         void BeginPending()
@@ -300,7 +322,7 @@ namespace CounterTime.Game.Match
         /// 이번 Submit* 호출에서 무슨 일이 났는지 한 줄로 요약한다. 우선순위:
         /// 선점(B 선행) → 판정 서술(있으면, 폴백 구분 유지) → 발생한 이벤트 중 뜻이
         /// 있는 첫 번째 → "변화 없음"(그립·틀어잡기처럼 화면에 안 잡히는 사소한 것만
-        /// 일어난 교환).
+        /// 일어난 교환). 서술 줄과 로그가 둘 다 이 문자열을 그대로 쓴다 — 출처가 하나다.
         string BuildOutcome()
         {
             if (_pendingPreempted) return "B 선행 — A 공격 불발";
@@ -420,10 +442,10 @@ namespace CounterTime.Game.Match
             go.GetComponent<Image>().color = color;
         }
 
-        // ── 점수판 아래 상태 HUD ─────────────────────────────────────────────────
+        // ── 좌하: 상태 줄 / 서술 줄 / 로그 ───────────────────────────────────────
 
-        /// 잡기·체력·위상·흔들기 — 점수판에 없는 항목만 여기 남는다. 시계·절반·유효·
-        /// 지도·누르기 카운트는 <see cref="RefreshScoreboard"/> 로 옮겨갔다.
+        /// 점수판에 없는 나머지(잡기·체력·위상·흔들기) + 이번 교환 서술. 시계·절반·
+        /// 유효·지도·누르기 카운트는 <see cref="RefreshScoreboard"/> 담당.
         /// <paramref name="matteJustCalled"/> — 이번 Confirm() 호출에서 그쳐가
         /// 났으면 true. 그쳐는 <c>MatchClock.Phase</c> 에 남지 않는 순간 상태라
         /// (그쳐 직후 곧장 서기로 돌아간다) 호출부가 이번 교환의 이벤트를 보고
@@ -432,6 +454,8 @@ namespace CounterTime.Game.Match
         {
             var eng = _runner.Engine;
             RefreshScoreboard(eng);
+            RefreshCoachAdvice(eng);
+            RefreshNotes();
 
             _phaseText.text = "위상: " + (eng.Osaekomi.Active
                 ? $"굳히기 — {FighterLabel(eng.Osaekomi.Holder)} 누름 {eng.Osaekomi.HeldSeconds}초 " +
@@ -455,6 +479,65 @@ namespace CounterTime.Game.Match
                    $"왼손 {left} 오른손 {right}{setup}";
         }
 
+        // ── 우측 사이드바 1: 코치의 조언 ─────────────────────────────────────────
+
+        /// [v1 임시 문구 전부 — 카피 교체 목록에 올릴 것] 판정식 합계·심판 누산기는
+        /// 참조하지 않는다 — 전부 이미 화면에 나가는 값(그립/체력/흔들기)에서만 고른다.
+        /// 자기 노출 위험선은 여기서 다루지 않는다 — 그 몫은 내 성향 박스가 전담한다
+        /// (같은 경고를 두 곳에서 다른 말로 하면 헷갈린다).
+        void RefreshCoachAdvice(MatchEngine eng)
+        {
+            string advice;
+            if (eng.Osaekomi.Active)
+                advice = "굳히기 중 — 버티면 점수가 오르고, 빠져나가면 다시 선다";
+            else if (eng.Grip.EffectiveGrip(FighterId.B) - eng.Grip.EffectiveGrip(FighterId.A) >= 2)
+                advice = "잡기 열세 — 손 싸움부터 다시 잡아라";
+            else if (eng.Stamina.Get(FighterId.B) < 40)
+                advice = "상대 체력이 떨어졌다 — 밀어붙일 타이밍";
+            else if (_runner.Config.SetupGateEnabled && eng.IsSetupActive(FighterId.B))
+                advice = "상대가 흔들기를 걸었다 — 큰 기술을 조심해라";
+            else
+                advice = "그립을 먼저 잡고 흐름을 만들어라";
+            _adviceText.text = advice;
+        }
+
+        // ── 우측 사이드바 2: 수 노트 ─────────────────────────────────────────────
+
+        /// §2 — A 가 실제로 관측한(<c>Observations &gt;= 1</c>) 습관만 행으로 만든다.
+        /// 아직 한 번도 안 본 습관은 존재 자체를 노출하지 않는다(요구사항). 단계는
+        /// 3개: 심증(1~2회)/확정(3회 이상)/폐기됨(퇴역 — 관측 횟수와 무관하게 최우선).
+        /// [v1 임시 문구 — 카피 교체 목록에 올릴 것]
+        void RefreshNotes()
+        {
+            for (int i = _notesColumn.childCount - 1; i >= 0; i--)
+                Destroy(_notesColumn.GetChild(i).gameObject);
+
+            var ledger = _runner.Ledger;
+            var habits = _runner.OpponentHabits;
+            bool any = false;
+
+            foreach (var habit in habits.Opponent.Habits)
+            {
+                int obs = ledger.Observations(habit.Id);
+                if (obs < 1) continue;
+                any = true;
+
+                bool retired = habits.IsRetired(habit.Id);
+                bool confirmed = ledger.IsConfirmed(habit.Id);
+                string stage = retired ? $"<s>{HabitLabel(habit.Id)}</s> — 폐기됨"
+                             : confirmed ? $"{HabitLabel(habit.Id)} — 확정 ({obs}회)"
+                             : $"{HabitLabel(habit.Id)} — 심증 ({obs}회)";
+
+                var row = MakeFlexText(_notesColumn, stage, TextAlignmentOptions.TopLeft, 1, 0,
+                    minHeight: 20, fontSizeOverride: 15);
+                row.color = retired ? Dim : confirmed ? Warning : Color.white;
+            }
+
+            if (!any)
+                MakeFlexText(_notesColumn, "아직 관측된 습관 없음", TextAlignmentOptions.TopLeft, 1, 0,
+                    minHeight: 20, fontSizeOverride: 15).color = Dim;
+        }
+
         // ── 런타임 UI 뼈대 ───────────────────────────────────────────────────────
 
         void BuildCanvas()
@@ -469,22 +552,316 @@ namespace CounterTime.Game.Match
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920, 1080);
 
-            BuildScoreboard(go.transform);
-            BuildPhaseText(go.transform);
-            BuildExposureBar(go.transform);
-            BuildFighterStatusTexts(go.transform);
-            BuildResultText(go.transform);
-            BuildPreemptedText(go.transform);
-            BuildSelectionText(go.transform);
-            BuildExchangeLog(go.transform);
-            _standingRoot = BuildStandingRoot(go.transform);
-            _osaekomiRoot = BuildOsaekomiRoot(go.transform);
+            var root = MakeVerticalGroup(go.transform, "RootLayout", spacing: 8);
+            var rootRt = (RectTransform)root;
+            rootRt.anchorMin = Vector2.zero;
+            rootRt.anchorMax = Vector2.one;
+            rootRt.offsetMin = rootRt.offsetMax = Vector2.zero;
+            var rootLg = root.GetComponent<VerticalLayoutGroup>();
+            rootLg.padding = new RectOffset(12, 12, 8, 8);
+
+            // ① 상단 — 점수판. 고정 높이 슬롯(레이아웃 그룹 아님) — 안쪽은 기존
+            // BuildScoreboard 그대로(무수정), 이 슬롯의 자식이 되도록 부모만 바뀐다.
+            var scoreboardRow = new GameObject("ScoreboardRow", typeof(RectTransform), typeof(LayoutElement));
+            scoreboardRow.transform.SetParent(root, false);
+            SetFixedHeight(scoreboardRow.transform, 244);
+            BuildScoreboard(scoreboardRow.transform);
+
+            // ② 중단 — 좌(경기 화면 자리 + 서술/로그) : 우(사이드바 3종) = 2:1.
+            var middleRow = MakeHorizontalGroup(root, "MiddleRow", spacing: 12);
+            SetFlexible(middleRow, 1, 1);
+
+            var leftColumn = MakeVerticalGroup(middleRow, "LeftColumn", spacing: 8);
+            SetFlexible(leftColumn, 2, 1);
+            BuildArenaPlaceholder(leftColumn);
+            BuildNarrationLog(leftColumn);
+
+            var sidebar = MakeVerticalGroup(middleRow, "RightSidebar", spacing: 8);
+            SetFlexible(sidebar, 1, 1);
+            BuildCoachAdviceBox(sidebar);
+            BuildNotesBox(sidebar);
+            BuildTendencyBox(sidebar);
+
+            // ③ 하단 — 입력. 고정 높이 슬롯 — StandingInput/OsaekomiInput 이 번갈아
+            // 이 슬롯을 꽉 채운다(SetActive 토글, 기존 패턴 그대로).
+            var bottomRow = new GameObject("BottomInputRow", typeof(RectTransform), typeof(LayoutElement));
+            bottomRow.transform.SetParent(root, false);
+            SetFixedHeight(bottomRow.transform, 300);
+
+            _standingRoot = BuildStandingRoot(bottomRow.transform);
+            _osaekomiRoot = BuildOsaekomiRoot(bottomRow.transform);
             _osaekomiRoot.SetActive(false);
+        }
+
+        /// 좌상 — 경기 화면이 나중에 들어올 자리. 지금은 배경 패널 + 안내문뿐이다.
+        /// [v1 임시 문구 — 카피 교체 목록에 올릴 것]
+        void BuildArenaPlaceholder(Transform parent)
+        {
+            var box = new GameObject("ArenaPlaceholder", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
+            box.transform.SetParent(parent, false);
+            SetFlexible(box.transform, 1, 1.2f);
+            box.GetComponent<Image>().color = ArenaBg;
+
+            var label = MakeText(box.transform, "경기 화면 — 연출 준비 전", TextAlignmentOptions.Center,
+                Vector2.zero, new Vector2(400, 60), stretch: true, fontSizeOverride: 20);
+            label.color = Dim;
+        }
+
+        /// 좌하 — 위상/체력·그립·손 잠김 상태 줄 + 이번 교환 서술 줄 + 최근 5교환 로그.
+        void BuildNarrationLog(Transform parent)
+        {
+            var box = MakeVerticalGroup(parent, "NarrationLog", spacing: 4);
+            SetFlexible(box, 1, 1f);
+
+            _phaseText = MakeFlexText(box, "", TextAlignmentOptions.TopLeft, 1, 0, minHeight: 24);
+            _statusTextA = MakeFlexText(box, "", TextAlignmentOptions.TopLeft, 1, 0, minHeight: 24);
+            _statusTextB = MakeFlexText(box, "", TextAlignmentOptions.TopLeft, 1, 0, minHeight: 24);
+            _resultText = MakeFlexText(box, "", TextAlignmentOptions.TopLeft, 1, 0, minHeight: 30,
+                fontSizeOverride: 20);
+            _logText = MakeFlexText(box, "", TextAlignmentOptions.TopLeft, 1, 1, minHeight: 60);
+        }
+
+        Transform MakeSidebarBox(Transform parent, string name, float flexHeight)
+        {
+            var go = new GameObject(name + "Box",
+                typeof(RectTransform), typeof(Image), typeof(VerticalLayoutGroup), typeof(LayoutElement));
+            go.transform.SetParent(parent, false);
+            go.GetComponent<Image>().color = PanelBg;
+            var lg = go.GetComponent<VerticalLayoutGroup>();
+            lg.spacing = 4;
+            lg.padding = new RectOffset(10, 10, 8, 8);
+            lg.childForceExpandWidth = false;
+            lg.childForceExpandHeight = false;
+            var le = go.GetComponent<LayoutElement>();
+            le.flexibleWidth = 1;
+            le.flexibleHeight = flexHeight;
+            return go.transform;
+        }
+
+        /// 사이드바 1 — 코치의 조언.
+        void BuildCoachAdviceBox(Transform parent)
+        {
+            var box = MakeSidebarBox(parent, "CoachAdvice", 0.7f);
+            MakeFlexText(box, "코치의 조언", TextAlignmentOptions.TopLeft, 1, 0, minHeight: 22,
+                fontSizeOverride: 16).color = Warning;
+            _adviceText = MakeFlexText(box, "", TextAlignmentOptions.TopLeft, 1, 1, minHeight: 40,
+                fontSizeOverride: 16);
+        }
+
+        /// 사이드바 2 — 수 노트(상대 습관 관측). 행은 <see cref="RefreshNotes"/> 가
+        /// 관측이 생길 때마다 다시 그린다 — 지금은 헤더만 짓는다.
+        void BuildNotesBox(Transform parent)
+        {
+            var box = MakeSidebarBox(parent, "Notes", 1.6f);
+            MakeFlexText(box, "수 노트", TextAlignmentOptions.TopLeft, 1, 0, minHeight: 22,
+                fontSizeOverride: 16).color = Warning;
+            _notesColumn = MakeVerticalGroup(box, "NotesRows", spacing: 4);
+            SetFlexible(_notesColumn, 1, 1);
+        }
+
+        /// 사이드바 3 — 내 성향(노출 막대 이관). 경고선/위험선 라벨을 항상 보이게
+        /// 고정하고, 걸렸을 때만 색을 올린다 — 값은 <see cref="RefreshExposure"/> 가 낸다.
+        void BuildTendencyBox(Transform parent)
+        {
+            var box = MakeSidebarBox(parent, "Tendency", 1.0f);
+            MakeFlexText(box, "내 성향", TextAlignmentOptions.TopLeft, 1, 0, minHeight: 22,
+                fontSizeOverride: 16).color = Warning;
+
+            var warnRow = MakeHorizontalGroup(box, "WarnRow", spacing: 8);
+            SetFixedHeight(warnRow, 26);
+            _warningMark = MakeMark(warnRow);
+            _warningLabel = MakeFlexText(warnRow, "경고선 — 최근 6수 중 4수 이상 같음",
+                TextAlignmentOptions.MidlineLeft, 1, 1, fontSizeOverride: 14);
+
+            var dangerRow = MakeHorizontalGroup(box, "DangerRow", spacing: 8);
+            SetFixedHeight(dangerRow, 26);
+            _dangerMark = MakeMark(dangerRow);
+            _dangerLabel = MakeFlexText(dangerRow, "위험선 — 3연속 완전동일",
+                TextAlignmentOptions.MidlineLeft, 1, 1, fontSizeOverride: 14);
+        }
+
+        Image MakeMark(Transform parent)
+        {
+            var go = new GameObject("Mark", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
+            go.transform.SetParent(parent, false);
+            var le = go.GetComponent<LayoutElement>();
+            le.preferredWidth = le.minWidth = 20;
+            le.preferredHeight = le.minHeight = 20;
+            le.flexibleWidth = 0;
+            var img = go.GetComponent<Image>();
+            img.color = Dim;
+            return img;
+        }
+
+        GameObject BuildStandingRoot(Transform parent)
+        {
+            var t = MakeVerticalGroup(parent, "StandingInput", spacing: 8);
+            var rt = (RectTransform)t;
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.offsetMin = rt.offsetMax = Vector2.zero;
+            t.GetComponent<VerticalLayoutGroup>().padding = new RectOffset(16, 16, 8, 8);
+
+            // 손/코어/하체 3열 — HorizontalLayoutGroup 이 3등분을 계산한다. anchorX
+            // 상수를 손으로 찍지 않는다(지난 겹침 버그의 원인이 바로 그 손 계산이었다).
+            var columnsRow = MakeHorizontalGroup(t, "InputColumns", spacing: 12);
+            SetFlexible(columnsRow, 1, 1);
+            _handColumn = BuildColumnRoot(columnsRow, "손");
+            _coreColumn = BuildColumnRoot(columnsRow, "코어");
+            _legsColumn = BuildColumnRoot(columnsRow, "하체");
+
+            var confirmRow = MakeHorizontalGroup(t, "ConfirmRow", spacing: 12);
+            SetFixedHeight(confirmRow, 56);
+            _selectionText = MakeFlexText(confirmRow, "", TextAlignmentOptions.MidlineLeft, 1, 1,
+                fontSizeOverride: 16);
+            var confirmBtn = MakeButton(confirmRow, "확정", Confirm);
+            SetFixedWidth(confirmBtn.transform, 160);
+            confirmBtn.GetComponent<LayoutElement>().flexibleHeight = 1;
+
+            return t.gameObject;
+        }
+
+        Transform BuildColumnRoot(Transform parent, string title)
+        {
+            var t = MakeVerticalGroup(parent, title + "Column", spacing: 6);
+            SetFlexible(t, 1, 1);
+            var lg = t.GetComponent<VerticalLayoutGroup>();
+            lg.childAlignment = TextAnchor.UpperCenter;
+            return t;
+        }
+
+        GameObject BuildOsaekomiRoot(Transform parent)
+        {
+            var t = MakeHorizontalGroup(parent, "OsaekomiInput", spacing: 24);
+            var rt = (RectTransform)t;
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.offsetMin = rt.offsetMax = Vector2.zero;
+            var lg = t.GetComponent<HorizontalLayoutGroup>();
+            lg.padding = new RectOffset(60, 60, 40, 40);
+            lg.childAlignment = TextAnchor.MiddleCenter;
+
+            _osaekomiOptionA = MakeButton(t, "", null);
+            SetFlexible(_osaekomiOptionA.transform, 1, 1);
+            _osaekomiLabelA = _osaekomiOptionA.GetComponentInChildren<TMP_Text>();
+
+            _osaekomiOptionB = MakeButton(t, "", null);
+            SetFlexible(_osaekomiOptionB.transform, 1, 1);
+            _osaekomiLabelB = _osaekomiOptionB.GetComponentInChildren<TMP_Text>();
+
+            return t.gameObject;
+        }
+
+        // ── 레이아웃 그룹 헬퍼 — 좌표를 손으로 찍는 대신 Unity 가 계산하게 만드는
+        // 자리. flexibleWidth/Height 는 명시적으로 0 이 아니면 그 축의 남는 공간을
+        // 그 비율로 나눠 갖고, 0(=SetFixed*)이면 고정 크기를 유지한다. 두 그룹 다
+        // childForceExpandWidth/Height 를 꺼둔다 — 모든 자식에 이미 명시적으로 값을
+        // 주므로, Unity 의 "비어있으면 강제로 늘린다" 규칙에 기대지 않기 위해서다.
+
+        Transform MakeVerticalGroup(Transform parent, string name, float spacing = 4)
+        {
+            var go = new GameObject(name, typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(LayoutElement));
+            go.transform.SetParent(parent, false);
+            var lg = go.GetComponent<VerticalLayoutGroup>();
+            lg.spacing = spacing;
+            lg.childForceExpandWidth = false;
+            lg.childForceExpandHeight = false;
+            return go.transform;
+        }
+
+        Transform MakeHorizontalGroup(Transform parent, string name, float spacing = 4)
+        {
+            var go = new GameObject(name, typeof(RectTransform), typeof(HorizontalLayoutGroup), typeof(LayoutElement));
+            go.transform.SetParent(parent, false);
+            var lg = go.GetComponent<HorizontalLayoutGroup>();
+            lg.spacing = spacing;
+            lg.childForceExpandWidth = false;
+            lg.childForceExpandHeight = false;
+            return go.transform;
+        }
+
+        void SetFlexible(Transform t, float flexW, float flexH)
+        {
+            var le = t.GetComponent<LayoutElement>();
+            le.flexibleWidth = flexW;
+            le.flexibleHeight = flexH;
+        }
+
+        /// <paramref name="t"/> 는 세로 그룹의 자식으로 쓰인다 — 그 관계에서 폭은 교차축이다.
+        /// 실측(2026-08-12)으로 확인한 사실: preferred/min/flexible 셋 다 안 건드리면(전부
+        /// 기본값 −1) 그 축은 화면 크기와 무관하게 <b>항상</b> 0으로 무너진다 — 넓은 화면에서도
+        /// 마찬가지였다(겹침 검사만 통과했을 뿐 실제로는 0폭이었다, 쌍별 겹침 계산이 0폭
+        /// 요소끼리는 애초에 안 걸리는 사각지대). 셋 중 하나만 양수면 그 축은 정상 동작한다 —
+        /// 여기서는 flexibleWidth=1 로 "남는 폭을 가져간다"를 명시한다.
+        void SetFixedHeight(Transform t, float h)
+        {
+            var le = t.GetComponent<LayoutElement>();
+            le.preferredHeight = h;
+            le.minHeight = h;
+            le.flexibleHeight = 0;
+            le.flexibleWidth = 1;
+        }
+
+        void SetFixedWidth(Transform t, float w)
+        {
+            var le = t.GetComponent<LayoutElement>();
+            le.preferredWidth = w;
+            le.minWidth = w;
+            le.flexibleWidth = 0;
+        }
+
+        Button MakeButton(Transform parent, string label, System.Action onClick)
+        {
+            var go = new GameObject(string.IsNullOrEmpty(label) ? "Button" : label,
+                typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
+            go.transform.SetParent(parent, false);
+            var rt = (RectTransform)go.transform;
+            rt.sizeDelta = new Vector2(220, 44);
+
+            var le = go.GetComponent<LayoutElement>();
+            le.preferredHeight = 44;
+            // 세로 그룹(열) 안에서 폭은 교차축이다 — 위 SetFixedHeight 주석과 같은 이유로
+            // 명시하지 않으면 버튼 폭이 0으로 무너진다. 확정/굳히기 버튼처럼 고정 폭이
+            // 필요하면 생성 후 SetFixedWidth/SetFlexible 로 덮어쓴다(이 기본값보다 나중에 적용됨).
+            le.flexibleWidth = 1;
+
+            var img = go.GetComponent<Image>();
+            img.color = Idle;
+
+            var btn = go.GetComponent<Button>();
+            if (onClick != null) btn.onClick.AddListener(() => onClick());
+
+            MakeText(go.transform, label, TextAlignmentOptions.Center, Vector2.zero,
+                new Vector2(220, 44), new Vector2(0.5f, 0.5f), stretch: true, singleLine: true);
+
+            return btn;
+        }
+
+        /// 레이아웃 그룹 안에 들어가는 텍스트 한 줄. 축마다 flexible 값을 명시적으로
+        /// 받는다 — 부모가 세로 그룹이면 flexH 가 "그 축(주축)에서 남는 공간을 갖는가",
+        /// 부모가 가로 그룹이면 flexW 가 그 역할이다(반대 축은 childControlWidth/Height
+        /// 가 이미 항상 꽉 채운다, MakeButton 이 이미 검증한 동작).
+        TMP_Text MakeFlexText(Transform parent, string text, TextAlignmentOptions align, float flexW, float flexH,
+                              float minHeight = 0, float? fontSizeOverride = null)
+        {
+            var t = MakeText(parent, text, align, Vector2.zero, new Vector2(10, 10), new Vector2(0, 1),
+                fontSizeOverride: fontSizeOverride);
+            var le = t.gameObject.AddComponent<LayoutElement>();
+            le.flexibleWidth = flexW;
+            le.flexibleHeight = flexH;
+            le.minHeight = minHeight;
+            // preferred 도 같이 준다 — min 만으로 그 축이 채워지는지 실측으로 확인하지
+            // 않았다(확인된 조합은 "preferred+min 같이" 또는 "flexible 단독" 둘뿐이다).
+            // flexH>0 인 줄(로그·조언 등)은 이 값이 바닥값이 되고 남는 공간은 flexible 이 가져간다.
+            le.preferredHeight = minHeight;
+            return t;
         }
 
         /// 실전 유도 점수판 규격 (사진 레퍼런스). 좌표는 전부 이 루트 안의 로컬
         /// 오프셋이다 — 캔버스 기준 절대 좌표를 매 칸마다 다시 계산하지 않으려고
-        /// 자체 컨테이너를 둔다(기존 ExposureBar 와 같은 패턴).
+        /// 자체 컨테이너를 둔다. 이 루트의 부모(ScoreboardRow)가 이제는 RootLayout 의
+        /// 자식이지만, ScoreboardRow 자체는 레이아웃 그룹이 아닌 고정 높이 슬롯이라
+        /// 안쪽 좌표(anchorMin/Max=(0.5,1), anchoredPosition 등)는 예전과 동일하게 먹힌다.
         void BuildScoreboard(Transform parent)
         {
             var root = new GameObject("Scoreboard", typeof(RectTransform));
@@ -562,183 +939,14 @@ namespace CounterTime.Game.Match
             return (wazaAri, yuko, shidoRoot.transform, hold);
         }
 
-        /// §4.4 [초안]/§9 — 점수판 아래, 잡기·체력·위상·흔들기 (점수판으로 옮기지
-        /// 않은 나머지). "그 외 표시" 요구사항 목록 그대로 별도 영역.
-        void BuildPhaseText(Transform parent)
-        {
-            _phaseText = MakeText(parent, "", TextAlignmentOptions.Center,
-                new Vector2(0, -252), new Vector2(700, 26), new Vector2(0.5f, 1));
-        }
-
-        void BuildFighterStatusTexts(Transform parent)
-        {
-            _statusTextA = MakeText(parent, "", TextAlignmentOptions.TopLeft,
-                new Vector2(16, -334), new Vector2(430, 70), new Vector2(0f, 1));
-            _statusTextB = MakeText(parent, "", TextAlignmentOptions.TopRight,
-                new Vector2(-16, -334), new Vector2(430, 70), new Vector2(1f, 1));
-        }
-
-        void BuildExposureBar(Transform parent)
-        {
-            var root = new GameObject("ExposureBar", typeof(RectTransform));
-            root.transform.SetParent(parent, false);
-            var rt = (RectTransform)root.transform;
-            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 1);
-            rt.pivot = new Vector2(0.5f, 1);
-            rt.sizeDelta = new Vector2(500, 40);
-            rt.anchoredPosition = new Vector2(0, -286);
-
-            _warningMark = MakeMark(root.transform, new Vector2(-70, 0));
-            _dangerMark = MakeMark(root.transform, new Vector2(-30, 0));
-            _exposureText = MakeText(root.transform, "내 성향 노출", TextAlignmentOptions.MidlineLeft,
-                new Vector2(10, 0), new Vector2(420, 40));
-        }
-
-        Image MakeMark(Transform parent, Vector2 offset)
-        {
-            var go = new GameObject("Mark", typeof(RectTransform), typeof(Image));
-            go.transform.SetParent(parent, false);
-            var rt = (RectTransform)go.transform;
-            rt.anchorMin = rt.anchorMax = new Vector2(0, 0.5f);
-            rt.pivot = new Vector2(0.5f, 0.5f);
-            rt.sizeDelta = new Vector2(24, 24);
-            rt.anchoredPosition = offset;
-            var img = go.GetComponent<Image>();
-            img.color = Dim;
-            return img;
-        }
-
-        void BuildResultText(Transform parent)
-        {
-            _resultText = MakeText(parent, "", TextAlignmentOptions.Center,
-                new Vector2(0, -412), new Vector2(900, 80), new Vector2(0.5f, 1));
-        }
-
-        /// [v1 임시 시스템 문구용 슬롯 — 카피 교체 목록에 올릴 것]
-        void BuildPreemptedText(Transform parent)
-        {
-            _preemptedText = MakeText(parent, "", TextAlignmentOptions.Center,
-                new Vector2(0, -502), new Vector2(900, 40), new Vector2(0.5f, 1));
-            _preemptedText.color = Warning;
-        }
-
-        /// 4) 자기 선택 확인 — 확정 전에 지금 고른 손·코어·하체가 한 줄로 보인다.
-        void BuildSelectionText(Transform parent)
-        {
-            _selectionText = MakeText(parent, "", TextAlignmentOptions.Center,
-                new Vector2(0, -552), new Vector2(900, 30), new Vector2(0.5f, 1));
-        }
-
-        /// 3) 교환 로그 — 최근 5교환, 새 항목이 위로 쌓인다. 폴백 서술은
-        /// <see cref="BuildOutcome"/> 이 판정 서술에 붙여둔 색 태그로 구분된다.
-        void BuildExchangeLog(Transform parent)
-        {
-            _logText = MakeText(parent, "", TextAlignmentOptions.TopLeft,
-                new Vector2(0, -592), new Vector2(900, 150), new Vector2(0.5f, 1));
-        }
-
-        GameObject BuildStandingRoot(Transform parent)
-        {
-            var root = new GameObject("StandingInput", typeof(RectTransform));
-            root.transform.SetParent(parent, false);
-            var rt = (RectTransform)root.transform;
-            rt.anchorMin = new Vector2(0, 0);
-            rt.anchorMax = new Vector2(1, 0);
-            rt.pivot = new Vector2(0.5f, 0);
-            rt.sizeDelta = new Vector2(0, 320);
-            rt.anchoredPosition = Vector2.zero;
-
-            // 각 열의 anchorX 는 중심이고 폭은 BuildColumnRoot 안에서 ±0.14 로 고정이다 —
-            // 이웃 열과 안 겹치려면 중심 간격이 0.28 이상이어야 한다. 손-코어는 0.32(여유
-            // 0.04)라 괜찮았지만 코어-하체는 0.24(부족 −0.04)였다 — 실측(2026-08-11,
-            // Play 모드 GetWorldCorners)으로 확인한 실제 겹침이다. 하체만 0.68 로 밀어
-            // 간격을 0.02(코어-하체)·0.06(하체-확정버튼, anchorX 0.9) 으로 만든다.
-            _handColumn = BuildColumnRoot(root.transform, "손", new Vector2(0.06f, 0.5f));
-            _coreColumn = BuildColumnRoot(root.transform, "코어", new Vector2(0.38f, 0.5f));
-            _legsColumn = BuildColumnRoot(root.transform, "하체", new Vector2(0.68f, 0.5f));
-
-            var confirmBtn = MakeButton(root.transform, "확정", Confirm);
-            var confirmRt = (RectTransform)confirmBtn.transform;
-            confirmRt.anchorMin = confirmRt.anchorMax = new Vector2(0.9f, 0.5f);
-            confirmRt.pivot = new Vector2(0.5f, 0.5f);
-            confirmRt.anchoredPosition = Vector2.zero;
-            confirmRt.sizeDelta = new Vector2(160, 60);
-
-            return root;
-        }
-
-        Transform BuildColumnRoot(Transform parent, string title, Vector2 anchorX)
-        {
-            var go = new GameObject(title + "Column", typeof(RectTransform), typeof(VerticalLayoutGroup));
-            go.transform.SetParent(parent, false);
-            var rt = (RectTransform)go.transform;
-            rt.anchorMin = new Vector2(anchorX.x - 0.14f, 0.05f);
-            rt.anchorMax = new Vector2(anchorX.x + 0.14f, 0.95f);
-            rt.offsetMin = rt.offsetMax = Vector2.zero;
-
-            var layout = go.GetComponent<VerticalLayoutGroup>();
-            layout.childAlignment = TextAnchor.UpperCenter;
-            layout.childForceExpandHeight = false;
-            layout.childForceExpandWidth = true;
-            layout.spacing = 6;
-
-            return go.transform;
-        }
-
-        GameObject BuildOsaekomiRoot(Transform parent)
-        {
-            var root = new GameObject("OsaekomiInput", typeof(RectTransform));
-            root.transform.SetParent(parent, false);
-            var rt = (RectTransform)root.transform;
-            rt.anchorMin = new Vector2(0, 0);
-            rt.anchorMax = new Vector2(1, 0);
-            rt.pivot = new Vector2(0.5f, 0);
-            rt.sizeDelta = new Vector2(0, 160);
-            rt.anchoredPosition = Vector2.zero;
-
-            _osaekomiOptionA = MakeButton(root.transform, "", null);
-            var aRt = (RectTransform)_osaekomiOptionA.transform;
-            aRt.anchorMin = aRt.anchorMax = new Vector2(0.35f, 0.5f);
-            aRt.anchoredPosition = Vector2.zero;
-            aRt.sizeDelta = new Vector2(280, 80);
-            _osaekomiLabelA = _osaekomiOptionA.GetComponentInChildren<TMP_Text>();
-
-            _osaekomiOptionB = MakeButton(root.transform, "", null);
-            var bRt = (RectTransform)_osaekomiOptionB.transform;
-            bRt.anchorMin = bRt.anchorMax = new Vector2(0.65f, 0.5f);
-            bRt.anchoredPosition = Vector2.zero;
-            bRt.sizeDelta = new Vector2(280, 80);
-            _osaekomiLabelB = _osaekomiOptionB.GetComponentInChildren<TMP_Text>();
-
-            return root;
-        }
-
-        Button MakeButton(Transform parent, string label, System.Action onClick)
-        {
-            var go = new GameObject(string.IsNullOrEmpty(label) ? "Button" : label,
-                typeof(RectTransform), typeof(Image), typeof(Button), typeof(LayoutElement));
-            go.transform.SetParent(parent, false);
-            var rt = (RectTransform)go.transform;
-            rt.sizeDelta = new Vector2(220, 44);
-
-            var le = go.GetComponent<LayoutElement>();
-            le.preferredHeight = 44;
-
-            var img = go.GetComponent<Image>();
-            img.color = Idle;
-
-            var btn = go.GetComponent<Button>();
-            if (onClick != null) btn.onClick.AddListener(() => onClick());
-
-            MakeText(go.transform, label, TextAlignmentOptions.Center, Vector2.zero,
-                new Vector2(220, 44), new Vector2(0.5f, 0.5f), stretch: true);
-
-            return btn;
-        }
-
+        /// <paramref name="singleLine"/> — 좁은 화면에서 줄바꿈으로 세로 쌓이면 안 되는
+        /// 라벨(버튼 글자 등)용. 줄바꿈을 끄고 TMP auto-size 로 폭에 맞춰 글자 크기만
+        /// 줄인다. 로그·서술처럼 원래도 여러 줄일 수 있는 텍스트는 false(기본) 로 두면
+        /// 줄바꿈은 그대로 두되 auto-size 로 "줄일 수 있으면 먼저 줄이고, 그래도 안 되면
+        /// 그때 줄바꿈"이 되어 불필요한 조기 줄바꿈을 줄인다.
         TMP_Text MakeText(Transform parent, string text, TextAlignmentOptions align, Vector2 offset,
                           Vector2 size, Vector2? anchor = null, bool stretch = false,
-                          float? fontSizeOverride = null)
+                          float? fontSizeOverride = null, bool singleLine = false)
         {
             var go = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
             go.transform.SetParent(parent, false);
@@ -760,7 +968,12 @@ namespace CounterTime.Game.Match
 
             var t = go.GetComponent<TextMeshProUGUI>();
             if (koreanFont != null) t.font = koreanFont;
-            t.fontSize = fontSizeOverride ?? fontSize;
+            float nominalSize = fontSizeOverride ?? fontSize;
+            t.fontSize = nominalSize;
+            t.enableAutoSizing = true;
+            t.fontSizeMax = nominalSize;
+            t.fontSizeMin = Mathf.Max(8, nominalSize * 0.4f);
+            if (singleLine) t.textWrappingMode = TextWrappingModes.NoWrap;
             t.alignment = align;
             t.text = text;
             t.raycastTarget = false;

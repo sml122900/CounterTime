@@ -134,7 +134,43 @@ Full detail, including the exact 현실적 A osaekomi-entry-shortfall breakdown 
   Unity Editor + MCP 브리지가 밤새 연결 유지(사람 없음) — 매 작업 후 AssetDatabase.Refresh() + GetConsoleLogs 로 0 에러/0 경고 재확인, RunCommand 안에서 짧은 이름(CompilationPipeline 등)이 Unity.AI.Assistant.* 네임스페이스와 충돌하는 기존 함정 재확인(전체 경로로 우회)
 
 Next Up (in priority order)
-**가장 최근 — 입력 열 텍스트 겹침 수정 (Play 실측 스크린샷 신고).** 원인은 사용자가 짚은 "쿠즈시로 항목 늘어난 손 열의 행 높이가 항목 수를 반영 못 한다" 가설이 **아니었다** — 실측(GetWorldCorners, 2026-08-11) 결과 Unity `VerticalLayoutGroup` 이 이미 손 열 10개 항목을 열 높이(285.3px) 안에 맞춰 자동으로 23.4px 씩 균등 축소하고 있었고, TMP 텍스트 필요 높이(21.6px)도 그 안에 들어가 겹침이 없었다(OVERFLOWS=False, 10개 전부). 진짜 원인은 전혀 다른 곳: `BuildStandingRoot` 의 세 열 중심 anchorX(0.06/0.38/0.62) 가 열 반폭 0.14 기준으로 균등하지 않았다(중심 간격 0.32 / 0.24 — 원래부터 비대칭, 이번 세션이 만든 버그 아님) — 손-코어는 간격 0.04 로 안 겹쳤지만 **코어-하체는 −0.04(실측 −76px), 두 열의 버튼 배경이 항상 겹쳐 있었다.** 점수판 재배치는 원인이 아니다 — `StandingInput.sizeDelta.y=320` 은 git log 로 생성 이후 한 번도 안 바뀐 걸 확인. 수정: 하체 열 중심만 0.62→0.68 로 이동(코어·손·확정 버튼은 무수정) — 재실측으로 45쌍(손10+코어3+하체4+확정1) 전부 0 겹침, 간격 손-코어 76.1px/코어-하체 38.0px(이전 −76)/하체-확정 72.9px 확인. 하니스 209/209, 지문 IDENTICAL(프레젠테이션 전용 좌표 수정)
+**가장 최근 — 좁은 화면 레이아웃 붕괴 수정 (719px 스크린샷 신고).** 원인은 CanvasScaler 설정이
+아니었다 — 실측 확인 결과 `uiScaleMode=ScaleWithScreenSize, referenceResolution=(1920,1080),
+matchWidthOrHeight=0`(Unity 컴포넌트 기본값, 코드가 손댄 적 없음). match=0 이면 캔버스의
+**겉보기 폭은 실제 화면 폭과 무관하게 항상 1920** 이다(`scaleFactor=screenWidth/1920` →
+`캔버스폭 = screenWidth/scaleFactor = 1920`, 공식으로 확정 + 320~1920px 전 구간 실측으로
+재확인) — 그래서 "화면이 좁아지면 레이아웃 계산이 좁아진다"는 가설은 틀렸다.
+**진짜 원인은 해상도와 무관한 구조적 버그였다**: `ScoreboardRow`/`BottomInputRow`(레이아웃
+그룹이 아닌 순수 슬롯)와 다수의 `MakeFlexText`/`SetFlexible` 호출이 교차축(가로 그룹의
+세로, 세로 그룹의 가로)에 `preferredWidth`/`minWidth`/`flexibleWidth` 중 **아무것도** 안
+줬다 — Unity 실측(2026-08-11, `LayoutElement` 필드 직접 대조)으로 확인한 규칙: 셋 다 -1(기본)
+이면 그 축은 **화면 크기와 무관하게 항상 0** 으로 무너진다. 즉 이 버그는 719px 에서만이
+아니라 1920px 에서도 이미 있었다 — 안 걸린 건 지난 세션의 쌍별 겹침 검사(`ox>0.5 && oy>0.5`)
+가 폭 0인 요소끼리는 애초에 안 걸리는 사각지대였기 때문이다(폭 0 인 버튼 63개 중 다수가
+"안 겹친다"로 통과했지만 실은 전부 안 보이는 크기였다). 손 열 버튼의 실측: `InputColumns.width=24`
+(순전히 spacing, 자식 기여 0), `첫 버튼.width=0` — 720p 든 1920p 든 동일했다(직접 대조 확인).
+수정: `SetFixedHeight`/`MakeButton` 이 `flexibleWidth=1` 을 기본으로 주고, 모든
+`MakeFlexText`/`SetFlexible` 교차축 인자를 0→1 로, `MakeFlexText` 는 `preferredHeight=minHeight`
+도 같이 준다(min 단독으로 충분한지 실측 확인 안 했으므로 안전하게 preferred+min 조합으로
+맞춤 — 이 조합과 "flexible 단독"만 실측으로 동작 확인됨). 추가로 `MakeText` 에 TMP
+auto-size(`enableAutoSizing`, `fontSizeMin=max(8, 크기*0.4)`) 를 전부 켜고, 버튼 라벨엔
+`singleLine`(줄바꿈 금지) 도 켰다 — 요청대로 "글자 세로 쌓임" 대신 폰트 축소로 대응.
+검증: `PlayModeWindow.SetCustomRenderingResolution` (에디터 공식 API, reflection 아님)로
+1920×1080/1280×720/1024×768/719×404 네 해상도 전부 재현 — 63개 요소·zeroSize=0·쌍별
+겹침=0·버튼 라벨 줄바꿈=0 동일하게 통과(720p 재발 방지 위해 추가로 600×338/320×180 도
+같은 결과, 320px 도 구조적으로는 깨끗함). 719px 에서 실제 클릭(손/코어/하체 선택+확정)까지
+재확인 — 서술·상태 텍스트 정상. **최소 지원 해상도**: match=0 특성상 레이아웃 구조(겹침·
+줄바꿈)는 이론상 어떤 폭에서도 안 깨진다(실측으로 320px 까지 확인) — 그러나 가독성은 별개다,
+캔버스가 항상 1920 기준으로 균등 축소되므로 폭이 줄면 모든 글자가 같이 작아진다(320px 폭에서
+버튼 글자 실측 렌더 크기 ≈3px, 사실상 판독 불가). **권장 최소 폭 960px**(버튼 글자 ≈9px) —
+이 숫자는 폰트 크기 계산 추정이고 스크린샷으로 육안 확인한 것은 아니다, 사람이 실제로 보고
+더 낮춰도 되는지 판단할 것. Unity MCP 컴파일 0/0, 하니스 209/209 그린 · 지문 IDENTICAL
+(이 세션이 건드린 `LiveMatchPanel.cs`/`LiveMatchRunner.cs` 는 애초에 `tools/dotnet-harness/Harness.csproj`
+컴파일 대상이 아님 — `LiveAssembler.cs` 만 포함, 재확인).
+**가장 최근 (그 앞) — 화면 전면 재설계: 3분할 구조 + 사이드바 3종(코치의 조언/수 노트/내 성향), Play 실측 완료.** 문제의식: 수싸움 게임인데 "관측 결과"(상대 습관을 읽어낸 결과)를 보여줄 자리가 화면에 없었다. `LiveMatchPanel.BuildCanvas` 를 전면 재작성 — 상단(점수판, 무수정 이관)/좌상(경기 화면 자리, 지금은 배경+안내문뿐인 placeholder)/좌하(위상·체력·그립 상태 줄 + 서술 줄 + 최근 5교환 로그)/우측(사이드바 3종)/하단(입력 3열+선택확인줄+확정버튼) 5블록. 좌표는 손으로 안 찍는다 — `VerticalLayoutGroup`/`HorizontalLayoutGroup` 이 실제로 계산하게 만들었다(지난 anchorX 반폭 산술 버그, 바로 위 항목의 재발 방지가 이 구조의 이유). `LiveMatchRunner` 에 `Ledger`/`OpponentHabits` 읽기 전용 프로퍼티 2개만 추가(기존 `Tendency`/`Config` 와 같은 패턴) — Core/Brain 무수정.
+사이드바 3종: (1) **코치의 조언** — 상태 기반 v1 규칙 5종(굳히기 중/잡기 열세/상대 체력 저하/상대 흔들기/기본), 판정식 합계·심판 누산기 미참조. (2) **수 노트** — `ObservationLedger.Observations(id) >= 1` 인 습관만 행으로 노출(아직 안 본 습관은 존재 자체를 안 보여준다), 심증(1~2회)/확정(3회 이상, `<s>` 취소선 아님·강조색)/폐기됨(`<s>` 취소선, `HabitState.IsRetired`) 3단계. (3) **내 성향** — 기존 노출 막대(`RefreshExposure`, 임계값 로직 무수정) 이관 + 경고선/위험선 라벨 상시 표시로 변경. `_preemptedText` 별도 배너는 제거(서술 줄과 100% 같은 문자열의 3중 중복이라 하나만 정리, 정보 손실 없음).
+검증: Unity MCP 컴파일 0/0(새 프로퍼티를 직접 참조하는 RunCommand 로 재컴파일 확인, HabitCount=5 진도윤 정상 로드). Play 모드에서 `Button.onClick.Invoke()` 로 실제 30교환 진행 — 좌표 실측(`GetWorldCorners` 쌍별 AABB, 부모-자식 포함관계 제외)으로 서기 입력 상태 63개 요소/겹침 0, 굳히기 입력 상태(수동 토글) 42개 요소/겹침 0. 값 대조: 코치 조언 폴백 문구 MATCH=True(그립열세/체력저하/흔들기 분기는 이번 세션에 자연 발생 안 해 코드 경로만 확인), 수 노트는 **심증 빼고 확정·폐기됨 둘 다 실측**(SeekGripRightSleeve 폐기됨, SeekGripLeftSleeve 확정 3회 — 화면 문자열이 `Ledger`/`HabitState` 직접 재계산과 일치), 내 성향 경고선 마크가 실제로 Dim→Warning(D9A61A) 전환하는 것도 `TendencyWindow.MajorityMatches` 독립 재계산과 대조해 확인. 하니스는 대상 아님(`tools/dotnet-harness/Harness.csproj` 에 `LiveMatchPanel.cs`/`LiveMatchRunner.cs` 자체가 원래 없음, `LiveAssembler.cs` 만 포함 — 확인 후 재실행 생략).
+**가장 최근 (그 앞) — 입력 열 텍스트 겹침 수정 (Play 실측 스크린샷 신고).** 원인은 사용자가 짚은 "쿠즈시로 항목 늘어난 손 열의 행 높이가 항목 수를 반영 못 한다" 가설이 **아니었다** — 실측(GetWorldCorners, 2026-08-11) 결과 Unity `VerticalLayoutGroup` 이 이미 손 열 10개 항목을 열 높이(285.3px) 안에 맞춰 자동으로 23.4px 씩 균등 축소하고 있었고, TMP 텍스트 필요 높이(21.6px)도 그 안에 들어가 겹침이 없었다(OVERFLOWS=False, 10개 전부). 진짜 원인은 전혀 다른 곳: `BuildStandingRoot` 의 세 열 중심 anchorX(0.06/0.38/0.62) 가 열 반폭 0.14 기준으로 균등하지 않았다(중심 간격 0.32 / 0.24 — 원래부터 비대칭, 이번 세션이 만든 버그 아님) — 손-코어는 간격 0.04 로 안 겹쳤지만 **코어-하체는 −0.04(실측 −76px), 두 열의 버튼 배경이 항상 겹쳐 있었다.** 점수판 재배치는 원인이 아니다 — `StandingInput.sizeDelta.y=320` 은 git log 로 생성 이후 한 번도 안 바뀐 걸 확인. 수정: 하체 열 중심만 0.62→0.68 로 이동(코어·손·확정 버튼은 무수정) — 재실측으로 45쌍(손10+코어3+하체4+확정1) 전부 0 겹침, 간격 손-코어 76.1px/코어-하체 38.0px(이전 −76)/하체-확정 72.9px 확인. 하니스 209/209, 지문 IDENTICAL(프레젠테이션 전용 좌표 수정)
 **가장 최근 (그 앞) — 골든스코어 도달 불가 수정 (53be917 후속).** `MatchClock.RegulationExpired`/`ScoreBoard.WinnerAtTimeUp()` 둘 다 격리 단위테스트 밖에는 호출부가 0개였다 — `MatchEngine.ResolveExchange` 가 교환 종료 후 시간종료를 한 번도 확인 안 했다(둘 다 그 자체로는 정확했다, CORE_DESIGN 이 이미 "MatchClock 이 RegulationExpired 를 내면 엔진이 GoldenScore 로 넘기거나 승자를 정한다"로 못박아둔 대로). 새 코드 없이 배선만: `ScoreBoard.FinishAtTimeUp()`(신규, WinnerAtTimeUp 로 결정되면 Finish, 다 비겼으면 EnterGoldenScore 호출 — 둘 다 기존 공개 API) 을 `ResolveExchange` 끝(그쳐/굳히기 진입 판정 뒤, 쿠즈시 갱신 앞)에서 `!Board.IsFinished && !Osaekomi.Active && Clock.Phase!=GoldenScore && Clock.RegulationExpired` 조건으로 호출. 새 이벤트 `GoldenScoreEntered` 1개 추가(결정 안 나고 골든스코어로 넘어갈 때만). `LiveMatchPanel.EventSummary` 에 표시 문구 한 줄 추가
 의도적으로 손 안 댄 경우 — **정규시간이 만료되는 순간 이미 굳히기가 막 열려 있으면(그 교환 자체가 절반/한판을 내며 굳히기를 연 경우) 시간종료 판정을 안 한다.** MATCH_RULES §1 은 "서기 교환은 4:00 을 넘겨도 끝까지 간다"만 규정하고 "이미 진행 중인 굳히기가 정규시간을 넘겨도 계속 도는가"는 규정하지 않는다 — 애매해서 구현 안 함, `GoldenScoreTests.OsaekomiJustOpened_AtRegulationExpiry_DoesNotTriggerTimeUp_Unresolved` 가 현재 동작(그대로 굳히기 유지, 시간종료도 골든스코어도 안 걸림)을 사실로 고정해둔다. 사람 판단 필요
 검증: `GoldenScoreTests.cs` 신규 7개(결정된 시간종료가 즉시 끝남 / 다 비긴 시간종료가 골든스코어로 넘어가고 시계가 무제한이 됨 / 골든스코어 중 판정 하나로 즉시 종료 — 풀 엔진 경로로 / 골든스코어 중 지도 3개도 동일 — 풀 엔진 경로로 / 틀린 답 두 개: 시간 되기 전엔 안 넘어간다, 굳히기 막 연 교환엔 안 걸린다). 202→209 그린, 지문 IDENTICAL(42노드 시나리오는 정규시간 근처도 안 간다). 스모크 6개 구성(반복/변주/현실적 × 쿠즈시 off/on) 전부 재확인 — 가장 오래 도는 것(변주 on, 50교환 캡 소진)도 최대 추정 150~165초로 240초 근처도 안 간다(50교환×고정 3초 + 굳히기 진입 1회의 이탈 틱 최대 15초). "ran out of exchanges" 는 하니스 자체의 50교환 캡이지 인게임 240초 시계와 무관 — 회귀망이 이 경로를 하나도 안 밟는다는 사실 그대로 남겨둠. Unity MCP 컴파일 확인(0/0), `ScoreBoard.FinishAtTimeUp()` 을 직접 참조하는 RunCommand 로 재컴파일 확인
@@ -148,7 +184,8 @@ Match length is still deliberately unresolved (see step 5 note above for the pos
 잡기 HUD (패치 1.7 로 필수가 됐다) — Core 는 이미 GripChanged 에 부위를 실어 보낸다. Game 쪽에서 RenderTexture 바깥 풀해상도 레이어로 받아야 한다
 
 결정 대기 (내가 판단 안 하고 남겨둔 취향 문제) — 선택지 버튼 높이가 111px → 82px 로 줄었다. 텍스트가 넘쳐서 TextPanel 을 키우느라 ChoiceRow 에서 떼어온 결과다. 라벨(26px)에는 충분하지만 버튼이 얇아 보이면 하단 패널을 1/3보다 키우거나 타이틀 34pt / 본문 24pt 를 줄이는 쪽으로 조정해야 한다
-카피 교체 목록 — `LiveMatchPanel` 의 "B 선행 — A 공격 불발" (동시 공격 시 표시, 2026-08-11 아침)은 v1 임시 시스템 문구다. `PlaceholderATechnique`("밭다리" 고정)와 같은 부류 — 진짜 카피/연출이 붙기 전까지 기계적 문구로 둔다. 2026-08-11 오후에 추가된 상태 HUD·교환 로그의 기계적 문구도 같은 부류다: "서기"/"굳히기 — {who} 누름 {n}초 (이탈 {a}/{b})", "변화 없음"(교환 로그 기본값), "{who} {부위} 확보"/"{who} 뜯기 — {결과}"/"{who} 쿠즈시 설치"/"{who} 카운터 준비 적중 — 상대 읽기 하락"(EventSummary 폴백 서술) — 전부 `LiveMatchPanel.EventSummary`/`FighterStatus` 에 있다
+카피 교체 목록 — `LiveMatchPanel` 의 "B 선행 — A 공격 불발" (동시 공격 시 표시, 2026-08-11 아침)은 v1 임시 시스템 문구다. `PlaceholderATechnique`("밭다리" 고정)와 같은 부류 — 진짜 카피/연출이 붙기 전까지 기계적 문구로 둔다. 2026-08-11 오후에 추가된 상태 HUD·교환 로그의 기계적 문구도 같은 부류다: "서기"/"굳히기 — {who} 누름 {n}초 (이탈 {a}/{b})", "변화 없음"(교환 로그 기본값), "{who} {부위} 확보"/"{who} 뜯기 — {결과}"/"{who} 쿠즈시 설치"/"{who} 카운터 준비 적중 — 상대 읽기 하락"(EventSummary 폴백 서술) — 전부 `LiveMatchPanel.EventSummary`/`FighterStatus` 에 있다.
+2026-08-11 오후(화면 재설계) 추가분, 전부 `LiveMatchPanel` — 경기 화면 자리: "경기 화면 — 연출 준비 전". 코치의 조언 5종(`RefreshCoachAdvice`): "굳히기 중 — 버티면 점수가 오르고, 빠져나가면 다시 선다" / "잡기 열세 — 손 싸움부터 다시 잡아라" / "상대 체력이 떨어졌다 — 밀어붙일 타이밍" / "상대가 흔들기를 걸었다 — 큰 기술을 조심해라" / "그립을 먼저 잡고 흐름을 만들어라"(기본값). 수 노트 습관 라벨 5종(`HabitLabel`): "업어치기 (그립 우세)" / "안뒤축감아치기 (지도 직후)" / "극단적 방어 (체력 열세)" / "오른소매 노림" / "왼소매 노림", 단계 문구 "심증 (N회)"/"확정 (N회)"/"폐기됨", 빈 상태 "아직 관측된 습관 없음". 내 성향 라벨: "경고선 — 최근 6수 중 4수 이상 같음" / "위험선 — 3연속 완전동일"
 Play 로 시나리오를 실제로 굴려보며 매핑을 다듬어라. 매핑은 title/content 만 읽고 정한 초안이라, 클립이 상황에 맞는지는 사람 눈으로 봐야 안다 — 특히 2026-08-07 에 AI 클립으로 교체한 19개 노드는 아직 Play 확인 전이다
 (Separate, not urgent) Finish the Judo match-1 scenario on the scenario board — three things the user still needs to answer: how the right-sleeve grip exchange actually plays out / timing of the collar-grip transition / the tells that distinguish an ippon-seoi-nage attempt from an ouchi-gari attempt
 
@@ -161,6 +198,17 @@ Why Assets/Editor/HubForceResolve.cs disappeared — nobody deleted it. It is Un
 Whether to keep the Unity Cloud link (cloudProjectId / organizationId in ProjectSettings.asset) — keep and commit. cloudEnabled is 0, it is a project GUID rather than a secret, ProjectSettings.asset is tracked anyway, and the editor rewrites it if removed.
 
 Session Log (newest first)
+2026-08-11 (오후, 7차 — 좁은 화면 레이아웃 붕괴 수정)
+사용자 지시: 719px 스크린샷 신고("추측 수정 금지, 원인 진단 먼저") + 4개 해상도 재검증 + 최소 지원 해상도 명기.
+진단 과정: CanvasScaler 라이브 값 확인(match=0, Unity 기본값) → 공식으로 "겉보기 폭은 실제 화면폭과 무관하게 항상 1920"임을 도출 → `PlayModeWindow.SetCustomRenderingResolution`(공식 API, reflection 아님 — `System.Reflection` 은 RunCommand 샌드박스에서 막혀 있어 처음엔 GameView 리사이즈로 우회하려다 발견)로 실제 719×404 를 재현해 `RectTransform.rect`/`LayoutElement` 필드를 직접 대조 → `ScoreboardRow`/`BottomInputRow`/버튼/여러 텍스트가 폭 0으로 무너져 있는 것을 확인 → 720p 로 되돌려도 동일하게 0(해상도 무관, 구조적 버그)임을 대조 실측으로 확정. 근본 원인: 교차축에 `preferred/min/flexible` 셋 다 안 준 `LayoutElement` 는 Unity 가 무조건 0으로 접는다 — 지난 세션의 겹침 검사가 이 사각지대(폭 0 요소는 애초에 안 겹친다)를 못 잡았다.
+수정: `SetFixedHeight`/`MakeButton` 기본값에 `flexibleWidth=1` 추가, `MakeFlexText`/`SetFlexible` 교차축 인자 전부 0→1, `MakeFlexText` 는 `preferredHeight=minHeight` 도 같이 준다(min 단독 충분성은 실측 안 함 — 확인된 조합만 씀). `MakeText` 에 TMP auto-size 상시 적용 + 버튼 라벨은 줄바꿈 금지(`textWrappingMode=NoWrap`, 구 API `enableWordWrapping` 은 obsolete 경고가 나서 신 API 로 씀).
+검증: 1920×1080/1280×720/1024×768/719×404 네 해상도 + 여분으로 600×338/320×180 까지 총 6개 — 63개 요소·zeroSize=0·쌍별 겹침=0·버튼 라벨 줄바꿈=0 전 구간 동일. 719px 에서 실제 클릭(손/코어/하체+확정)까지 재확인. 최소 지원 폭은 "구조적으로는 하한 없음(320px 도 안 깨짐), 가독성 기준 권장 960px"로 STATUS 에 명기 — 후자는 폰트 크기 계산 추정이지 육안 확인이 아니라고 밝혀둠(스크린샷 캡처가 이 MCP 환경에서 신뢰 안 된다는 기존 troubleshooting 문서와 같은 이유로 생략, 좌표·폰트 크기 실측으로 대체).
+Unity MCP 컴파일 0/0(obsolete 경고 1개 있었다가 API 교체로 제거, 최종 0/0). 하니스 209/209, 지문 IDENTICAL(LiveMatchPanel.cs/LiveMatchRunner.cs 는 하니스 컴파일 대상이 아님 — 재확인).
+2026-08-11 (오후, 6차 — 화면 전면 재설계)
+사용자 지시: 현재 레이아웃을 버리고 상단(점수판)/좌상(경기 화면 자리)/좌하(서술+로그)/우측(사이드바 3종: 코치의 조언/수 노트/내 성향)/하단(입력) 5블록 구조로. 절대 표시 금지 재확인(심판 누산기/B 선택지·의도/판정식 합계/A 가 관측 안 한 B 습관). 겹침 재발 방지 조건 명시(좌표를 손으로 안 찍고 영역 비율·항목 수에서 계산).
+계획 단계에서 3가지를 스스로 판단하고 명시했다(사용자 재확인 없이 진행, 전부 표시 정보의 취지를 안 바꾸는 배치 판단이라 판단): 기존 위상/체력/그립/손 잠김 상태 HUD 는 스펙에 자리가 명시 안 돼 있었다 — 좌하 "상태 줄"로 흡수(문자열 조립 로직 무수정). 코치 조언은 자기 노출 위험선을 다루지 않는다(3번 사이드바와 중복 방지). `_preemptedText` 별도 배너는 정보 손실 없이 제거(서술 줄과 100% 동일 문자열의 3중 표시 중 하나 정리).
+구현: `LiveMatchRunner`에 `Ledger`/`OpponentHabits` 프로퍼티 2줄 추가. `LiveMatchPanel.BuildCanvas` 전면 재작성 — `VerticalLayoutGroup`/`HorizontalLayoutGroup` 중첩으로 5블록 + 사이드바 3박스 + 입력 3열을 전부 계산 배치(anchorX 상수 완전 제거). `MakeVerticalGroup`/`MakeHorizontalGroup`/`SetFlexible`/`SetFixedHeight`/`SetFixedWidth`/`MakeFlexText`/`MakeSidebarBox` 헬퍼 신설. 기존 판정 서술·로그·노출막대 임계값·점수판·굳히기 2지선다 로직은 전부 무수정(자리만 이동). Core/Brain 무수정.
+검증 상세는 위 Next Up 항목 참조. 하니스 대상 아님(확인만, 재실행 없음) — Unity MCP 컴파일 0/0 + Play 모드 30교환 실측(좌표 겹침 0 두 상태, 코치조언/수노트/내성향 값 대조)으로 대체.
 2026-08-11 (오후, 5차 — 쿠즈시 → 흔들기/Setup 개명)
 사유: 쿠즈시는 유도 전용 어휘라 타 종목(복싱·킥복싱·MMA) 확장 시 안 맞는다. 규칙·동작은 일절 무변경, 이름만. 화면 표시는 "흔들기", 코드 식별자는 `Setup*`.
 전수 조사 먼저 — grep 으로 24개 파일 확인 후 목록을 보고하고 진행. 주의 사항 셋 다 확인 완료: (1) Feint/페인트/위장공격(§6.1)과 텍스트·의미 둘 다 안 겹침 (2) 예비동작(tell 모캡 클립 이름)과 무관, 재사용 안 함 (3) 이름 기반 직렬화 — `.unity`/`.asset`/`.prefab` 전체를 grep 해서 저장된 참조가 0 개임을 확인, 유일한 이름 기반 조회는 `PlayModeSetupMenu.cs` 의 `SerializedProperty.FindProperty("kuzushiEnabled")` 뿐이라 필드 개명과 같이 고침. 지문(`fingerprint-baseline.txt`)도 grep 으로 "쿠즈시"/"Kuzushi" 0 개 확인 — 42노드 대조 시나리오가 플래그 기본 off 라 애초에 이 경로를 안 밟는다.
