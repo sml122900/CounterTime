@@ -57,12 +57,26 @@ namespace CounterTime.Game.Match
         CoreStance _core = CoreStance.Neutral;
         LegAction _legs = LegAction.Neutral;
 
-        // 2026-08-12 실전 UI 개편 — 손·코어·하체 상시 노출 3열 폐지, 캐릭터 옆 트리거
-        // 버튼 + 위로 펼치는 드롭다운으로 전환(사용자 결정: 주체 기준=전부 A 옆,
-        // 화면 고정 위치=본 추적 안 함). 상세 근거는 md/STATUS.md 참조.
+        // 2026-08-12 실전 UI 개편 — 손·코어·하체 상시 노출 3열 폐지 → 캐릭터 옆
+        // 트리거+드롭다운(주체 기준=전부 A 옆, 화면 고정 위치=본 추적 안 함) →
+        // 같은 날 후속: 위로 펼치는 드롭다운이 A 모델을 가리고 손 목록이 화면 밖으로
+        // 잘린다는 Play 실측 신고로 방사형(휠) 메뉴로 재전환. 상세 근거는 STATUS.md.
         Button _handTrigger, _coreTrigger, _legsTrigger, _confirmButton;
+        // 트리거 자체는 축 이름만 표시하는 작은 버튼(휠 반지름 여유 확보용, 아래
+        // BuildAxisControl 참조) — 현재 선택은 트리거 바로 아래 별도 텍스트로 낸다.
+        TMP_Text _handSummary, _coreSummary, _legsSummary;
         Transform _handDropdown, _coreDropdown, _legsDropdown;
         GameObject _floatingControlsRoot;
+        // 2026-08-12 방사형 메뉴 실측 후속 — 부채꼴이 오른쪽으로 펼쳐지는 이상 A 의
+        // 실측 화면 폭(x 47~806, 1920 폭의 약 40%)과 트리거 위치(x=25) 특성상(±90도
+        // 지점조차 반지름과 무관하게 x≈25 부근이라 A 의 왼쪽 끝과 항상 겹친다) 겹침 자체를
+        // 반지름 조정으로 없앨 수 없다는 게 확인됐다. 사용자 결정: 겹침을 인정하고 휠이
+        // 열린 동안만 배경을 어둡게 해 위 계층(선택지)을 시각적으로 분리한다 — LoL
+        // 핑 휠/스파이더맨 웹 기술 휠도 게임 화면 위에 그대로 겹쳐 뜬다(참고 사례와
+        // 같은 방식). 반지름·각도는 무수정.
+        RawImage _arenaBackground;
+        static readonly Color ArenaBright = Color.white;
+        static readonly Color ArenaDim = new Color(0.45f, 0.45f, 0.45f, 1f);
         // 확정 버튼 활성화 게이트 — 코어·하체는 기본값(중립)이 이미 "유효한 선택"이라
         // _core/_legs 필드만으로는 "사용자가 실제로 골랐는지"를 못 가른다. 드롭다운에서
         // 뭔가 하나라도 클릭해야(같은 값을 다시 골라도) true 가 된다.
@@ -222,21 +236,30 @@ namespace CounterTime.Game.Match
             RefreshConfirmButton();
         }
 
+        // 손 축 반지름 130 은 A(캔버스 x=179 실측)와 24px 여유를 두도록 확정된 값
+        // (2026-08-12 사용자 확정) — 트리거를 축 이름만 표시하는 작은 버튼으로 만들어
+        // 이 여유를 그대로 지켰다(트리거가 넓으면 휠 원점이 A 쪽으로 밀려 여유가
+        // 줄어든다 — 아래 BuildAxisControl 주석 참조). 코어·하체는 항목이 적어
+        // 반지름을 더 좁혀도 간격이 넉넉하다(실측: 코어 90→64px 여유, 하체 100→54px).
+        const float HandRadius = 130f, CoreRadius = 90f, LegsRadius = 100f;
+
         void RebuildStandingColumns()
         {
             // 그립 상태가 바뀌지 않는 한(확정 전) 손 후보는 그대로다 — 선택 강조만 새로 칠한다.
-            RebuildAxisOptions(_handDropdown, _runner.A.HandOptions(), HandLabel, o => _hand.Equals(o),
+            RebuildAxisOptions(_handDropdown, HandRadius, _runner.A.HandOptions(), HandLabel, o => _hand.Equals(o),
                 o => { _hand = (HandTarget)o; _handChosen = true; RebuildStandingColumns(); RefreshExposure(); RefreshConfirmButton(); });
-            RebuildAxisOptions(_coreDropdown, _runner.A.CoreOptions(), CoreLabel, o => _core.Equals(o),
+            RebuildAxisOptions(_coreDropdown, CoreRadius, _runner.A.CoreOptions(), CoreLabel, o => _core.Equals(o),
                 o => { _core = (CoreStance)o; _coreChosen = true; RebuildStandingColumns(); RefreshExposure(); RefreshConfirmButton(); });
-            RebuildAxisOptions(_legsDropdown, _runner.A.LegOptions(), LegsLabel, o => _legs.Equals(o),
+            RebuildAxisOptions(_legsDropdown, LegsRadius, _runner.A.LegOptions(), LegsLabel, o => _legs.Equals(o),
                 o => { _legs = (LegAction)o; _legsChosen = true; RebuildStandingColumns(); RefreshExposure(); RefreshConfirmButton(); });
 
-            // 드롭다운이 닫혀 있어도 3축 상태가 한눈에 보이도록 트리거 라벨에 반영
-            // (2026-08-12 사용자 확정 — 옛 "선택: —·중립·중립" 요약 줄을 대체).
-            _handTrigger.GetComponentInChildren<TMP_Text>().text = "손: " + (_handChosen ? HandLabel(_hand) : "—");
-            _coreTrigger.GetComponentInChildren<TMP_Text>().text = "코어: " + CoreLabel(_core);
-            _legsTrigger.GetComponentInChildren<TMP_Text>().text = "하체: " + LegsLabel(_legs);
+            // 휠이 닫혀 있어도 3축 상태가 한눈에 보이도록 트리거 아래 요약 텍스트에
+            // 반영한다(2026-08-12 방사형 개편 — 트리거 자체는 축 이름만 표시하는
+            // 작은 버튼이라 선택 내용은 별도 줄로 뺐다. 여전히 "닫힌 상태에서도
+            // 트리거 쪽만 보면 3축이 다 읽힌다"는 요구는 만족한다).
+            _handSummary.text = _handChosen ? HandLabel(_hand) : "—";
+            _coreSummary.text = CoreLabel(_core);
+            _legsSummary.text = LegsLabel(_legs);
         }
 
         void Confirm()
@@ -280,16 +303,32 @@ namespace CounterTime.Game.Match
             _confirmButton.GetComponent<Image>().color = allChosen ? ShidoYellow : Idle;
         }
 
-        void RebuildAxisOptions<T>(Transform dropdown, IReadOnlyList<T> options, System.Func<T, string> label,
-                                   System.Func<object, bool> isSelected, System.Action<object> onPick)
+        /// 항목을 반지름 <paramref name="radius"/> 짜리 오른쪽으로 여는 반원(−90°~+90°,
+        /// 트리거 중심 기준)에 균등 배치한다. 항목이 1개뿐이면 각도 계산이 0 으로
+        /// 나뉘는 걸 피해 정면(0°)에 둔다 — 이 앱에서 실제로 1개짜리 축은 없지만
+        /// 방어적으로 막아둔다.
+        void RebuildAxisOptions<T>(Transform dropdown, float radius, IReadOnlyList<T> options,
+                                   System.Func<T, string> label, System.Func<object, bool> isSelected,
+                                   System.Action<object> onPick)
         {
             for (int i = dropdown.childCount - 1; i >= 0; i--)
                 Destroy(dropdown.GetChild(i).gameObject);   // 확정 전 재구성뿐이라 즉시 파괴로 충분
 
-            foreach (var opt in options)
+            int n = options.Count;
+            for (int idx = 0; idx < n; idx++)
             {
-                var captured = opt;
-                var btn = MakeButton(dropdown, label(opt), () => { onPick(captured); dropdown.gameObject.SetActive(false); });
+                var captured = options[idx];
+                float angleDeg = n > 1 ? -90f + idx * (180f / (n - 1)) : 0f;
+                float rad = angleDeg * Mathf.Deg2Rad;
+                var pos = new Vector2(radius * Mathf.Cos(rad), radius * Mathf.Sin(rad));
+
+                var btn = MakeButton(dropdown, label(captured), () => { onPick(captured); CloseAllWheels(); });
+                var brt = (RectTransform)btn.transform;
+                brt.anchorMin = brt.anchorMax = new Vector2(0.5f, 0.5f);
+                brt.pivot = new Vector2(0.5f, 0.5f);
+                brt.anchoredPosition = pos;
+                brt.sizeDelta = new Vector2(74, 36);
+
                 var img = btn.GetComponent<Image>();
                 img.color = isSelected(captured) ? Selected : Idle;
             }
@@ -668,6 +707,8 @@ namespace CounterTime.Game.Match
             var raw = go.GetComponent<RawImage>();
             raw.texture = stage.Output;
             raw.raycastTarget = false;
+            raw.color = ArenaBright;
+            _arenaBackground = raw;
 
             var fitter = go.GetComponent<AspectRatioFitter>();
             fitter.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
@@ -776,22 +817,42 @@ namespace CounterTime.Game.Match
             return img;
         }
 
-        /// 캐릭터 옆 손·코어·하체 드롭다운 트리거 3개를 짓는다. 2026-08-12 사용자
-        /// 결정 3건: (a) 주체 기준 — 전부 A 캐릭터 옆(상대를 노리는 손도 포함) —
-        /// 조작 버튼이 한 곳에 몰려 실수 적음. (b) 화면 고정 위치 — 본 추적 안 함.
-        /// A 의 Fight Idle 1.5초(12fps 18스텝) 실측: 골반 x±5.1/y±2.0px, 머리
-        /// x±17.5/y±2.9px, 오른손 x±10.3/y±11.3px — 본을 그대로 따라가면 83ms
-        /// 마다 버튼이 튀어 보인다(클릭 대상은 정밀 포즈 추종보다 안정성이 중요).
-        /// (c) 위로 펼침 — 코어(144px)·하체(194px) 드롭다운은 A 자신 위로만 펼쳐져
-        /// 상대(B)와 안 겹친다(A·B 사이 여백 179px 실측 확인). 손 드롭다운은 그립
-        /// 상황에 따라 옵션이 최대 10개(≈460px)까지 늘어날 수 있어 세 트리거 중
-        /// 가장 위(어깨 높이)에 두어도 화면 위로 넘칠 수 있다 — 알려진 한계, 코드로
-        /// 안 고침(스크롤 등은 범위 밖). 트리거끼리도 가깝게 쌓아 위쪽 드롭다운이
-        /// 열리면 아래 트리거를 잠깐 가릴 수 있다 — 한 번에 하나만 열리므로
-        /// (<see cref="ToggleDropdown"/>) 치명적이지 않다고 판단.
-        /// 좌표는 1920 기준 캔버스 좌표 실측값(카메라 x=0.6 상태에서 A 본 위치) —
-        /// CanvasScaler ScaleWithScreenSize 라 이 고정 오프셋은 다른 해상도에서도
-        /// 비례적으로 맞는다(BuildScoreboard 의 고정 오프셋과 같은 원리).
+        /// 캐릭터 옆 손·코어·하체 방사형(휠) 메뉴 트리거 3개를 짓는다.
+        ///
+        /// 2026-08-12 1차 개편(트리거+위로 펼치는 드롭다운) 이후 같은 날 후속 —
+        /// Play 실측 신고 두 건: 위로 펼치는 드롭다운이 A 모델을 가리고, 손 목록
+        /// (최대 10개)은 세로로 화면 밖까지 잘렸다. 방사형 메뉴로 교체해 둘 다
+        /// 구조적으로 없앴다 — 반원(−90°~+90°, 트리거 중심 기준 오른쪽으로 열림)
+        /// 의 세로 도달폭은 ±반지름뿐이라 옛 드롭다운(최대 460px 이상 위로 직선
+        /// 확장)보다 훨씬 작고, 트리거가 화면 왼쪽 끝에 있어 반지름을 A 실측 위치
+        /// (캔버스 x=179)보다 작게 잡으면 A 와도 안 겹친다.
+        ///
+        /// 사용자 확정 사항(임의 변경 금지): 트리거 3개는 화면 왼쪽 끝에 세로로,
+        /// 선택지는 오른쪽으로 펼침, 완전한 원 아닌 적당한 호, 손처럼 항목 많은
+        /// 축은 곡률을 완만하게(=반지름을 키워 항목 간격을 넉넉히).
+        /// 반지름은 2026-08-12 실측·보고 후 사용자 확정: 손(최대 10개) 130 —
+        /// A 캔버스 x=179 대비 24px 여유. 코어(3개) 90(64px 여유), 하체(4개) 100
+        /// (54px 여유) — 항목이 적어 더 좁혀도 간격이 넉넉해 같은 여유 원칙으로
+        /// 판단해 정함(사용자가 직접 지정한 값은 손뿐, 코어·하체는 이 판단에 포함).
+        /// B(캔버스 x=974~)와는 어떤 반지름에서도 안 겹친다(최대 반지름 130 이어도
+        /// 500px 이상 여유).
+        ///
+        /// 트리거 자체는 축 이름만 표시하는 작은 버튼(74x36)이다 — 트리거가 넓으면
+        /// 그 중심(=휠 원점)이 A 쪽으로 밀려 위 여유가 줄어든다(예: 트리거가 130px
+        /// 넓으면 중심이 65px 밀려 손 축 여유가 24px→−41px, 즉 겹침으로 뒤집힌다 —
+        /// 실측 중 발견해 트리거를 축 이름만 표시하도록 좁힌 이유). 현재 선택은
+        /// 트리거 바로 아래 별도 텍스트(<see cref="_handSummary"/> 등)로 낸다 —
+        /// "닫힌 상태에서도 3축이 트리거 쪽만 보면 다 읽힌다"는 요구는 그대로 만족.
+        ///
+        /// 세로 배치: 하체(440) 아래 · 손(550) 가운데 · 코어(660) 위, 110px 간격 —
+        /// 반지름이 가장 큰 손을 가운데 둬 위아래 모두에 여유를 준다. 이 순서와
+        /// 정확한 y 값은 사람이 지정한 게 아니라 실측한 안전 구간 안에서 고른
+        /// 판단이다: 위쪽 경계는 NarrationLog 상단(캔버스 y=792, 2026-08-12
+        /// 오후 세션 실측), 아래쪽 경계는 ConfirmRow 상단(y=308) — 각 축이 자기
+        /// 반지름만큼 열렸을 때(하체 340~540, 손 420~680, 코어 570~750) 이 두
+        /// 경계를 안 넘는지 먼저 계산으로 확인한 뒤 정했다(첫 시도였던 코어=741 은
+        /// 반지름 90 을 더하면 831 이 되어 NarrationLog 를 39px 침범해 660 으로
+        /// 낮췄다 — 이 재조정 과정 자체를 기록해둔다).
         void BuildFloatingControls(Transform canvasRoot)
         {
             var go = new GameObject("FloatingControls", typeof(RectTransform));
@@ -802,56 +863,108 @@ namespace CounterTime.Game.Match
             rt.offsetMin = rt.offsetMax = Vector2.zero;
             _floatingControlsRoot = go;
 
-            (_legsTrigger, _legsDropdown) = BuildAxisControl(go.transform, "하체", new Vector2(475, 561));
-            (_coreTrigger, _coreDropdown) = BuildAxisControl(go.transform, "코어", new Vector2(475, 647));
-            (_handTrigger, _handDropdown) = BuildAxisControl(go.transform, "손", new Vector2(475, 733));
+            (_legsTrigger, _legsDropdown, _legsSummary) = BuildAxisControl(go.transform, "하체", new Vector2(25, 440));
+            (_handTrigger, _handDropdown, _handSummary) = BuildAxisControl(go.transform, "손", new Vector2(25, 550));
+            (_coreTrigger, _coreDropdown, _coreSummary) = BuildAxisControl(go.transform, "코어", new Vector2(25, 660));
         }
 
-        /// 트리거 버튼 하나 + 그 위로 펼쳐지는 드롭다운 하나. 부모(<paramref name="anchoredPos"/>
-        /// 를 쓰는 anchor 오브젝트)는 레이아웃 그룹이 아닌 순수 고정 좌표 앵커라,
-        /// 자식들의 위치·크기는 LayoutElement 가 아니라 RectTransform 을 직접 쓴다
-        /// (레이아웃 그룹 안에서만 의미가 있는 LayoutElement 헬퍼들과 다른 규칙 —
-        /// 주석으로 밝혀둔다, 실수로 SetFlexible 등을 여기 쓰면 아무 효과가 없다).
-        (Button trigger, Transform dropdown) BuildAxisControl(Transform parent, string axisId, Vector2 anchoredPos)
+        /// 트리거 버튼 하나 + 그 아래 선택 요약 텍스트 + 오른쪽으로 펼치는 휠(방사형
+        /// 메뉴) 컨테이너. 부모(<paramref name="anchoredPos"/> 를 쓰는 anchor
+        /// 오브젝트)는 레이아웃 그룹이 아닌 순수 고정 좌표 앵커라, 자식들의 위치·
+        /// 크기는 LayoutElement 가 아니라 RectTransform 을 직접 쓴다(레이아웃 그룹
+        /// 안에서만 의미가 있는 LayoutElement 헬퍼들과 다른 규칙 — 실수로
+        /// SetFlexible 등을 여기 쓰면 아무 효과가 없다). anchor 의 원점 자체가
+        /// 휠의 각도 계산 기준점이다(<see cref="RebuildAxisOptions"/> 참조).
+        (Button trigger, Transform dropdown, TMP_Text summary) BuildAxisControl(
+            Transform parent, string axisId, Vector2 anchoredPos)
         {
             var anchor = new GameObject(axisId + "Control", typeof(RectTransform));
             anchor.transform.SetParent(parent, false);
             var art = (RectTransform)anchor.transform;
             art.anchorMin = art.anchorMax = Vector2.zero;
-            art.pivot = new Vector2(0.5f, 0);
+            art.pivot = new Vector2(0.5f, 0.5f);
             art.anchoredPosition = anchoredPos;
             art.sizeDelta = Vector2.zero;
 
             var trigger = MakeButton(anchor.transform, axisId, null);
             var trt = (RectTransform)trigger.transform;
-            trt.anchorMin = trt.anchorMax = new Vector2(0.5f, 0);
-            trt.pivot = new Vector2(0.5f, 0);
+            trt.anchorMin = trt.anchorMax = new Vector2(0.5f, 0.5f);
+            trt.pivot = new Vector2(0.5f, 0.5f);
             trt.anchoredPosition = Vector2.zero;
-            trt.sizeDelta = new Vector2(150, 40);
+            trt.sizeDelta = new Vector2(74, 36);
 
-            var dropdown = MakeVerticalGroup(anchor.transform, axisId + "Dropdown", spacing: 4);
-            var drt = (RectTransform)dropdown;
-            drt.anchorMin = drt.anchorMax = new Vector2(0.5f, 0);
-            drt.pivot = new Vector2(0.5f, 0);
-            drt.anchoredPosition = new Vector2(0, 44);   // 트리거(40px) 바로 위, 4px 여백
-            drt.sizeDelta = new Vector2(170, 0);          // 높이는 ContentSizeFitter 가 정함
-            dropdown.gameObject.AddComponent<Image>().color = PanelBg;
-            dropdown.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            dropdown.gameObject.SetActive(false);
+            // 트리거(36 높이, 중심 기준 ±18)와 6px 겹쳤던 첫 시도(-22, 실측으로 발견해
+            // 고침)를 -32 로 내려 4px 여유를 둔다 — 요약 텍스트 자신의 높이(20, 중심
+            // 기준 ±10)까지 감안한 값.
+            var summary = MakeText(anchor.transform, "", TextAlignmentOptions.Top, new Vector2(0, -32),
+                new Vector2(90, 20), new Vector2(0.5f, 0.5f), fontSizeOverride: 13, singleLine: true);
 
-            trigger.onClick.AddListener(() => ToggleDropdown(dropdown.gameObject));
-            return (trigger, dropdown);
+            var dropdown = new GameObject(axisId + "Wheel", typeof(RectTransform));
+            dropdown.transform.SetParent(anchor.transform, false);
+            var drt = (RectTransform)dropdown.transform;
+            drt.anchorMin = drt.anchorMax = new Vector2(0.5f, 0.5f);
+            drt.pivot = new Vector2(0.5f, 0.5f);
+            drt.anchoredPosition = Vector2.zero;
+            drt.sizeDelta = Vector2.zero;
+            dropdown.SetActive(false);
+
+            trigger.onClick.AddListener(() => ToggleDropdown(dropdown));
+            return (trigger, dropdown.transform, summary);
         }
 
         /// 한 번에 하나만 열리게 한다 — 트리거를 눌렀을 때 그게 이미 열려 있었으면
-        /// 닫고(토글), 아니면 셋 다 닫은 뒤 그것만 연다.
+        /// 닫고(토글), 아니면 전부 닫은 뒤 그것만 연다.
         void ToggleDropdown(GameObject dropdown)
         {
             bool willOpen = !dropdown.activeSelf;
+            CloseAllWheels();
+            if (willOpen) OpenWheel(dropdown);
+        }
+
+        /// 휠 셋 다 닫고 트리거·요약 텍스트를 전부 다시 보이게 한다. 항목을
+        /// 골랐을 때(<see cref="RebuildAxisOptions"/> 의 onPick 클로저)도 이 경로를
+        /// 타야 숨겨뒀던 다른 두 축 트리거가 되살아난다 — 단순히 연 휠만 닫으면
+        /// 그 복구가 빠진다.
+        void CloseAllWheels()
+        {
             _handDropdown.gameObject.SetActive(false);
             _coreDropdown.gameObject.SetActive(false);
             _legsDropdown.gameObject.SetActive(false);
-            dropdown.SetActive(willOpen);
+            _handTrigger.gameObject.SetActive(true);
+            _coreTrigger.gameObject.SetActive(true);
+            _legsTrigger.gameObject.SetActive(true);
+            _handSummary.gameObject.SetActive(true);
+            _coreSummary.gameObject.SetActive(true);
+            _legsSummary.gameObject.SetActive(true);
+            _arenaBackground.color = ArenaBright;
+        }
+
+        /// <paramref name="dropdown"/> 을 열고 나머지 두 축의 트리거+요약은 숨긴다.
+        /// 트리거끼리 세로로 가깝게(110px 간격) 쌓여 있어 휠이 열리면(반지름 최대
+        /// 130) 위아래로 그 옆 트리거 자리까지 닿는다 — 숨기지 않으면 휠의 양끝
+        /// 항목과 시각적으로 겹친다(2026-08-12 계산: 손 휠(중심 y=550, 반지름
+        /// 130)이 y=420~680 을 덮어 하체(440)·코어(660) 트리거 자리를 그대로
+        /// 지나간다). 셋 다 겹칠 걱정 없이 한 번에 하나씩만 조작하게 만드는 목적도
+        /// 겸한다(다른 축을 실수로 못 누르게).
+        void OpenWheel(GameObject dropdown)
+        {
+            dropdown.SetActive(true);
+            _arenaBackground.color = ArenaDim;
+            if (dropdown != _handDropdown.gameObject)
+            {
+                _handTrigger.gameObject.SetActive(false);
+                _handSummary.gameObject.SetActive(false);
+            }
+            if (dropdown != _coreDropdown.gameObject)
+            {
+                _coreTrigger.gameObject.SetActive(false);
+                _coreSummary.gameObject.SetActive(false);
+            }
+            if (dropdown != _legsDropdown.gameObject)
+            {
+                _legsTrigger.gameObject.SetActive(false);
+                _legsSummary.gameObject.SetActive(false);
+            }
         }
 
         GameObject BuildOsaekomiRoot(Transform parent)
