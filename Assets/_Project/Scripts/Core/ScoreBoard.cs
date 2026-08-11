@@ -67,6 +67,18 @@ namespace CounterTime.Core
             return null;
         }
 
+        /// §1 — call once, right after the engine observes regulation has expired.
+        /// A clear leader per <see cref="WinnerAtTimeUp"/> wins immediately; a full
+        /// tie enters golden score instead. No-op if the match already ended (e.g.
+        /// this same exchange's own score already finished it).
+        public void FinishAtTimeUp()
+        {
+            if (IsFinished) return;
+            var winner = WinnerAtTimeUp();
+            if (winner.HasValue) Finish(winner.Value);
+            else EnterGoldenScore();
+        }
+
         void Finish(FighterId winner)
         {
             IsFinished = true;

@@ -319,6 +319,7 @@ namespace CounterTime.Game.Match
 
         static string EventSummary(MatchEvent e) => e switch
         {
+            GoldenScoreEntered => "골든스코어 진입",
             OsaekomiScoreAwarded sa => $"{JudgementLabel(sa.Judgement)} 획득 — 누름 {sa.HeldSeconds}초",
             OsaekomiEnded => "굳히기 종료 — 다시 서기",
             MatchEnded m => m.Winner.HasValue ? $"경기 종료 — {FighterLabel(m.Winner.Value)} 승" : "경기 종료 — 무승부",

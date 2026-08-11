@@ -160,6 +160,27 @@ namespace CounterTime.Core
                     CallMatte(ev);
             }
 
+            // §1 — time-up is checked AFTER the exchange fully resolves (judgment,
+            // score, stamina, shido — all already applied above). Gated on
+            // !Osaekomi.Active: this method already throws at entry if a hold from
+            // an EARLIER exchange were still open, so Active here can only mean
+            // THIS exchange just opened one — MATCH_RULES does not say whether a
+            // hold in progress should keep running past regulation or be cut off,
+            // so that case is deliberately left untouched (unlike a plain standing
+            // exchange, which §1 already says plays out in full past 4:00).
+            // Once golden score starts, Clock.Phase stays GoldenScore forever, so
+            // this block only ever fires once.
+            if (!Board.IsFinished && !Osaekomi.Active && Clock.Phase != MatchPhase.GoldenScore
+                && Clock.RegulationExpired)
+            {
+                Board.FinishAtTimeUp();
+                if (!Board.IsFinished)
+                {
+                    Clock.Phase = MatchPhase.GoldenScore;
+                    ev.Add(new GoldenScoreEntered());
+                }
+            }
+
             // §4.4 [초안] — 그쳐·굳히기 진입·경기 종료가 이 교환에서 일어났으면 쿠즈시
             // 상태는 국면 리셋과 함께 소멸한다. 그 외에는 이번 교환에 새로 선언된 쪽만
             // 다음 교환으로 넘어간다(누적이 아니라 교체 — 1교환만 지속).

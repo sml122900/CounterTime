@@ -157,4 +157,10 @@ namespace CounterTime.Core
         public readonly FighterId? Winner;
         public MatchEnded(FighterId? winner) => Winner = winner;
     }
+
+    /// §1 — regulation expired on a full tie (ippon/waza-ari/yuko counts all equal),
+    /// so the match continues under golden score instead of ending. A decided
+    /// time-up winner does NOT get this event — it ends the match normally via
+    /// <see cref="MatchEnded"/> instead.
+    public sealed class GoldenScoreEntered : MatchEvent { }
 }
