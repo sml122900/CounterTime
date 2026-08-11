@@ -73,7 +73,19 @@ namespace CounterTime.Game.Match
             // 거리만 좁히고(-6→-4.25) 하향 11° 를 줘서 재실측 — A 100.9px/B 99.6px,
             // 좌우(57~232, 프레임 0..320)·상하(41~143, 프레임 0..180) 모두 클리핑 없음
             // (2026-08-12, ArenaStageCamera.WorldToScreenPoint 로 두 파이터 바운즈 직접 실측).
-            go.transform.SetPositionAndRotation(new Vector3(0, 1.6f, -4.25f), Quaternion.Euler(11f, 0, 0));
+            //
+            // 2026-08-12 후속 — 전체화면 배경 전환 후 B 가 우측 사이드바(화면폭의 약
+            // 65% 지점부터 시작) 뒤로 완전히 가려진다는 신고. x=0 기준 두 파이터의 결합
+            // RT-x 폭은 169px(320 중)로 사이드바 이전 안전폭(~208px)보다 좁았다 — 즉
+            // 확대·축소 없이 옆으로 이동만 하면 됐다(세로 100px 규격 무관). x=0.6 으로
+            // 이동해 재실측: B 우측 끝 RTx=201.5(안전선 207.8 대비 여유), A 좌측 끝
+            // RTx=26.0(왼쪽 여유 충분), 세로 A 102.1px/B 100.9px(규격 유지). 16:9(1920x1080/
+            // 1280x720/960x540/320x180) 및 근사치(719x404/600x338)에서 확인됨.
+            // 4:3(1024x768) 은 EnvelopeParent 가 좌우 25% 를 잘라내는 창이라 이 x=0.6 로도
+            // A 왼쪽이 화면 밖으로 나가고 B 도 사이드바에 다시 걸린다(실측 확인, 코드로
+            // 안 고침) — 크롭 방식이 종횡비마다 달라 정적 카메라 하나로 모든 창 비율을
+            // 동시에 만족시킬 수 없다. 16:9(주 타깃으로 추정)를 우선했다.
+            go.transform.SetPositionAndRotation(new Vector3(0.6f, 1.6f, -4.25f), Quaternion.Euler(11f, 0, 0));
             var cam = go.GetComponent<Camera>();
             cam.fieldOfView = 45f;
             cam.nearClipPlane = 0.3f;
