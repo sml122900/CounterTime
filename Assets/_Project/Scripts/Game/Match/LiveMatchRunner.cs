@@ -49,6 +49,8 @@ namespace CounterTime.Game.Match
         public MatchEngine Engine { get; private set; }
         public LiveAssembler A { get; private set; }
         public TendencyWindow Tendency => _window;
+        /// HUD 표시용 — 쿠즈시 게이트가 켜져 있는지 판단하는 데만 쓴다.
+        public MatchRulesConfig Config => _cfg;
 
         /// 화면·로그가 붙는 지점 — Core 이벤트를 원본 그대로 낸다.
         public event Action<MatchEvent> Presented;

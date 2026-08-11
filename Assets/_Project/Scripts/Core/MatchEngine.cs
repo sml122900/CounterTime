@@ -77,6 +77,11 @@ namespace CounterTime.Core
             Clock = new MatchClock(cfg);
         }
 
+        /// §4.4 [초안] — presentation read of whether `who`'s kuzushi setup carries into
+        /// the exchange about to resolve. ResolveTechnique reads `_kuzushiActive`
+        /// directly for judgment purposes; this is the read-only mirror for HUDs.
+        public bool IsKuzushiActive(FighterId who) => _kuzushiActive[(int)who];
+
         public IReadOnlyList<MatchEvent> ResolveExchange(TurnChoice a, TurnChoice b, ExchangeScript script)
         {
             // §9 — a standing exchange cannot land while a hold is open. Left unguarded,

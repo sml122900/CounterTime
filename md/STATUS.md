@@ -133,6 +133,7 @@ Full detail, including the exact 현실적 A osaekomi-entry-shortfall breakdown 
   Unity Editor + MCP 브리지가 밤새 연결 유지(사람 없음) — 매 작업 후 AssetDatabase.Refresh() + GetConsoleLogs 로 0 에러/0 경고 재확인, RunCommand 안에서 짧은 이름(CompilationPipeline 등)이 Unity.AI.Assistant.* 네임스페이스와 충돌하는 기존 함정 재확인(전체 경로로 우회)
 
 Next Up (in priority order)
+**가장 최근 — 아직 Play 미검증.** 2026-08-11 오후에 `LiveMatchPanel` 에 상태 HUD(시계·점수판·양쪽 잡기값+양손 잠김상태·체력·위상·쿠즈시)와 최근 5교환 로그, 자기 선택 확인 줄을 추가했다(사용자 요청 6번 항목 — Play 모드 실측 로그 대조 — 는 사람이 화면을 보며 할 몫으로 남아 있다). 컴파일은 Unity MCP 로 확인(0 에러/0 경고, Core/Game 두 어셈블리가 새 API 를 반영해 재컴파일됐음을 직접 참조해 확인), dotnet 하니스는 202/202 그린 + 지문 IDENTICAL. **HUD 각 숫자가 실제 값과 맞는지는 Play 로 사람이 봐야 한다** — 특히 그립 잠김상태(놓임/잡힘/잠김) 라벨과 굳히기 누른 시간 표시
 Stage 6 완료 — **가장 중요한 것: 사람이 Play 를 실제로 눌러야 한다.** 메뉴 CounterTime > Play Mode Setup (2026-08-11 아침 신설, 커밋 7325102)이 새 빈 씬 생성 + LiveMatchRunner/LiveMatchPanel 부착 + 쿠즈시 on + 한글 폰트 연결까지 자동으로 한다 — 메뉴 클릭 → Play 버튼, 이 두 번만 사람이 하면 된다. 캔버스 레이아웃·버튼 클릭·굳히기 2지선다 전환이 전부 미검증. 판단 대기 5개(docs/overnight-2026-08-11.md 맨 위) 중 #1(m18)·#2(쿠즈시 타이밍)는 아침에 해소, #3(뜯기/잡기 유지 게이트)·#4(동시 공격 우선순위)는 §2 에 "v1 임시 규칙"으로 문서화, #5(B 굳히기 고정 정책)는 여전히 미해결
 쿠즈시(§4.4) 는 아직 [초안] — 사람이 검토해서 확정하거나 되돌릴 것. on 으로 실측한 결과(작업6)가 교환 수를 프로필에 따라 늘리거나 줄인다 — 밸런스 판단은 사람 몫
 Stage 7 — regression + STATUS update (이 파일이 그 결과물이다 — 다음은 실제 Play 검증 이후 마무리 라운드)
@@ -140,7 +141,7 @@ Match length is still deliberately unresolved (see step 5 note above for the pos
 잡기 HUD (패치 1.7 로 필수가 됐다) — Core 는 이미 GripChanged 에 부위를 실어 보낸다. Game 쪽에서 RenderTexture 바깥 풀해상도 레이어로 받아야 한다
 
 결정 대기 (내가 판단 안 하고 남겨둔 취향 문제) — 선택지 버튼 높이가 111px → 82px 로 줄었다. 텍스트가 넘쳐서 TextPanel 을 키우느라 ChoiceRow 에서 떼어온 결과다. 라벨(26px)에는 충분하지만 버튼이 얇아 보이면 하단 패널을 1/3보다 키우거나 타이틀 34pt / 본문 24pt 를 줄이는 쪽으로 조정해야 한다
-카피 교체 목록 — `LiveMatchPanel` 의 "B 선행 — A 공격 불발" (동시 공격 시 표시, 2026-08-11 아침)은 v1 임시 시스템 문구다. `PlaceholderATechnique`("밭다리" 고정)와 같은 부류 — 진짜 카피/연출이 붙기 전까지 기계적 문구로 둔다
+카피 교체 목록 — `LiveMatchPanel` 의 "B 선행 — A 공격 불발" (동시 공격 시 표시, 2026-08-11 아침)은 v1 임시 시스템 문구다. `PlaceholderATechnique`("밭다리" 고정)와 같은 부류 — 진짜 카피/연출이 붙기 전까지 기계적 문구로 둔다. 2026-08-11 오후에 추가된 상태 HUD·교환 로그의 기계적 문구도 같은 부류다: "서기"/"굳히기 — {who} 누름 {n}초 (이탈 {a}/{b})", "변화 없음"(교환 로그 기본값), "{who} {부위} 확보"/"{who} 뜯기 — {결과}"/"{who} 쿠즈시 설치"/"{who} 카운터 준비 적중 — 상대 읽기 하락"(EventSummary 폴백 서술) — 전부 `LiveMatchPanel.EventSummary`/`FighterStatus` 에 있다
 Play 로 시나리오를 실제로 굴려보며 매핑을 다듬어라. 매핑은 title/content 만 읽고 정한 초안이라, 클립이 상황에 맞는지는 사람 눈으로 봐야 안다 — 특히 2026-08-07 에 AI 클립으로 교체한 19개 노드는 아직 Play 확인 전이다
 (Separate, not urgent) Finish the Judo match-1 scenario on the scenario board — three things the user still needs to answer: how the right-sleeve grip exchange actually plays out / timing of the collar-grip transition / the tells that distinguish an ippon-seoi-nage attempt from an ouchi-gari attempt
 
@@ -153,6 +154,11 @@ Why Assets/Editor/HubForceResolve.cs disappeared — nobody deleted it. It is Un
 Whether to keep the Unity Cloud link (cloudProjectId / organizationId in ProjectSettings.asset) — keep and commit. cloudEnabled is 0, it is a project GUID rather than a secret, ProjectSettings.asset is tracked anyway, and the editor rewrites it if removed.
 
 Session Log (newest first)
+2026-08-11 (오후)
+LiveMatchPanel 상태 표시 추가 — 클릭은 이미 정상(6단계 배선 성공)이었지만 화면에 현재 상황이 안 보여서 뭘 고르는지 판단할 수 없다는 사용자 지적으로 시작. 상단 HUD(시계, 위상[서기/굳히기+누른시간/이탈수], 점수판 A·B, 잡기[유효값+양손 놓임/잡힘/잠김], 체력, 쿠즈시 게이트 켜졌을 때만 유효/없음), 최근 5교환 로그(내 선택 → 결과, 폴백 서술은 회색 유지), 확정 전 자기 선택 한 줄 확인을 추가했다. 심판 누산기·B 선택지/의도·판정식 합계는 그대로 노출 안 함(설계 확정 재확인).
+구현: `MatchEngine.IsKuzushiActive(FighterId)` 추가(Core, `_kuzushiActive` 읽기 전용 미러) — Core 판정 로직 자체는 무수정. `LiveMatchRunner.Config` 추가(Game, `_cfg` 노출 — 쿠즈시 게이트 on/off 판단용). `LiveMatchPanel` 은 `Presented` 이벤트를 새로 구독해 한 번의 Submit* 호출 동안 발생한 이벤트를 모으고(`BeginPending`/`_pendingEvents`), 판정 서술이 있으면 그걸, 없으면 이벤트 목록에서 뜻 있는 첫 번째를 요약(`EventSummary`)해 로그 한 줄로 만든다. 굳히기 2지선다 버튼도 같은 경로(`SubmitOsaekomiChoice`)로 옮겨 로그·HUD 가 굳히기 턴에도 갱신되게 했다.
+검증: Unity MCP로 컴파일 확인 — AssetDatabase.Refresh 후 0 에러/0 경고, 추가로 `IsKuzushiActive`/`Config` 를 직접 참조하는 RunCommand 스크립트가 컴파일된다는 사실로 두 어셈블리가 실제로 재컴파일됐음을 확인(단순 GetConsoleLogs 만으론 컴파일이 스킵됐을 가능성을 못 배제하기 때문). dotnet 하니스 202/202 그린, 지문 IDENTICAL — 이번 변경은 전부 프레젠테이션 레이어 읽기라 엔진 동작에 영향 없음을 재확인.
+**Play 모드 실측(사용자 요청 6번)은 아직 안 했다** — 화면에 실제로 값이 맞게 뜨는지는 사람이 Play 를 눌러 봐야 한다. 새 v1 임시 문구들은 STATUS 카피 교체 목록에 등록.
 2026-08-11 (아침)
 어젯밤 판단 대기 5건 브리핑(원문 출력 + m18 실측: play 모드 브레인 경로에서 실제 발화하는 값이 등록된 키와 일치함을 코드로 확인) + Play 모드 2클릭 준비 메뉴(CounterTime > Play Mode Setup) 신설 (커밋 7325102). 이 과정에서 LiveMatchPanel 의 런타임 생성 캔버스에 GraphicRaycaster 가 빠져 있어 버튼이 하나도 안 눌리는 결함을 발견 — 처음엔 에디터 우회로 막았다.
 브리핑을 본 사람이 5개 결정: m18 키 등록 해제(문구가 횟수를 명시해 오정보) / 습관 관측 알림 호출 시점을 결정 시점에서 실제 제출 시점으로 이동(사다리·카탈로그 무수정) / GraphicRaycaster 를 BuildCanvas 에 정식 추가하고 에디터 우회 제거 / MATCH_RULES §2 에 뜯기·잡기 유지 게이트 문서화 + 동시 공격 우선순위 "v1 은 B 선행, 미결" 명시 / "B 선행 — A 공격 불발" UI 표시 추가. 전부 반영 (커밋 54bd5be, e01d960).

@@ -45,10 +45,20 @@ namespace CounterTime.Game.Match
 
         Transform _handColumn, _coreColumn, _legsColumn;
         GameObject _standingRoot, _osaekomiRoot;
-        TMP_Text _resultText, _exposureText, _preemptedText;
+        TMP_Text _resultText, _exposureText, _preemptedText, _selectionText, _logText;
+        TMP_Text _clockPhaseText, _statusTextA, _statusTextB;
         Image _warningMark, _dangerMark;
         Button _osaekomiOptionA, _osaekomiOptionB;
         TMP_Text _osaekomiLabelA, _osaekomiLabelB;
+
+        // ── 교환 로그 집계용 임시 버퍼 — Confirm()/osaekomi 제출 한 번(=Submit* 한 번
+        // 호출) 동안만 유효하다. Presented/Narrated/APreempted 는 그 호출 안에서
+        // 동기로 발화하므로, 호출 전에 비우고 호출 뒤에 바로 읽으면 된다.
+        readonly List<MatchEvent> _pendingEvents = new List<MatchEvent>();
+        readonly List<string> _log = new List<string>();
+        string _pendingNarrationText;
+        bool _pendingNarrationFallback;
+        bool _pendingPreempted;
 
         void Awake()
         {
@@ -67,6 +77,7 @@ namespace CounterTime.Game.Match
 
         void OnEnable()
         {
+            _runner.Presented += OnPresented;
             _runner.Narrated += OnNarrated;
             _runner.OsaekomiOpened += OnOsaekomiOpened;
             _runner.OsaekomiClosed += OnOsaekomiClosed;
@@ -75,18 +86,27 @@ namespace CounterTime.Game.Match
 
         void OnDisable()
         {
+            _runner.Presented -= OnPresented;
             _runner.Narrated -= OnNarrated;
             _runner.OsaekomiOpened -= OnOsaekomiOpened;
             _runner.OsaekomiClosed -= OnOsaekomiClosed;
             _runner.APreempted -= OnAPreempted;
         }
 
-        void Start() => RefreshStanding();
+        void Start()
+        {
+            RefreshStanding();
+            RefreshStatusHud();
+        }
 
         // ── 판정 서술 ────────────────────────────────────────────────────────────
 
+        void OnPresented(MatchEvent e) => _pendingEvents.Add(e);
+
         void OnNarrated(ResultNarrationTable.Result r)
         {
+            _pendingNarrationText = r.Text;
+            _pendingNarrationFallback = r.IsFallback;
             _resultText.text = r.IsFallback ? $"<color=#999999>{r.Text}</color>" : r.Text;
         }
 
@@ -94,6 +114,7 @@ namespace CounterTime.Game.Match
         void OnAPreempted()
         {
             _preemptedText.text = "B 선행 — A 공격 불발";
+            _pendingPreempted = true;
         }
 
         // ── 굳히기 전환 ──────────────────────────────────────────────────────────
@@ -110,10 +131,10 @@ namespace CounterTime.Game.Match
                 _osaekomiLabelB.text = "눌러붙기";
                 _osaekomiOptionA.onClick.RemoveAllListeners();
                 _osaekomiOptionA.onClick.AddListener(() =>
-                    _runner.SubmitOsaekomi(_runner.BDefenderPolicy(), OsaekomiHolderChoice.Follow));
+                    SubmitOsaekomiChoice(_runner.BDefenderPolicy(), OsaekomiHolderChoice.Follow, "따라가기"));
                 _osaekomiOptionB.onClick.RemoveAllListeners();
                 _osaekomiOptionB.onClick.AddListener(() =>
-                    _runner.SubmitOsaekomi(_runner.BDefenderPolicy(), OsaekomiHolderChoice.PressIn));
+                    SubmitOsaekomiChoice(_runner.BDefenderPolicy(), OsaekomiHolderChoice.PressIn, "눌러붙기"));
             }
             else
             {
@@ -121,11 +142,13 @@ namespace CounterTime.Game.Match
                 _osaekomiLabelB.text = "빠져나가기";
                 _osaekomiOptionA.onClick.RemoveAllListeners();
                 _osaekomiOptionA.onClick.AddListener(() =>
-                    _runner.SubmitOsaekomi(OsaekomiDefenderChoice.Reversal, _runner.BHolderPolicy()));
+                    SubmitOsaekomiChoice(OsaekomiDefenderChoice.Reversal, _runner.BHolderPolicy(), "뒤집기"));
                 _osaekomiOptionB.onClick.RemoveAllListeners();
                 _osaekomiOptionB.onClick.AddListener(() =>
-                    _runner.SubmitOsaekomi(OsaekomiDefenderChoice.Escape, _runner.BHolderPolicy()));
+                    SubmitOsaekomiChoice(OsaekomiDefenderChoice.Escape, _runner.BHolderPolicy(), "빠져나가기"));
             }
+
+            RefreshStatusHud();
         }
 
         void OnOsaekomiClosed()
@@ -133,6 +156,19 @@ namespace CounterTime.Game.Match
             _osaekomiRoot.SetActive(false);
             _standingRoot.SetActive(true);
             RefreshStanding();
+            RefreshStatusHud();
+        }
+
+        /// §9.3 — 5초 틱 하나 제출. 결과 이벤트를 모아 교환 로그에 한 줄 남기고 HUD 를
+        /// 새로고침한다. 굳히기가 계속 열려 있으면(<see cref="OnOsaekomiOpened"/> 가 다시
+        /// 안 불린다) 홀더가 안 바뀌므로 버튼 라벨은 그대로 둔다.
+        void SubmitOsaekomiChoice(OsaekomiDefenderChoice defenderChoice, OsaekomiHolderChoice holderChoice,
+                                  string myChoiceLabel)
+        {
+            BeginPending();
+            _runner.SubmitOsaekomi(defenderChoice, holderChoice);
+            PushLog(myChoiceLabel, BuildOutcome());
+            RefreshStatusHud();
         }
 
         // ── 3열 입력 ─────────────────────────────────────────────────────────────
@@ -168,9 +204,13 @@ namespace CounterTime.Game.Match
             // 남는다. RefreshStanding 에서 지우면 같은 프레임에 방금 띄운 것까지
             // 지워진다.
             _preemptedText.text = "";
+            string myChoiceLabel = $"{HandLabel(_hand)} · {CoreLabel(_core)} · {LegsLabel(_legs)}";
+            BeginPending();
             var choice = _runner.A.Build(_hand, _core, _legs);
             _runner.SubmitA(choice);
+            PushLog(myChoiceLabel, BuildOutcome());
             if (!_runner.Engine.Osaekomi.Active) RefreshStanding();
+            RefreshStatusHud();
         }
 
         /// <summary>§3 노출 막대 — 지금 <b>선택 중인</b>(아직 확정 전) 조합이 경고선/위험선에
@@ -187,6 +227,8 @@ namespace CounterTime.Game.Match
             _exposureText.text = danger ? "위험 — 3연속 그대로면 읽힌다"
                                : warn ? "경고 — 최근 6수 중 4수 이상 같다"
                                : "";
+
+            _selectionText.text = $"선택: {HandLabel(_hand)} · {CoreLabel(_core)} · {LegsLabel(_legs)}";
         }
 
         void RebuildColumn<T>(Transform column, IReadOnlyList<T> options, System.Func<T, string> label,
@@ -234,6 +276,113 @@ namespace CounterTime.Game.Match
             _ => "중립",
         };
 
+        // ── 교환 로그 ────────────────────────────────────────────────────────────
+
+        void BeginPending()
+        {
+            _pendingEvents.Clear();
+            _pendingNarrationText = null;
+            _pendingPreempted = false;
+        }
+
+        /// 이번 Submit* 호출에서 무슨 일이 났는지 한 줄로 요약한다. 우선순위:
+        /// 선점(B 선행) → 판정 서술(있으면, 폴백 구분 유지) → 발생한 이벤트 중 뜻이
+        /// 있는 첫 번째 → "변화 없음"(그립·틀어잡기처럼 화면에 안 잡히는 사소한 것만
+        /// 일어난 교환).
+        string BuildOutcome()
+        {
+            if (_pendingPreempted) return "B 선행 — A 공격 불발";
+            if (_pendingNarrationText != null)
+                return _pendingNarrationFallback
+                    ? $"<color=#999999>{_pendingNarrationText}</color>"
+                    : _pendingNarrationText;
+
+            foreach (var e in _pendingEvents)
+            {
+                var s = EventSummary(e);
+                if (s != null) return s;
+            }
+            return "변화 없음";
+        }
+
+        static string EventSummary(MatchEvent e) => e switch
+        {
+            OsaekomiScoreAwarded sa => $"{JudgementLabel(sa.Judgement)} 획득 — 누름 {sa.HeldSeconds}초",
+            OsaekomiEnded => "굳히기 종료 — 다시 서기",
+            MatchEnded m => m.Winner.HasValue ? $"경기 종료 — {FighterLabel(m.Winner.Value)} 승" : "경기 종료 — 무승부",
+            ShidoGiven sg => $"지도 {sg.Count} — {FighterLabel(sg.Who)} ({(sg.FromFeint ? "위장 공격 적발" : "소극 누적")})",
+            MatteCalled => "그쳐",
+            KuzushiDeclared kd => $"{FighterLabel(kd.Who)} 쿠즈시 설치",
+            TearResolved tr => $"{FighterLabel(tr.Who)} 뜯기 — {TearLabel(tr.Outcome)}",
+            CounterReadyApplied cr => $"{FighterLabel(cr.Who)} 카운터 준비 적중 — 상대 읽기 하락",
+            OsaekomiEscapeResolved er => er.EscapeCredited ? "이탈 성공" : "눌림 유지 — 이탈 실패",
+            GripChanged g => $"{FighterLabel(g.Who)} {HandLabel(g.Part)} 확보",
+            _ => null,
+        };
+
+        void PushLog(string myChoiceLabel, string outcome)
+        {
+            _log.Insert(0, $"{myChoiceLabel} → {outcome}");
+            if (_log.Count > 5) _log.RemoveRange(5, _log.Count - 5);
+            _logText.text = string.Join("\n", _log);
+        }
+
+        static string FighterLabel(FighterId f) => f == FighterId.A ? "A" : "B";
+
+        static string JudgementLabel(Judgement j) => j switch
+        {
+            Judgement.Yuko => "유효",
+            Judgement.WazaAri => "절반",
+            Judgement.Ippon => "한판",
+            _ => "무득점",
+        };
+
+        static string TearLabel(TearOutcome o) => o switch
+        {
+            TearOutcome.Freed => "해제 성공",
+            TearOutcome.Locked => "실패 — 오히려 잠김",
+            _ => "뜯을 그립 없음",
+        };
+
+        static string GripLockLabel(GripLock l) => l switch
+        {
+            GripLock.Held => "잡힘",
+            GripLock.Locked => "잠김",
+            _ => "놓임",
+        };
+
+        // ── 상단 상태 HUD ────────────────────────────────────────────────────────
+
+        /// 3) 시계·점수판·잡기·체력·위상·쿠즈시 — 심판 누산기 숫자, B 의 선택지·의도,
+        /// 판정식 합계는 여기 어디에도 없다(설계 확정, md/STATUS.md 참조).
+        void RefreshStatusHud()
+        {
+            var eng = _runner.Engine;
+            int rem = eng.Clock.RemainingSeconds;
+            string phase = eng.Osaekomi.Active
+                ? $"굳히기 — {FighterLabel(eng.Osaekomi.Holder)} 누름 {eng.Osaekomi.HeldSeconds}초 " +
+                  $"(이탈 {eng.Osaekomi.EscapesSoFar}/{eng.Osaekomi.EscapesNeeded})"
+                : "서기";
+            _clockPhaseText.text = $"{rem / 60:00}:{rem % 60:00}   {phase}";
+
+            _statusTextA.text = FighterStatus(eng, FighterId.A);
+            _statusTextB.text = FighterStatus(eng, FighterId.B);
+        }
+
+        string FighterStatus(MatchEngine eng, FighterId who)
+        {
+            int stamina = eng.Stamina.Get(who);
+            int grip = eng.Grip.EffectiveGrip(who);
+            string left = GripLockLabel(eng.Grip.LockState(who, Hand.Left));
+            string right = GripLockLabel(eng.Grip.LockState(who, Hand.Right));
+            string score = $"유효{eng.Board.Yuko(who)} 절반{eng.Board.WazaAri(who)} 지도{eng.Board.Shido(who)}";
+            string kuzushi = _runner.Config.KuzushiGateEnabled
+                ? $"  쿠즈시 {(eng.IsKuzushiActive(who) ? "유효" : "없음")}"
+                : "";
+            return $"{FighterLabel(who)}  체력 {stamina}  그립 {grip:+0;-0;0}  " +
+                   $"왼손 {left} 오른손 {right}  {score}{kuzushi}";
+        }
+
         // ── 런타임 UI 뼈대 ───────────────────────────────────────────────────────
 
         void BuildCanvas()
@@ -248,12 +397,25 @@ namespace CounterTime.Game.Match
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920, 1080);
 
+            BuildStatusHud(go.transform);
             BuildExposureBar(go.transform);
             BuildResultText(go.transform);
             BuildPreemptedText(go.transform);
+            BuildSelectionText(go.transform);
+            BuildExchangeLog(go.transform);
             _standingRoot = BuildStandingRoot(go.transform);
             _osaekomiRoot = BuildOsaekomiRoot(go.transform);
             _osaekomiRoot.SetActive(false);
+        }
+
+        void BuildStatusHud(Transform parent)
+        {
+            _clockPhaseText = MakeText(parent, "", TextAlignmentOptions.Center,
+                new Vector2(0, -8), new Vector2(560, 30), new Vector2(0.5f, 1));
+            _statusTextA = MakeText(parent, "", TextAlignmentOptions.TopLeft,
+                new Vector2(16, -8), new Vector2(620, 60), new Vector2(0f, 1));
+            _statusTextB = MakeText(parent, "", TextAlignmentOptions.TopRight,
+                new Vector2(-16, -8), new Vector2(620, 60), new Vector2(1f, 1));
         }
 
         void BuildExposureBar(Transform parent)
@@ -264,7 +426,7 @@ namespace CounterTime.Game.Match
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 1);
             rt.pivot = new Vector2(0.5f, 1);
             rt.sizeDelta = new Vector2(500, 40);
-            rt.anchoredPosition = new Vector2(0, -16);
+            rt.anchoredPosition = new Vector2(0, -76);
 
             _warningMark = MakeMark(root.transform, new Vector2(-70, 0));
             _dangerMark = MakeMark(root.transform, new Vector2(-30, 0));
@@ -289,15 +451,30 @@ namespace CounterTime.Game.Match
         void BuildResultText(Transform parent)
         {
             _resultText = MakeText(parent, "", TextAlignmentOptions.Center,
-                new Vector2(0, -70), new Vector2(900, 80), new Vector2(0.5f, 1));
+                new Vector2(0, -130), new Vector2(900, 80), new Vector2(0.5f, 1));
         }
 
         /// [v1 임시 시스템 문구용 슬롯 — 카피 교체 목록에 올릴 것]
         void BuildPreemptedText(Transform parent)
         {
             _preemptedText = MakeText(parent, "", TextAlignmentOptions.Center,
-                new Vector2(0, -130), new Vector2(900, 40), new Vector2(0.5f, 1));
+                new Vector2(0, -220), new Vector2(900, 40), new Vector2(0.5f, 1));
             _preemptedText.color = Warning;
+        }
+
+        /// 4) 자기 선택 확인 — 확정 전에 지금 고른 손·코어·하체가 한 줄로 보인다.
+        void BuildSelectionText(Transform parent)
+        {
+            _selectionText = MakeText(parent, "", TextAlignmentOptions.Center,
+                new Vector2(0, -270), new Vector2(900, 30), new Vector2(0.5f, 1));
+        }
+
+        /// 3) 교환 로그 — 최근 5교환, 새 항목이 위로 쌓인다. 폴백 서술은
+        /// <see cref="BuildOutcome"/> 이 판정 서술에 붙여둔 색 태그로 구분된다.
+        void BuildExchangeLog(Transform parent)
+        {
+            _logText = MakeText(parent, "", TextAlignmentOptions.TopLeft,
+                new Vector2(0, -310), new Vector2(900, 260), new Vector2(0.5f, 1));
         }
 
         GameObject BuildStandingRoot(Transform parent)
