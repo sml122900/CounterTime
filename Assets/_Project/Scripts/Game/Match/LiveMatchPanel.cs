@@ -28,6 +28,7 @@ namespace CounterTime.Game.Match
     /// (Unity Test Runner 로도, 헤드리스로도 캔버스는 검증 불가).
     /// </summary>
     [RequireComponent(typeof(LiveMatchRunner))]
+    [RequireComponent(typeof(ArenaStageView))]
     public sealed class LiveMatchPanel : MonoBehaviour
     {
         /// Resources.Load 이름(확장자 없음) — Assets/_Project/Art/Fonts/Resources/ 아래.
@@ -85,6 +86,9 @@ namespace CounterTime.Game.Match
         void Awake()
         {
             _runner = GetComponent<LiveMatchRunner>();
+            // ArenaStageView 도 같은 GameObject 의 컴포넌트라 Awake 순서가 보장되지
+            // 않는다 — BuildCanvas 가 stage.Output 을 읽기 전에 직접 완성시켜둔다.
+            GetComponent<ArenaStageView>().EnsureBuilt();
             if (koreanFont == null)
             {
                 koreanFont = Resources.Load<TMP_FontAsset>(KoreanFontResourceName);
@@ -593,18 +597,31 @@ namespace CounterTime.Game.Match
             _osaekomiRoot.SetActive(false);
         }
 
-        /// 좌상 — 경기 화면이 나중에 들어올 자리. 지금은 배경 패널 + 안내문뿐이다.
-        /// [v1 임시 문구 — 카피 교체 목록에 올릴 것]
+        /// 좌상 — 경기 화면. <see cref="ArenaStageView"/> 의 320x180 RenderTexture 를
+        /// AspectRatioFitter 로 찌그러뜨리지 않고 레터박스로 표시한다. HUD·텍스트는
+        /// 전부 이 RT 밖(다른 블록)에 있다 — RT 안에는 경기 장면만 있다.
         void BuildArenaPlaceholder(Transform parent)
         {
-            var box = new GameObject("ArenaPlaceholder", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
+            var box = new GameObject("ArenaBox", typeof(RectTransform), typeof(Image), typeof(LayoutElement));
             box.transform.SetParent(parent, false);
             SetFlexible(box.transform, 1, 1.2f);
             box.GetComponent<Image>().color = ArenaBg;
 
-            var label = MakeText(box.transform, "경기 화면 — 연출 준비 전", TextAlignmentOptions.Center,
-                Vector2.zero, new Vector2(400, 60), stretch: true, fontSizeOverride: 20);
-            label.color = Dim;
+            var stage = GetComponent<ArenaStageView>();
+            var viewGo = new GameObject("ArenaView", typeof(RectTransform), typeof(RawImage), typeof(AspectRatioFitter));
+            viewGo.transform.SetParent(box.transform, false);
+            var viewRt = (RectTransform)viewGo.transform;
+            viewRt.anchorMin = Vector2.zero;
+            viewRt.anchorMax = Vector2.one;
+            viewRt.offsetMin = viewRt.offsetMax = Vector2.zero;
+
+            var raw = viewGo.GetComponent<RawImage>();
+            raw.texture = stage.Output;
+            raw.raycastTarget = false;
+
+            var fitter = viewGo.GetComponent<AspectRatioFitter>();
+            fitter.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
+            fitter.aspectRatio = (float)ArenaStageView.StageWidth / ArenaStageView.StageHeight;
         }
 
         /// 좌하 — 위상/체력·그립·손 잠김 상태 줄 + 이번 교환 서술 줄 + 최근 5교환 로그.
