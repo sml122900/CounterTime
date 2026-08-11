@@ -2,7 +2,7 @@ STATUS
 
 Update this file every time a session resets. This is the ONLY copy — the root CLAUDE.md pulls it in with `@md/STATUS.md`, so it loads automatically at session start. Do not create a second copy anywhere. Check "Current State" and "Next Up" before starting work.
 
-Current State (last updated: 2026-08-11)
+Current State (last updated: 2026-08-12)
 **용어 대응표**: "쿠즈시" = 구 명칭, 2026-08-11 오후 전체 개명 완료 → 화면 표시 "흔들기" / 코드 식별자 `Setup*`(예: `HandTarget.Setup`, `SetupGateEnabled`, `SetupPrecedingCommitSource`). 이 파일의 이전 세션 로그·docs/overnight-*·decisions/·daily/ 는 기록이라 "쿠즈시"로 그대로 남아있다 — 그 시점엔 그게 맞는 이름이었다. 지금 코드/MATCH_RULES.md 를 볼 때는 전부 흔들기/Setup 이다.
 Unity 6.3.21f1 LTS editor installed
 CounterTime project created (Universal 3D template, location C:\project_2026\CounterTime)
@@ -134,7 +134,28 @@ Full detail, including the exact 현실적 A osaekomi-entry-shortfall breakdown 
   Unity Editor + MCP 브리지가 밤새 연결 유지(사람 없음) — 매 작업 후 AssetDatabase.Refresh() + GetConsoleLogs 로 0 에러/0 경고 재확인, RunCommand 안에서 짧은 이름(CompilationPipeline 등)이 Unity.AI.Assistant.* 네임스페이스와 충돌하는 기존 함정 재확인(전체 경로로 우회)
 
 Next Up (in priority order)
-**가장 최근 — 좁은 화면 레이아웃 붕괴 수정 (719px 스크린샷 신고).** 원인은 CanvasScaler 설정이
+**가장 최근 — 경기 화면 저해상도 렌더 v1 (좌상 placeholder 채움, `ArenaStageView` 신규).**
+좌상 "경기 화면 — 연출 준비 전" 자리를 실제 320x180 RenderTexture 로 채웠다 — 연출·모션
+매핑(노드별 클립 전환)은 범위 밖, 두 파이터가 Fight Idle 로 서 있는 화면까지만. Main.unity
+는 참조/추가로딩하지 않는다 — Fighter_A/B(Y Bot.fbx/Ch30_nonPBR.fbx)가 Main.unity 씬 YAML
+실측으로 원본 FBX 의 PrefabInstance 일 뿐임을 확인했으므로, 프리팹화 없이 `ArenaStageView`
+가 Play Mode Setup 의 빈 씬 안에서 전용 카메라+바닥+조명+파이터 둘을 처음부터 새로 짓는다.
+확정 규격 그대로 구현: RT 320x180/antiAliasing=1(MSAA off), 카메라 allowMSAA=false,
+RT.filterMode=Point, `animator.enabled=false` 후 1/12초마다 `animator.Update(1f/12f)` 로
+12fps 스텝. `PlayModeSetupMenu` 가 FBX/컨트롤러/바닥 재질을 `SerializedObject` 로 주입
+(koreanFont 와 같은 패턴). f241b7b 가 검은화면 방지용으로 추가했던 빈 "Main Camera" 는 이제
+씬에 실제 3D 콘텐츠가 생기므로 `cullingMask=0` 으로 막아 화면 전체 중복 렌더를 방지 —
+사람 지시가 아니라 구현 중 발견해서 판단한 것. 컴포넌트 간 Awake 순서가 보장되지 않는
+문제(LiveMatchPanel 이 stage.Output 을 읽기 전에 ArenaStageView 가 먼저 지어야 함)는
+`EnsureBuilt()`(멱등) 를 두고 LiveMatchPanel.Awake 에서 명시적으로 먼저 호출해 해결.
+검증: Unity MCP 컴파일 0/0. Play 모드 실측 — RT 320x180/antiAliasing=1/Point 확인, 카메라
+allowMSAA=False/FOV45/pos(0,1.6,-6) 확인, 두 파이터 컨트롤러 정상 할당 확인, MainCamera
+cullingMask=0 확인. 12fps 스텝 간격은 1초간 13개 스텝 이벤트를 타임스탬프로 찍어 실측 —
+간격이 0.083초 전후(≈1/12초)로 균일함을 확인. 하니스 209/209, 지문 IDENTICAL
+(`ArenaStageView.cs`/`PlayModeSetupMenu.cs` 는 애초에 하니스 컴파일 대상 아님,
+`LiveMatchPanel.cs` 변경도 프레젠테이션 전용). 다음 단계는 범위 밖으로 남겨둠 — 노드별
+모션 전환·연출 배선은 아직 정적 Fight Idle 뿐이다.
+**가장 최근 (그 앞) — 좁은 화면 레이아웃 붕괴 수정 (719px 스크린샷 신고).** 원인은 CanvasScaler 설정이
 아니었다 — 실측 확인 결과 `uiScaleMode=ScaleWithScreenSize, referenceResolution=(1920,1080),
 matchWidthOrHeight=0`(Unity 컴포넌트 기본값, 코드가 손댄 적 없음). match=0 이면 캔버스의
 **겉보기 폭은 실제 화면 폭과 무관하게 항상 1920** 이다(`scaleFactor=screenWidth/1920` →
@@ -183,6 +204,12 @@ Stage 7 — regression + STATUS update (이 파일이 그 결과물이다 — �
 Match length is still deliberately unresolved (see step 5 note above for the post-osaekomi numbers). Judgement formula, waza-ari thresholds, cost table and per-exchange seconds all stay untouched until after stage 6
 잡기 HUD (패치 1.7 로 필수가 됐다) — Core 는 이미 GripChanged 에 부위를 실어 보낸다. Game 쪽에서 RenderTexture 바깥 풀해상도 레이어로 받아야 한다
 
+결정 대기 — `md/HANDOFF_claude_code_runner.md`/`md/HANDOFF_claudecode_opponent-brain.md` 두
+파일이 세션 시작 시점부터 unstaged 삭제 상태였다(이번 세션이 만든 변경 아님 — `git status`
+가 대화 시작 전부터 이미 이 상태였다). `md/HANDOFF_session_2026-08-11.md` §0 원문은 이
+두 파일을 "성격이 다른 문서"(작업 지시서)로 여전히 전제하고 있어 삭제와 그 전제가 어긋난다.
+커밋할지(삭제 확정) 복원할지는 판단 안 하고 그대로 뒀다 — 사람 판단 필요.
+
 결정 대기 (내가 판단 안 하고 남겨둔 취향 문제) — 선택지 버튼 높이가 111px → 82px 로 줄었다. 텍스트가 넘쳐서 TextPanel 을 키우느라 ChoiceRow 에서 떼어온 결과다. 라벨(26px)에는 충분하지만 버튼이 얇아 보이면 하단 패널을 1/3보다 키우거나 타이틀 34pt / 본문 24pt 를 줄이는 쪽으로 조정해야 한다
 카피 교체 목록 — `LiveMatchPanel` 의 "B 선행 — A 공격 불발" (동시 공격 시 표시, 2026-08-11 아침)은 v1 임시 시스템 문구다. `PlaceholderATechnique`("밭다리" 고정)와 같은 부류 — 진짜 카피/연출이 붙기 전까지 기계적 문구로 둔다. 2026-08-11 오후에 추가된 상태 HUD·교환 로그의 기계적 문구도 같은 부류다: "서기"/"굳히기 — {who} 누름 {n}초 (이탈 {a}/{b})", "변화 없음"(교환 로그 기본값), "{who} {부위} 확보"/"{who} 뜯기 — {결과}"/"{who} 쿠즈시 설치"/"{who} 카운터 준비 적중 — 상대 읽기 하락"(EventSummary 폴백 서술) — 전부 `LiveMatchPanel.EventSummary`/`FighterStatus` 에 있다.
 2026-08-11 오후(화면 재설계) 추가분, 전부 `LiveMatchPanel` — 경기 화면 자리: "경기 화면 — 연출 준비 전". 코치의 조언 5종(`RefreshCoachAdvice`): "굳히기 중 — 버티면 점수가 오르고, 빠져나가면 다시 선다" / "잡기 열세 — 손 싸움부터 다시 잡아라" / "상대 체력이 떨어졌다 — 밀어붙일 타이밍" / "상대가 흔들기를 걸었다 — 큰 기술을 조심해라" / "그립을 먼저 잡고 흐름을 만들어라"(기본값). 수 노트 습관 라벨 5종(`HabitLabel`): "업어치기 (그립 우세)" / "안뒤축감아치기 (지도 직후)" / "극단적 방어 (체력 열세)" / "오른소매 노림" / "왼소매 노림", 단계 문구 "심증 (N회)"/"확정 (N회)"/"폐기됨", 빈 상태 "아직 관측된 습관 없음". 내 성향 라벨: "경고선 — 최근 6수 중 4수 이상 같음" / "위험선 — 3연속 완전동일"
@@ -198,6 +225,19 @@ Why Assets/Editor/HubForceResolve.cs disappeared — nobody deleted it. It is Un
 Whether to keep the Unity Cloud link (cloudProjectId / organizationId in ProjectSettings.asset) — keep and commit. cloudEnabled is 0, it is a project GUID rather than a secret, ProjectSettings.asset is tracked anyway, and the editor rewrites it if removed.
 
 Session Log (newest first)
+2026-08-12
+작업0 — 세션 시작 확인: `md/HANDOFF_session_2026-08-11.md`→MATCH_RULES→CORE_DESIGN→
+OPPONENT_BRAIN→STATUS 순으로 읽음. 스탬프 3종 `tools/stamp.sh --check` exit 0,
+`git config core.hooksPath`=tools/githooks 확인. 하니스 209/209 그린+지문 IDENTICAL,
+Unity MCP 컴파일 0/0 — 전부 통과해 작업 중단 없이 진행.
+작업1 — `feat/match-engine` 을 origin 에 그대로 푸시(9커밋, force 없음). 푸시는 성공했으나
+`git status` 가 clean 하지 않음을 발견 — 위 "결정 대기" 항목 참조(이번 세션이 만든 변경
+아님, 그대로 보고).
+작업2 — 경기 화면 저해상도 렌더 v1(`ArenaStageView` 신규). 상세는 위 Next Up "가장 최근"
+항목 참조. 커밋 3233a13.
+작업3 — `docs/play-checklist-2026-08-12.md` 신설 — `md/HANDOFF_session_2026-08-11.md`
+§5.1/§5.2/§6.2 를 체크박스로 옮겨 정리만 함(새 내용 없음). 커밋 3080078.
+작업4 — 이 STATUS 갱신이 그 결과물.
 2026-08-11 (오후, 7차 — 좁은 화면 레이아웃 붕괴 수정)
 사용자 지시: 719px 스크린샷 신고("추측 수정 금지, 원인 진단 먼저") + 4개 해상도 재검증 + 최소 지원 해상도 명기.
 진단 과정: CanvasScaler 라이브 값 확인(match=0, Unity 기본값) → 공식으로 "겉보기 폭은 실제 화면폭과 무관하게 항상 1920"임을 도출 → `PlayModeWindow.SetCustomRenderingResolution`(공식 API, reflection 아님 — `System.Reflection` 은 RunCommand 샌드박스에서 막혀 있어 처음엔 GameView 리사이즈로 우회하려다 발견)로 실제 719×404 를 재현해 `RectTransform.rect`/`LayoutElement` 필드를 직접 대조 → `ScoreboardRow`/`BottomInputRow`/버튼/여러 텍스트가 폭 0으로 무너져 있는 것을 확인 → 720p 로 되돌려도 동일하게 0(해상도 무관, 구조적 버그)임을 대조 실측으로 확정. 근본 원인: 교차축에 `preferred/min/flexible` 셋 다 안 준 `LayoutElement` 는 Unity 가 무조건 0으로 접는다 — 지난 세션의 겹침 검사가 이 사각지대(폭 0 요소는 애초에 안 겹친다)를 못 잡았다.
