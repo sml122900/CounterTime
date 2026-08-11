@@ -36,6 +36,10 @@ namespace CounterTime.Game.Match
         static readonly Color Warning = new Color(0.85f, 0.65f, 0.1f);
         static readonly Color Danger = new Color(0.8f, 0.15f, 0.15f);
         static readonly Color Dim = new Color(0.3f, 0.3f, 0.3f, 0.4f);
+        static readonly Color Gold = new Color(0.85f, 0.7f, 0.15f);
+        static readonly Color ShidoYellow = new Color(0.95f, 0.85f, 0.1f);
+        static readonly Color RowWhiteBg = new Color(0.92f, 0.92f, 0.92f);
+        static readonly Color RowBlueBg = new Color(0.1f, 0.35f, 0.75f);
 
         LiveMatchRunner _runner;
 
@@ -46,10 +50,16 @@ namespace CounterTime.Game.Match
         Transform _handColumn, _coreColumn, _legsColumn;
         GameObject _standingRoot, _osaekomiRoot;
         TMP_Text _resultText, _exposureText, _preemptedText, _selectionText, _logText;
-        TMP_Text _clockPhaseText, _statusTextA, _statusTextB;
+        TMP_Text _phaseText, _statusTextA, _statusTextB;
         Image _warningMark, _dangerMark;
         Button _osaekomiOptionA, _osaekomiOptionB;
         TMP_Text _osaekomiLabelA, _osaekomiLabelB;
+
+        // ── 실전 점수판 (사진 레퍼런스 규격) ────────────────────────────────────────
+        TMP_Text _bigTimerText, _goldenScoreLabel, _ipponStrip;
+        TMP_Text _wazaAriTextA, _yukoTextA, _holdTextA;
+        TMP_Text _wazaAriTextB, _yukoTextB, _holdTextB;
+        Transform _shidoIconsA, _shidoIconsB;
 
         // ── 교환 로그 집계용 임시 버퍼 — Confirm()/osaekomi 제출 한 번(=Submit* 한 번
         // 호출) 동안만 유효하다. Presented/Narrated/APreempted 는 그 호출 안에서
@@ -208,9 +218,11 @@ namespace CounterTime.Game.Match
             BeginPending();
             var choice = _runner.A.Build(_hand, _core, _legs);
             _runner.SubmitA(choice);
-            PushLog(myChoiceLabel, BuildOutcome());
+            string outcome = BuildOutcome();
+            bool matte = _pendingEvents.Exists(e => e is MatteCalled);
+            PushLog(myChoiceLabel, outcome);
             if (!_runner.Engine.Osaekomi.Active) RefreshStanding();
-            RefreshStatusHud();
+            RefreshStatusHud(matte);
         }
 
         /// <summary>§3 노출 막대 — 지금 <b>선택 중인</b>(아직 확정 전) 조합이 경고선/위험선에
@@ -351,19 +363,79 @@ namespace CounterTime.Game.Match
             _ => "놓임",
         };
 
-        // ── 상단 상태 HUD ────────────────────────────────────────────────────────
+        // ── 실전 점수판 ──────────────────────────────────────────────────────────
 
-        /// 3) 시계·점수판·잡기·체력·위상·쿠즈시 — 심판 누산기 숫자, B 의 선택지·의도,
-        /// 판정식 합계는 여기 어디에도 없다(설계 확정, md/STATUS.md 참조).
-        void RefreshStatusHud()
+        /// 사진 레퍼런스 규격 — 큰 타이머, 골든스코어 표기, IPPON 강조 스트립,
+        /// A(위, 흰 배경)/B(아래, 파란 배경) 두 행에 절반(W)·유효(Y)·지도(S/H, 카드
+        /// 아이콘)·누르기 카운트(2자리, 국제룰 5/10/20초 경계). 심판 누산기 숫자,
+        /// B 의 선택지·의도, 판정식 합계는 여기 어디에도 없다(설계 확정).
+        void RefreshScoreboard(MatchEngine eng)
+        {
+            int rem = eng.Clock.RemainingSeconds;
+            bool golden = eng.Board.InGoldenScore || eng.Clock.Phase == MatchPhase.GoldenScore;
+            _bigTimerText.text = $"{rem / 60:00}:{rem % 60:00}";
+            _bigTimerText.color = golden ? Gold : Color.white;
+            _goldenScoreLabel.text = golden ? "GOLDEN SCORE" : "";
+
+            bool anyIppon = eng.Board.HasIppon(FighterId.A) || eng.Board.HasIppon(FighterId.B);
+            _ipponStrip.color = anyIppon ? Danger : Dim;
+
+            RefreshScoreRow(eng, FighterId.A, _wazaAriTextA, _yukoTextA, _shidoIconsA, _holdTextA);
+            RefreshScoreRow(eng, FighterId.B, _wazaAriTextB, _yukoTextB, _shidoIconsB, _holdTextB);
+        }
+
+        void RefreshScoreRow(MatchEngine eng, FighterId who, TMP_Text wazaAriText, TMP_Text yukoText,
+                             Transform shidoIcons, TMP_Text holdText)
+        {
+            wazaAriText.text = eng.Board.WazaAri(who).ToString();
+            yukoText.text = eng.Board.Yuko(who).ToString();
+            RefreshShidoIcons(shidoIcons, eng.Board.Shido(who));
+            int held = eng.Osaekomi.Active && eng.Osaekomi.Holder == who ? eng.Osaekomi.HeldSeconds : 0;
+            holdText.text = $"{held:00}";
+        }
+
+        /// §1 지도 — 1·2 개는 노란 카드 누적, 3개째(=한소쿠마케로 즉시 종료)는 노란
+        /// 카드가 아니라 빨간 카드 하나로 바뀐다.
+        void RefreshShidoIcons(Transform container, int shidoCount)
+        {
+            for (int i = container.childCount - 1; i >= 0; i--)
+                Destroy(container.GetChild(i).gameObject);
+
+            if (shidoCount <= 0) return;
+            if (shidoCount >= 3) { MakeShidoIcon(container, 0, Danger); return; }
+            for (int i = 0; i < shidoCount; i++)
+                MakeShidoIcon(container, i, ShidoYellow);
+        }
+
+        void MakeShidoIcon(Transform parent, int index, Color color)
+        {
+            var go = new GameObject("Shido", typeof(RectTransform), typeof(Image));
+            go.transform.SetParent(parent, false);
+            var rt = (RectTransform)go.transform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0, 0.5f);
+            rt.pivot = new Vector2(0, 0.5f);
+            rt.sizeDelta = new Vector2(16, 16);
+            rt.anchoredPosition = new Vector2(index * 20, 0);
+            go.GetComponent<Image>().color = color;
+        }
+
+        // ── 점수판 아래 상태 HUD ─────────────────────────────────────────────────
+
+        /// 잡기·체력·위상·쿠즈시 — 점수판에 없는 항목만 여기 남는다. 시계·절반·유효·
+        /// 지도·누르기 카운트는 <see cref="RefreshScoreboard"/> 로 옮겨갔다.
+        /// <paramref name="matteJustCalled"/> — 이번 Confirm() 호출에서 그쳐가
+        /// 났으면 true. 그쳐는 <c>MatchClock.Phase</c> 에 남지 않는 순간 상태라
+        /// (그쳐 직후 곧장 서기로 돌아간다) 호출부가 이번 교환의 이벤트를 보고
+        /// 판단해서 넘겨줘야 한다 — 안 넘기면 "그쳐"가 화면에 뜰 기회가 없다.
+        void RefreshStatusHud(bool matteJustCalled = false)
         {
             var eng = _runner.Engine;
-            int rem = eng.Clock.RemainingSeconds;
-            string phase = eng.Osaekomi.Active
+            RefreshScoreboard(eng);
+
+            _phaseText.text = "위상: " + (eng.Osaekomi.Active
                 ? $"굳히기 — {FighterLabel(eng.Osaekomi.Holder)} 누름 {eng.Osaekomi.HeldSeconds}초 " +
                   $"(이탈 {eng.Osaekomi.EscapesSoFar}/{eng.Osaekomi.EscapesNeeded})"
-                : "서기";
-            _clockPhaseText.text = $"{rem / 60:00}:{rem % 60:00}   {phase}";
+                : matteJustCalled ? "그쳐" : "서기");
 
             _statusTextA.text = FighterStatus(eng, FighterId.A);
             _statusTextB.text = FighterStatus(eng, FighterId.B);
@@ -375,12 +447,11 @@ namespace CounterTime.Game.Match
             int grip = eng.Grip.EffectiveGrip(who);
             string left = GripLockLabel(eng.Grip.LockState(who, Hand.Left));
             string right = GripLockLabel(eng.Grip.LockState(who, Hand.Right));
-            string score = $"유효{eng.Board.Yuko(who)} 절반{eng.Board.WazaAri(who)} 지도{eng.Board.Shido(who)}";
             string kuzushi = _runner.Config.KuzushiGateEnabled
                 ? $"  쿠즈시 {(eng.IsKuzushiActive(who) ? "유효" : "없음")}"
                 : "";
             return $"{FighterLabel(who)}  체력 {stamina}  그립 {grip:+0;-0;0}  " +
-                   $"왼손 {left} 오른손 {right}  {score}{kuzushi}";
+                   $"왼손 {left} 오른손 {right}{kuzushi}";
         }
 
         // ── 런타임 UI 뼈대 ───────────────────────────────────────────────────────
@@ -397,8 +468,10 @@ namespace CounterTime.Game.Match
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920, 1080);
 
-            BuildStatusHud(go.transform);
+            BuildScoreboard(go.transform);
+            BuildPhaseText(go.transform);
             BuildExposureBar(go.transform);
+            BuildFighterStatusTexts(go.transform);
             BuildResultText(go.transform);
             BuildPreemptedText(go.transform);
             BuildSelectionText(go.transform);
@@ -408,14 +481,100 @@ namespace CounterTime.Game.Match
             _osaekomiRoot.SetActive(false);
         }
 
-        void BuildStatusHud(Transform parent)
+        /// 실전 유도 점수판 규격 (사진 레퍼런스). 좌표는 전부 이 루트 안의 로컬
+        /// 오프셋이다 — 캔버스 기준 절대 좌표를 매 칸마다 다시 계산하지 않으려고
+        /// 자체 컨테이너를 둔다(기존 ExposureBar 와 같은 패턴).
+        void BuildScoreboard(Transform parent)
         {
-            _clockPhaseText = MakeText(parent, "", TextAlignmentOptions.Center,
-                new Vector2(0, -8), new Vector2(560, 30), new Vector2(0.5f, 1));
+            var root = new GameObject("Scoreboard", typeof(RectTransform));
+            root.transform.SetParent(parent, false);
+            var rt = (RectTransform)root.transform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 1);
+            rt.pivot = new Vector2(0.5f, 1);
+            rt.sizeDelta = new Vector2(460, 236);
+            rt.anchoredPosition = new Vector2(0, -8);
+
+            _bigTimerText = MakeText(root.transform, "0:00", TextAlignmentOptions.Center,
+                new Vector2(0, 0), new Vector2(300, 60), new Vector2(0.5f, 1), fontSizeOverride: 44);
+            _goldenScoreLabel = MakeText(root.transform, "", TextAlignmentOptions.Center,
+                new Vector2(0, -62), new Vector2(300, 22), new Vector2(0.5f, 1), fontSizeOverride: 16);
+            _goldenScoreLabel.color = Gold;
+
+            _ipponStrip = MakeText(root.transform, "I\nP\nP\nO\nN", TextAlignmentOptions.Center,
+                new Vector2(0, -90), new Vector2(40, 138), new Vector2(0f, 1), fontSizeOverride: 13);
+            _ipponStrip.color = Dim;
+
+            MakeText(root.transform, "W", TextAlignmentOptions.Center,
+                new Vector2(104, -90), new Vector2(64, 20), new Vector2(0f, 1), fontSizeOverride: 13);
+            MakeText(root.transform, "Y", TextAlignmentOptions.Center,
+                new Vector2(176, -90), new Vector2(64, 20), new Vector2(0f, 1), fontSizeOverride: 13);
+            MakeText(root.transform, "S/H", TextAlignmentOptions.Center,
+                new Vector2(248, -90), new Vector2(90, 20), new Vector2(0f, 1), fontSizeOverride: 13);
+            MakeText(root.transform, "누르기", TextAlignmentOptions.Center,
+                new Vector2(346, -90), new Vector2(90, 20), new Vector2(0f, 1), fontSizeOverride: 13);
+
+            (_wazaAriTextA, _yukoTextA, _shidoIconsA, _holdTextA) =
+                BuildScoreRow(root.transform, "A", RowWhiteBg, Color.black, -112);
+            (_wazaAriTextB, _yukoTextB, _shidoIconsB, _holdTextB) =
+                BuildScoreRow(root.transform, "B", RowBlueBg, Color.white, -172);
+        }
+
+        /// 행 하나(A 또는 B) — 배경색 있는 바 + 라벨 + W/Y/누르기 값 + 지도 카드
+        /// 칸. 절대 오프셋은 <see cref="BuildScoreboard"/> 의 칸 배치와 맞춰뒀다
+        /// (헤더 x 좌표와 값 x 좌표가 같은 자리를 써야 줄이 맞는다).
+        (TMP_Text wazaAri, TMP_Text yuko, Transform shidoIcons, TMP_Text hold) BuildScoreRow(
+            Transform parent, string label, Color bg, Color fg, float yOffset)
+        {
+            var bar = new GameObject($"Row{label}", typeof(RectTransform), typeof(Image));
+            bar.transform.SetParent(parent, false);
+            var rt = (RectTransform)bar.transform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0f, 1);
+            rt.pivot = new Vector2(0f, 1);
+            rt.sizeDelta = new Vector2(420, 56);
+            rt.anchoredPosition = new Vector2(40, yOffset);
+            bar.GetComponent<Image>().color = bg;
+
+            var labelText = MakeText(bar.transform, label, TextAlignmentOptions.Center,
+                new Vector2(8, -8), new Vector2(50, 40), new Vector2(0f, 1), fontSizeOverride: 22);
+            labelText.color = fg;
+
+            var wazaAri = MakeText(bar.transform, "0", TextAlignmentOptions.Center,
+                new Vector2(64, -8), new Vector2(64, 40), new Vector2(0f, 1), fontSizeOverride: 22);
+            wazaAri.color = fg;
+
+            var yuko = MakeText(bar.transform, "0", TextAlignmentOptions.Center,
+                new Vector2(136, -8), new Vector2(64, 40), new Vector2(0f, 1), fontSizeOverride: 22);
+            yuko.color = fg;
+
+            var shidoRoot = new GameObject("ShidoIcons", typeof(RectTransform));
+            shidoRoot.transform.SetParent(bar.transform, false);
+            var shidoRt = (RectTransform)shidoRoot.transform;
+            shidoRt.anchorMin = shidoRt.anchorMax = new Vector2(0f, 0.5f);
+            shidoRt.pivot = new Vector2(0f, 0.5f);
+            shidoRt.sizeDelta = new Vector2(90, 20);
+            shidoRt.anchoredPosition = new Vector2(208, 0);
+
+            var hold = MakeText(bar.transform, "00", TextAlignmentOptions.Center,
+                new Vector2(306, -8), new Vector2(90, 40), new Vector2(0f, 1), fontSizeOverride: 22);
+            hold.color = fg;
+
+            return (wazaAri, yuko, shidoRoot.transform, hold);
+        }
+
+        /// §4.4 [초안]/§9 — 점수판 아래, 잡기·체력·위상·쿠즈시 (점수판으로 옮기지
+        /// 않은 나머지). "그 외 표시" 요구사항 목록 그대로 별도 영역.
+        void BuildPhaseText(Transform parent)
+        {
+            _phaseText = MakeText(parent, "", TextAlignmentOptions.Center,
+                new Vector2(0, -252), new Vector2(700, 26), new Vector2(0.5f, 1));
+        }
+
+        void BuildFighterStatusTexts(Transform parent)
+        {
             _statusTextA = MakeText(parent, "", TextAlignmentOptions.TopLeft,
-                new Vector2(16, -8), new Vector2(620, 60), new Vector2(0f, 1));
+                new Vector2(16, -334), new Vector2(430, 70), new Vector2(0f, 1));
             _statusTextB = MakeText(parent, "", TextAlignmentOptions.TopRight,
-                new Vector2(-16, -8), new Vector2(620, 60), new Vector2(1f, 1));
+                new Vector2(-16, -334), new Vector2(430, 70), new Vector2(1f, 1));
         }
 
         void BuildExposureBar(Transform parent)
@@ -426,7 +585,7 @@ namespace CounterTime.Game.Match
             rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 1);
             rt.pivot = new Vector2(0.5f, 1);
             rt.sizeDelta = new Vector2(500, 40);
-            rt.anchoredPosition = new Vector2(0, -76);
+            rt.anchoredPosition = new Vector2(0, -286);
 
             _warningMark = MakeMark(root.transform, new Vector2(-70, 0));
             _dangerMark = MakeMark(root.transform, new Vector2(-30, 0));
@@ -451,14 +610,14 @@ namespace CounterTime.Game.Match
         void BuildResultText(Transform parent)
         {
             _resultText = MakeText(parent, "", TextAlignmentOptions.Center,
-                new Vector2(0, -130), new Vector2(900, 80), new Vector2(0.5f, 1));
+                new Vector2(0, -412), new Vector2(900, 80), new Vector2(0.5f, 1));
         }
 
         /// [v1 임시 시스템 문구용 슬롯 — 카피 교체 목록에 올릴 것]
         void BuildPreemptedText(Transform parent)
         {
             _preemptedText = MakeText(parent, "", TextAlignmentOptions.Center,
-                new Vector2(0, -220), new Vector2(900, 40), new Vector2(0.5f, 1));
+                new Vector2(0, -502), new Vector2(900, 40), new Vector2(0.5f, 1));
             _preemptedText.color = Warning;
         }
 
@@ -466,7 +625,7 @@ namespace CounterTime.Game.Match
         void BuildSelectionText(Transform parent)
         {
             _selectionText = MakeText(parent, "", TextAlignmentOptions.Center,
-                new Vector2(0, -270), new Vector2(900, 30), new Vector2(0.5f, 1));
+                new Vector2(0, -552), new Vector2(900, 30), new Vector2(0.5f, 1));
         }
 
         /// 3) 교환 로그 — 최근 5교환, 새 항목이 위로 쌓인다. 폴백 서술은
@@ -474,7 +633,7 @@ namespace CounterTime.Game.Match
         void BuildExchangeLog(Transform parent)
         {
             _logText = MakeText(parent, "", TextAlignmentOptions.TopLeft,
-                new Vector2(0, -310), new Vector2(900, 260), new Vector2(0.5f, 1));
+                new Vector2(0, -592), new Vector2(900, 150), new Vector2(0.5f, 1));
         }
 
         GameObject BuildStandingRoot(Transform parent)
@@ -572,7 +731,8 @@ namespace CounterTime.Game.Match
         }
 
         TMP_Text MakeText(Transform parent, string text, TextAlignmentOptions align, Vector2 offset,
-                          Vector2 size, Vector2? anchor = null, bool stretch = false)
+                          Vector2 size, Vector2? anchor = null, bool stretch = false,
+                          float? fontSizeOverride = null)
         {
             var go = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
             go.transform.SetParent(parent, false);
@@ -594,7 +754,7 @@ namespace CounterTime.Game.Match
 
             var t = go.GetComponent<TextMeshProUGUI>();
             if (koreanFont != null) t.font = koreanFont;
-            t.fontSize = fontSize;
+            t.fontSize = fontSizeOverride ?? fontSize;
             t.alignment = align;
             t.text = text;
             t.raycastTarget = false;
