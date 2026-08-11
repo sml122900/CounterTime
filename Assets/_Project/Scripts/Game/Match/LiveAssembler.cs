@@ -34,7 +34,7 @@ namespace CounterTime.Game.Match
 
         /// <summary>
         /// §2 — 상대 지정 넷 + 회피는 언제나 열려 있다. 틀어잡기/등싸잡기는 다른 손이
-        /// 이미 소매·깃을 잡고 있을 때만(§2 "unlocked conversions"). 쿠즈시는 [초안]
+        /// 이미 소매·깃을 잡고 있을 때만(§2 "unlocked conversions"). 흔들기는 [초안]
         /// §4.4 대로 자기 그립이 있고 플래그가 켜져 있을 때만.
         ///
         /// 뜯기·잡기 유지는 §2 표 자체에는 없고 §3.2 서술로만 나온다 — 여기 게이트는
@@ -61,8 +61,8 @@ namespace CounterTime.Game.Match
             if (AnyHandHeldOnMe()) options.Add(HandTarget.Tear);
             if (_engine.Grip.HasAnyGrip(_me)) options.Add(HandTarget.MaintainGrip);
 
-            if (_cfg.KuzushiGateEnabled && _engine.Grip.HasAnyGrip(_me))
-                options.Add(HandTarget.Kuzushi);
+            if (_cfg.SetupGateEnabled && _engine.Grip.HasAnyGrip(_me))
+                options.Add(HandTarget.Setup);
 
             return options;
         }

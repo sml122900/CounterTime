@@ -43,9 +43,9 @@ namespace CounterTime.Core
         // §9 osaekomi
         public int OsaekomiStayCost = 3;          // §9.3 맞물림 — defender pays per stay
         public int OsaekomiEscapeIntervalSec = 5; // §9.3 — one escape exchange per 5s of hold
-        // §4.4 kuzushi [초안 — 사람 검토 전]. Default off — a default-constructed config
-        // reproduces v1 대조 모드 exactly, per this section's own "default off" clause.
-        public bool KuzushiGateEnabled = false;
-        public int KuzushiCost = 1;
+        // §4.4 흔들기(setup) [초안 — 사람 검토 전]. Default off — a default-constructed
+        // config reproduces v1 대조 모드 exactly, per this section's own "default off" clause.
+        public bool SetupGateEnabled = false;
+        public int SetupCost = 1;
     }
 }

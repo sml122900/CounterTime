@@ -4,7 +4,7 @@ namespace CounterTime.Core
     public enum Hand { None, Left, Right }
     public enum HandTarget { None, RightSleeve, LeftSleeve, LeftLapel, RightLapel, Evade,
                              TwistGrip /*틀어잡기*/, BackGrab /*등싸잡기*/, Tear /*뜯기*/,
-                             MaintainGrip /*잡기 유지*/, Kuzushi /*무너뜨리기, §4.4 초안*/ }
+                             MaintainGrip /*잡기 유지*/, Setup /*흔들기, §4.4 초안*/ }
     public enum CoreStance { Aggressive, Neutral, Defensive }
     public enum LegAction  { Attack, Neutral, Defend, CounterReady }
     public enum GripKind   { None, Normal, Dominant }          // value 0 / 1 / 2

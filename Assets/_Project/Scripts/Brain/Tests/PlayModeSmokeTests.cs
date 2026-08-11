@@ -98,14 +98,14 @@ namespace CounterTime.Brain.Tests
         }
 
         /// <summary>한 경기를 굴린다. <paramref name="aCommit"/> 이 A 의 성향을 정한다.
-        /// <paramref name="kuzushiEnabled"/> (작업6, §4.4 [초안]) — true 면
-        /// <see cref="MatchRulesConfig.KuzushiGateEnabled"/> 를 켜고 B 의 커밋을
-        /// <see cref="KuzushiPrecedingCommitSource"/> 로 감싼다. 습관 카탈로그·읽기
+        /// <paramref name="setupEnabled"/> (작업6, §4.4 [초안]) — true 면
+        /// <see cref="MatchRulesConfig.SetupGateEnabled"/> 를 켜고 B 의 커밋을
+        /// <see cref="SetupPrecedingCommitSource"/> 로 감싼다. 습관 카탈로그·읽기
         /// 사다리·판정식은 이 매개변수로 아무것도 안 바뀐다 — 켜고 끄는 것은 §4.4 경로
         /// 하나뿐이다.</summary>
-        static Metrics RunMatch(Func<int, TurnChoice> aCommit, int seed, bool kuzushiEnabled = false)
+        static Metrics RunMatch(Func<int, TurnChoice> aCommit, int seed, bool setupEnabled = false)
         {
-            var cfg = new MatchRulesConfig { ThresholdJitter = 0, KuzushiGateEnabled = kuzushiEnabled };
+            var cfg = new MatchRulesConfig { ThresholdJitter = 0, SetupGateEnabled = setupEnabled };
             var rng = new SystemRandomSource(seed);
             var engine = new MatchEngine(cfg, RefereeProfile.Standard, rng);
 
@@ -118,8 +118,8 @@ namespace CounterTime.Brain.Tests
             var brainInner = new HabitBrainCommitSource(FighterId.B, state, ctx, ctx, rng);
             // 작업4 데코레이터 — off 면 그냥 안 만든다(브레인 호출 지점 자체가 갈린다,
             // 켜져 있지도 않은 경로를 "비활성 상태로 통과"시키는 게 아니라).
-            var brainWrapped = kuzushiEnabled
-                ? new KuzushiPrecedingCommitSource(brainInner, ctx, enabled: true)
+            var brainWrapped = setupEnabled
+                ? new SetupPrecedingCommitSource(brainInner, ctx, enabled: true)
                 : null;
 
             var m = new Metrics { Ledger = ledger };
@@ -132,7 +132,7 @@ namespace CounterTime.Brain.Tests
                 TechniqueSpec brainTechnique;
                 HabitDecision brainDecision;
                 bool brainUsedFallback;
-                if (kuzushiEnabled)
+                if (setupEnabled)
                 {
                     brainWrapped.TryNext(out _, out b);
                     brainTechnique = brainWrapped.LastTechnique;
@@ -147,7 +147,7 @@ namespace CounterTime.Brain.Tests
                     brainUsedFallback = brainInner.LastUsedFallback;
                 }
 
-                // 커밋이 실제로 이번 교환에 제출되는 시점에 알린다 — 쿠즈시 설치
+                // 커밋이 실제로 이번 교환에 제출되는 시점에 알린다 — 흔들기 설치
                 // 교환에서는 brainDecision 이 default(발화 없음)라 알림이 안 나가고,
                 // 다음 교환(진짜 기술 제출)에서 실제 결정이 나간다.
                 resolver.NoteOpponentHabit(brainDecision);
@@ -361,17 +361,17 @@ namespace CounterTime.Brain.Tests
         }
 
         /// <summary>
-        /// 작업6 실측 — 3프로필(반복/변주/현실적) × 쿠즈시(off/on) = 6회. 튜닝 안 함,
-        /// 숫자를 판정하지 않는다. §4.4 는 아직 [초안]이고 <c>KuzushiGateEnabled</c>
+        /// 작업6 실측 — 3프로필(반복/변주/현실적) × 흔들기(off/on) = 6회. 튜닝 안 함,
+        /// 숫자를 판정하지 않는다. §4.4 는 아직 [초안]이고 <c>SetupGateEnabled</c>
         /// 기본값은 off — 이 테스트가 켜는 건 이 6회 실측 안에서만이다.
         ///
         /// <b>A 는 여전히 허수아비다.</b> B 가 공격 안 하는 턴에만 A 가 고정 밭다리를
         /// 던진다(§6.4 STATUS 원칙 그대로) — 세 프로필이 A 의 공격 성향을 실제로
-        /// 갈라놓지 못하는 것도 그대로다. 이 실측이 보는 것은 B 의 쿠즈시 선행이
+        /// 갈라놓지 못하는 것도 그대로다. 이 실측이 보는 것은 B 의 흔들기 선행이
         /// 수치에 미치는 영향 하나뿐이다.
         /// </summary>
         [Test]
-        public void KuzushiOffVsOn_SixProfileMeasurements()
+        public void SetupOffVsOn_SixProfileMeasurements()
         {
             var profiles = new (string name, Func<int, TurnChoice> commit)[]
             {
@@ -383,12 +383,12 @@ namespace CounterTime.Brain.Tests
             var sb = new StringBuilder();
             foreach (var (name, commit) in profiles)
             {
-                var off = RunMatch(commit, seed: 1234, kuzushiEnabled: false);
-                var on = RunMatch(commit, seed: 1234, kuzushiEnabled: true);
+                var off = RunMatch(commit, seed: 1234, setupEnabled: false);
+                var on = RunMatch(commit, seed: 1234, setupEnabled: true);
 
-                sb.AppendLine($"=== {name} — 쿠즈시 off ===");
+                sb.AppendLine($"=== {name} — 흔들기 off ===");
                 sb.AppendLine(off.ToString());
-                sb.AppendLine($"=== {name} — 쿠즈시 on ===");
+                sb.AppendLine($"=== {name} — 흔들기 on ===");
                 sb.AppendLine(on.ToString());
 
                 Assert.Greater(off.Turns, 0);

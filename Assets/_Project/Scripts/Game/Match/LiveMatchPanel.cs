@@ -269,7 +269,7 @@ namespace CounterTime.Game.Match
             HandTarget.BackGrab => "등싸잡기",
             HandTarget.Tear => "뜯기",
             HandTarget.MaintainGrip => "잡기 유지",
-            HandTarget.Kuzushi => "쿠즈시",
+            HandTarget.Setup => "흔들기",
             _ => "—",
         };
 
@@ -325,7 +325,7 @@ namespace CounterTime.Game.Match
             MatchEnded m => m.Winner.HasValue ? $"경기 종료 — {FighterLabel(m.Winner.Value)} 승" : "경기 종료 — 무승부",
             ShidoGiven sg => $"지도 {sg.Count} — {FighterLabel(sg.Who)} ({(sg.FromFeint ? "위장 공격 적발" : "소극 누적")})",
             MatteCalled => "그쳐",
-            KuzushiDeclared kd => $"{FighterLabel(kd.Who)} 쿠즈시 설치",
+            SetupDeclared sd => $"{FighterLabel(sd.Who)} 흔들기 설치",
             TearResolved tr => $"{FighterLabel(tr.Who)} 뜯기 — {TearLabel(tr.Outcome)}",
             CounterReadyApplied cr => $"{FighterLabel(cr.Who)} 카운터 준비 적중 — 상대 읽기 하락",
             OsaekomiEscapeResolved er => er.EscapeCredited ? "이탈 성공" : "눌림 유지 — 이탈 실패",
@@ -422,7 +422,7 @@ namespace CounterTime.Game.Match
 
         // ── 점수판 아래 상태 HUD ─────────────────────────────────────────────────
 
-        /// 잡기·체력·위상·쿠즈시 — 점수판에 없는 항목만 여기 남는다. 시계·절반·유효·
+        /// 잡기·체력·위상·흔들기 — 점수판에 없는 항목만 여기 남는다. 시계·절반·유효·
         /// 지도·누르기 카운트는 <see cref="RefreshScoreboard"/> 로 옮겨갔다.
         /// <paramref name="matteJustCalled"/> — 이번 Confirm() 호출에서 그쳐가
         /// 났으면 true. 그쳐는 <c>MatchClock.Phase</c> 에 남지 않는 순간 상태라
@@ -448,11 +448,11 @@ namespace CounterTime.Game.Match
             int grip = eng.Grip.EffectiveGrip(who);
             string left = GripLockLabel(eng.Grip.LockState(who, Hand.Left));
             string right = GripLockLabel(eng.Grip.LockState(who, Hand.Right));
-            string kuzushi = _runner.Config.KuzushiGateEnabled
-                ? $"  쿠즈시 {(eng.IsKuzushiActive(who) ? "유효" : "없음")}"
+            string setup = _runner.Config.SetupGateEnabled
+                ? $"  흔들기 {(eng.IsSetupActive(who) ? "유효" : "없음")}"
                 : "";
             return $"{FighterLabel(who)}  체력 {stamina}  그립 {grip:+0;-0;0}  " +
-                   $"왼손 {left} 오른손 {right}{kuzushi}";
+                   $"왼손 {left} 오른손 {right}{setup}";
         }
 
         // ── 런타임 UI 뼈대 ───────────────────────────────────────────────────────
@@ -562,7 +562,7 @@ namespace CounterTime.Game.Match
             return (wazaAri, yuko, shidoRoot.transform, hold);
         }
 
-        /// §4.4 [초안]/§9 — 점수판 아래, 잡기·체력·위상·쿠즈시 (점수판으로 옮기지
+        /// §4.4 [초안]/§9 — 점수판 아래, 잡기·체력·위상·흔들기 (점수판으로 옮기지
         /// 않은 나머지). "그 외 표시" 요구사항 목록 그대로 별도 영역.
         void BuildPhaseText(Transform parent)
         {

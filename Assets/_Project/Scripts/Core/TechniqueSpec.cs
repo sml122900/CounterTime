@@ -9,9 +9,9 @@ namespace CounterTime.Core
         public readonly ActionCost Cost;
         public readonly TechniqueClass Class;
         public readonly int MasteryLevel;   // §5.4, 0..5
-        /// §4.4 [초안] — exempts this technique from the kuzushi-less BigThrow downgrade
-        /// to Sloppy. For 말아업어치기: its whole point is sharing 업어치기's opening
-        /// motion, so the opponent cannot see it coming to set up a kuzushi against.
+        /// §4.4 [초안] — exempts this technique from the setup-less (흔들기 없는) BigThrow
+        /// downgrade to Sloppy. For 말아업어치기: its whole point is sharing 업어치기's
+        /// opening motion, so the opponent cannot see it coming to set up 흔들기 against.
         public readonly bool SurpriseExempt;
 
         public TechniqueSpec(string id, ActionCost cost, TechniqueClass techClass,

@@ -51,13 +51,13 @@ namespace CounterTime.Core
         /// that method's comment) reads it.
         int _scorerOpponentStaminaPrePayment;
 
-        /// §4.4 [초안] — kuzushi state carried INTO this exchange (set by a kuzushi
+        /// §4.4 [초안] — 흔들기(setup) state carried INTO this exchange (set by 흔들기
         /// declared in the PREVIOUS exchange). Indexed by (int)FighterId.
-        readonly bool[] _kuzushiActive = new bool[2];
-        /// §4.4 [초안] — kuzushi declared DURING the exchange currently resolving;
-        /// becomes next exchange's `_kuzushiActive` unless 그쳐/굳히기 진입/경기 종료
+        readonly bool[] _setupActive = new bool[2];
+        /// §4.4 [초안] — 흔들기 declared DURING the exchange currently resolving;
+        /// becomes next exchange's `_setupActive` unless 그쳐/굳히기 진입/경기 종료
         /// wipes it first. Scratch state, valid only within one ResolveExchange call.
-        readonly bool[] _kuzushiDeclaredThisExchange = new bool[2];
+        readonly bool[] _setupDeclaredThisExchange = new bool[2];
 
         public GripSystem Grip { get; }
         public StaminaSystem Stamina { get; }
@@ -77,10 +77,10 @@ namespace CounterTime.Core
             Clock = new MatchClock(cfg);
         }
 
-        /// §4.4 [초안] — presentation read of whether `who`'s kuzushi setup carries into
-        /// the exchange about to resolve. ResolveTechnique reads `_kuzushiActive`
+        /// §4.4 [초안] — presentation read of whether `who`'s 흔들기 carries into
+        /// the exchange about to resolve. ResolveTechnique reads `_setupActive`
         /// directly for judgment purposes; this is the read-only mirror for HUDs.
-        public bool IsKuzushiActive(FighterId who) => _kuzushiActive[(int)who];
+        public bool IsSetupActive(FighterId who) => _setupActive[(int)who];
 
         public IReadOnlyList<MatchEvent> ResolveExchange(TurnChoice a, TurnChoice b, ExchangeScript script)
         {
@@ -96,7 +96,7 @@ namespace CounterTime.Core
             var ev = new List<MatchEvent>();
             if (Board.IsFinished) return ev;
 
-            _kuzushiDeclaredThisExchange[0] = _kuzushiDeclaredThisExchange[1] = false;
+            _setupDeclaredThisExchange[0] = _setupDeclaredThisExchange[1] = false;
 
             // §2 counter-ready gate: a fighter who declared it cannot enter a technique
             // this turn — no 기술 진입, no judgment fired by them. Enforced here rather
@@ -181,12 +181,12 @@ namespace CounterTime.Core
                 }
             }
 
-            // §4.4 [초안] — 그쳐·굳히기 진입·경기 종료가 이 교환에서 일어났으면 쿠즈시
+            // §4.4 [초안] — 그쳐·굳히기 진입·경기 종료가 이 교환에서 일어났으면 흔들기
             // 상태는 국면 리셋과 함께 소멸한다. 그 외에는 이번 교환에 새로 선언된 쪽만
             // 다음 교환으로 넘어간다(누적이 아니라 교체 — 1교환만 지속).
-            bool kuzushiReset = MatteAlreadyCalled(ev) || Osaekomi.Active || Board.IsFinished;
-            _kuzushiActive[0] = !kuzushiReset && _kuzushiDeclaredThisExchange[0];
-            _kuzushiActive[1] = !kuzushiReset && _kuzushiDeclaredThisExchange[1];
+            bool setupReset = MatteAlreadyCalled(ev) || Osaekomi.Active || Board.IsFinished;
+            _setupActive[0] = !setupReset && _setupDeclaredThisExchange[0];
+            _setupActive[1] = !setupReset && _setupDeclaredThisExchange[1];
 
             if (Board.IsFinished) ev.Add(new MatchEnded(Board.Winner));
             return ev;
@@ -348,15 +348,15 @@ namespace CounterTime.Core
                     ev.Add(new GripChanged(who, mine.OwnHand, mine.Hand, GripKind.Dominant));
                     break;
 
-                case HandTarget.Kuzushi:
+                case HandTarget.Setup:
                     // §4.4 [초안] — inert unless the draft flag is on; when on, needs a
                     // grip to lean on and is otherwise a no-op (mirrors the conversion
                     // gate above: CanUseConversion/HasAnyGrip are the same predicate,
                     // named for what each caller is asking).
-                    if (!_cfg.KuzushiGateEnabled || !Grip.HasAnyGrip(who)) break;
-                    Stamina.PayKuzushi(who);
-                    _kuzushiDeclaredThisExchange[(int)who] = true;
-                    ev.Add(new KuzushiDeclared(who));
+                    if (!_cfg.SetupGateEnabled || !Grip.HasAnyGrip(who)) break;
+                    Stamina.PaySetup(who);
+                    _setupDeclaredThisExchange[(int)who] = true;
+                    ev.Add(new SetupDeclared(who));
                     break;
 
                 case HandTarget.Tear:
@@ -416,13 +416,13 @@ namespace CounterTime.Core
             // §4 — derived in exactly one place. Do NOT re-derive inline here; an
             // inline `Core == Defensive` is what produced the v3.1 counter-ready bug.
             bool defensive = JudgementCalculator.IsDefensivePosture(defenderChoice);
-            // §4.4 [초안] — a BigThrow thrown without an active kuzushi setup enters the
+            // §4.4 [초안] — a BigThrow thrown without an active 흔들기(setup) enters the
             // formula as Sloppy. JudgementCalculator itself is untouched; the downgrade
             // is a context decision made here, same boundary as everything else that
             // feeds JudgementContext.
             TechniqueClass techClass = script.Technique.Class;
-            if (_cfg.KuzushiGateEnabled && script.Technique.Cost == ActionCost.BigThrow
-                && !script.Technique.SurpriseExempt && !_kuzushiActive[(int)attacker])
+            if (_cfg.SetupGateEnabled && script.Technique.Cost == ActionCost.BigThrow
+                && !script.Technique.SurpriseExempt && !_setupActive[(int)attacker])
                 techClass = TechniqueClass.Sloppy;
             var ctx = new JudgementContext(grip, read, defenderStamina, techClass, defensive);
             var result = JudgementCalculator.Evaluate(attacker, ctx, _cfg);

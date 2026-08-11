@@ -1,5 +1,5 @@
-<!-- v3.7 | body:1d15c97 -->
-# MATCH_RULES.md — COUNTER TIME judo match system (v3.7)
+<!-- v3.8 | body:17a7bbb -->
+# MATCH_RULES.md — COUNTER TIME judo match system (v3.8)
 
 Single source of truth for match logic. `CounterTime.Core` implements THIS file;
 if code and this file disagree, this file wins. All numbers are v1 tunables unless
@@ -43,7 +43,7 @@ commit by both fighters. Per-turn choice =
 | Hand — unlocked conversions | 틀어잡기(back-collar twist), 등싸잡기 | Only available while the OTHER hand already holds a sleeve/lapel. |
 | Hand — 뜯기(tear) | resolves per §3.2's simultaneous mind-game | Gate: opponent holds at least one of your hands (`GripLock != Free`). |
 | Hand — 잡기 유지(maintain grip) | the defending side of §3.2's tear contest | Gate: you hold at least one grip (`HasAnyGrip`). |
-| Hand — **[초안 — 사람 검토 전]** 쿠즈시(무너뜨리기) | 상대를 무너뜨려 다음 교환의 큰기술에 정당성을 준다 (§4.4) | `KuzushiGateEnabled` 플래그 뒤. 자기 그립이 하나라도 있어야 선언 가능. 판정 미발화(견제 발기술과 동급), 별도 상성표 rung 없음. |
+| Hand — **[초안 — 사람 검토 전]** 흔들기 | 상대를 무너뜨려 다음 교환의 큰기술에 정당성을 준다 (§4.4) | `SetupGateEnabled` 플래그 뒤. 자기 그립이 하나라도 있어야 선언 가능. 판정 미발화(견제 발기술과 동급), 별도 상성표 rung 없음. |
 | Core | 공격적 / 중립 / 수비적 | |
 | Legs (발기술) | 공격 / 중립 / 수비 / 카운터 준비 | Legs act even while gripping. |
 
@@ -238,25 +238,25 @@ It settles four things at once:
 4. **Presentation.** 대파열 already resolves into a pause (§8); matte is the
    landing that beat was written for.
 
-### 4.4 **[초안 — 사람 검토 전]** 쿠즈시(무너뜨리기) — 변칙기 강등 규칙
+### 4.4 **[초안 — 사람 검토 전]** 흔들기 — 변칙기 강등 규칙
 
-`KuzushiGateEnabled` 플래그 뒤(기본 **off** — v1 대조 모드는 이 절 이전과 동일하게 동작한다).
+`SetupGateEnabled` 플래그 뒤(기본 **off** — v1 대조 모드는 이 절 이전과 동일하게 동작한다).
 플래그가 꺼져 있으면 아래 규칙은 전부 적용되지 않는다.
 
-- **선언 게이트.** 쿠즈시는 §2의 손 슬롯을 쓴다. 자기 그립이 하나라도 있어야
+- **선언 게이트.** 흔들기는 §2의 손 슬롯을 쓴다. 자기 그립이 하나라도 있어야
   (`GripKind != None`) 선언할 수 있다 — 잡은 것도 없이 무너뜨릴 수는 없다.
-- **비용.** `KuzushiCost` (기본 1) — 견제 발기술과 같은 급의 가벼운 소모다.
-- **판정.** 쿠즈시 자체는 판정을 내지 않는다(견제 발기술과 동급) — §6.1 소극 사다리에도
+- **비용.** `SetupCost` (기본 1) — 견제 발기술과 같은 급의 가벼운 소모다.
+- **판정.** 흔들기 자체는 판정을 내지 않는다(견제 발기술과 동급) — §6.1 소극 사다리에도
   별도 rung 을 두지 않는다(0).
-- **지속.** 쿠즈시가 성립하면 "상대에 대한 쿠즈시 상태"가 **1교환** 지속된다 — 선언한 바로
+- **지속.** 흔들기가 성립하면 "상대에 대한 흔들기 상태"가 **1교환** 지속된다 — 선언한 바로
   다음 교환에만 유효하고, 그 뒤엔 다시 선언해야 한다.
-- **강등.** 공격자가 쿠즈시 상태 없이 큰기술(투기술, `ActionCost.BigThrow`)을 내면 그
+- **강등.** 공격자가 흔들기 상태 없이 큰기술(투기술, `ActionCost.BigThrow`)을 내면 그
   기술의 기술급(`TechniqueClass`)이 §4 판정식에는 `Sloppy`로 들어간다 — 무너뜨리지 않은
   큰기술은 허술하게 들어간 것으로 친다.
 - **변칙기 면제.** `TechniqueSpec.SurpriseExempt = true` 인 기술(예: 말아업어치기 — 정석
-  업어치기와 초동이 같아 상대가 쿠즈시로 미리 대비할 수 없는 게 이 기술의 존재 이유다)은
+  업어치기와 초동이 같아 상대가 흔들기로 미리 대비할 수 없는 게 이 기술의 존재 이유다)은
   이 강등을 받지 않는다.
-- **소멸.** 그쳐·굳히기 진입·경기 종료가 발생하면 그 교환에서 새로 선언한 쿠즈시를 포함해
+- **소멸.** 그쳐·굳히기 진입·경기 종료가 발생하면 그 교환에서 새로 선언한 흔들기를 포함해
   양쪽 다 소멸한다 — 국면이 리셋되는데 무너뜨린 상태만 남는 것은 앞뒤가 안 맞는다.
 - **판정식 자체는 바뀌지 않는다.** §4 공식은 그대로다 — 강등은 판정식에 들어가는 기술급
   값을 만드는 컨텍스트 단계(엔진)의 일이지, 공식 자체의 새 항이 아니다.

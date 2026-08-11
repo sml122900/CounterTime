@@ -3,6 +3,7 @@ STATUS
 Update this file every time a session resets. This is the ONLY copy — the root CLAUDE.md pulls it in with `@md/STATUS.md`, so it loads automatically at session start. Do not create a second copy anywhere. Check "Current State" and "Next Up" before starting work.
 
 Current State (last updated: 2026-08-11)
+**용어 대응표**: "쿠즈시" = 구 명칭, 2026-08-11 오후 전체 개명 완료 → 화면 표시 "흔들기" / 코드 식별자 `Setup*`(예: `HandTarget.Setup`, `SetupGateEnabled`, `SetupPrecedingCommitSource`). 이 파일의 이전 세션 로그·docs/overnight-*·decisions/·daily/ 는 기록이라 "쿠즈시"로 그대로 남아있다 — 그 시점엔 그게 맞는 이름이었다. 지금 코드/MATCH_RULES.md 를 볼 때는 전부 흔들기/Setup 이다.
 Unity 6.3.21f1 LTS editor installed
 CounterTime project created (Universal 3D template, location C:\project_2026\CounterTime)
 Unity AI Assistant package enabled; Claude Code ↔ Unity MCP connected (unity-mcp, 7 tools enabled). Console verified clean — 0 errors / 0 warnings as of 2026-08-03
@@ -160,6 +161,11 @@ Why Assets/Editor/HubForceResolve.cs disappeared — nobody deleted it. It is Un
 Whether to keep the Unity Cloud link (cloudProjectId / organizationId in ProjectSettings.asset) — keep and commit. cloudEnabled is 0, it is a project GUID rather than a secret, ProjectSettings.asset is tracked anyway, and the editor rewrites it if removed.
 
 Session Log (newest first)
+2026-08-11 (오후, 5차 — 쿠즈시 → 흔들기/Setup 개명)
+사유: 쿠즈시는 유도 전용 어휘라 타 종목(복싱·킥복싱·MMA) 확장 시 안 맞는다. 규칙·동작은 일절 무변경, 이름만. 화면 표시는 "흔들기", 코드 식별자는 `Setup*`.
+전수 조사 먼저 — grep 으로 24개 파일 확인 후 목록을 보고하고 진행. 주의 사항 셋 다 확인 완료: (1) Feint/페인트/위장공격(§6.1)과 텍스트·의미 둘 다 안 겹침 (2) 예비동작(tell 모캡 클립 이름)과 무관, 재사용 안 함 (3) 이름 기반 직렬화 — `.unity`/`.asset`/`.prefab` 전체를 grep 해서 저장된 참조가 0 개임을 확인, 유일한 이름 기반 조회는 `PlayModeSetupMenu.cs` 의 `SerializedProperty.FindProperty("kuzushiEnabled")` 뿐이라 필드 개명과 같이 고침. 지문(`fingerprint-baseline.txt`)도 grep 으로 "쿠즈시"/"Kuzushi" 0 개 확인 — 42노드 대조 시나리오가 플래그 기본 off 라 애초에 이 경로를 안 밟는다.
+바꾼 것: 파일 3개 git mv(.meta 동반, GUID 보존) — `KuzushiPrecedingCommitSource.cs`→`SetupPrecedingCommitSource.cs`, 그 테스트, `Core/Tests/KuzushiTests.cs`→`SetupTests.cs`. 식별자 전부(`HandTarget.Kuzushi`→`Setup`, `KuzushiGateEnabled`→`SetupGateEnabled`, `KuzushiCost`→`SetupCost`, `PayKuzushi`→`PaySetup`, `KuzushiDeclared`→`SetupDeclared`, `IsKuzushiActive`→`IsSetupActive`, 사설 필드 2개, 테스트 메서드 12개). 화면 표시 3곳(손 옵션 라벨, 교환 로그 "흔들기 설치", HUD "흔들기 유효/없음"). MATCH_RULES.md §2/§4.4 갱신 + v3.7→v3.8(스탬프 해시는 pre-commit 훅이 자동 갱신). 남은 "쿠즈시" 0개(Assets 전체 grep 확인) — docs/overnight-*·decisions/·daily/ 는 과거 기록이라 그대로 뒀고, 이 파일엔 위 대응표 한 줄만 추가.
+검증: Unity MCP 컴파일 0/0(파일 리네임 후 재컴파일 확인), dotnet 하니스 209/209, 지문 IDENTICAL(원래 예상대로 — 플래그가 기본 off 라 대조 경로는 흔들기를 아예 안 지나간다).
 2026-08-11 (오후, 4차 — 입력 열 텍스트 겹침 수정)
 사용자가 Play 스크린샷으로 신고: 손 열(쿠즈시 포함)과 코어/하체 열 텍스트가 겹쳐 안 읽힌다. "추측 수정 금지" 지시대로 Play 모드에서 실제 버튼을 눌러(같은 프레임 안에서 연달아 클릭하면 `RebuildColumn` 의 `Destroy()` 가 그 프레임엔 안 지워져 자식이 70개까지 쌓이는 걸 먼저 발견 — 실제 사용자는 클릭 사이에 항상 프레임이 끼니까 안 겪는 테스트 아티팩트였다. MCP 호출을 클릭 1개당 1개로 쪼개 프레임 경계를 실제로 두는 방법으로 우회) 손 열 10개 항목(쿠즈시 포함, 실제로 도달)의 `RectTransform.GetWorldCorners` 를 찍었다.
 가설 3개 검증 결과: (1) 손 열 행 높이가 항목 수 반영 안 하는가 — **아니다.** `VerticalLayoutGroup` 이 이미 10개를 285.3px 안에 23.4px 씩 자동 축소하고 있었고 TMP 필요 높이(21.6px)도 그 안에 들어가 겹침 없음(OVERFLOWS=False 10/10). (2) 하이라이트 행이 행 간격보다 큰가 — 해당 없음, 애초에 안 겹친다. (3) 점수판 재배치가 원인인가 — **아니다,** git log 로 `StandingInput.sizeDelta.y=320` 이 생성 후 한 번도 안 바뀌었음을 확인.

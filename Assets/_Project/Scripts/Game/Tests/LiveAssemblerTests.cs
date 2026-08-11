@@ -12,9 +12,9 @@ namespace CounterTime.Game.Tests
     /// </summary>
     public class LiveAssemblerTests
     {
-        static MatchEngine NewEngine(bool kuzushiEnabled = false)
+        static MatchEngine NewEngine(bool setupEnabled = false)
         {
-            var cfg = new MatchRulesConfig { ThresholdJitter = 0, KuzushiGateEnabled = kuzushiEnabled };
+            var cfg = new MatchRulesConfig { ThresholdJitter = 0, SetupGateEnabled = setupEnabled };
             return new MatchEngine(cfg, RefereeProfile.Standard, new SystemRandomSource(1));
         }
 
@@ -65,7 +65,7 @@ namespace CounterTime.Game.Tests
             Assert.Contains(HandTarget.BackGrab, options.ToList());
             Assert.Contains(HandTarget.MaintainGrip, options.ToList());
             Assert.IsFalse(options.Contains(HandTarget.Tear), "A 를 잡은 사람이 없으니 뜯을 것도 없다");
-            Assert.IsFalse(options.Contains(HandTarget.Kuzushi), "플래그가 꺼져 있으면 그립이 있어도 안 열린다");
+            Assert.IsFalse(options.Contains(HandTarget.Setup), "플래그가 꺼져 있으면 그립이 있어도 안 열린다");
         }
 
         [Test]
@@ -85,10 +85,10 @@ namespace CounterTime.Game.Tests
         }
 
         [Test]
-        public void HandOptions_WithGripAndFlagOn_OpensKuzushi()
+        public void HandOptions_WithGripAndFlagOn_OpensSetup()
         {
-            var engine = NewEngine(kuzushiEnabled: true);
-            var cfg = new MatchRulesConfig { KuzushiGateEnabled = true };
+            var engine = NewEngine(setupEnabled: true);
+            var cfg = new MatchRulesConfig { SetupGateEnabled = true };
 
             engine.ResolveExchange(
                 new TurnChoice(HandTarget.RightSleeve, CoreStance.Neutral, LegAction.Neutral),
@@ -96,7 +96,7 @@ namespace CounterTime.Game.Tests
 
             var a = new LiveAssembler(engine, cfg, FighterId.A);
 
-            Assert.Contains(HandTarget.Kuzushi, a.HandOptions().ToList());
+            Assert.Contains(HandTarget.Setup, a.HandOptions().ToList());
         }
 
         [Test]

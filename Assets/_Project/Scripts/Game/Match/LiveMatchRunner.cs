@@ -13,7 +13,7 @@ namespace CounterTime.Game.Match
     ///
     /// A 는 <see cref="LiveAssembler"/> 로 UI 입력을 받고, B 는 습관 브레인
     /// (<see cref="HabitBrainCommitSource"/>, §4.4 [초안] 플래그가 켜져 있으면
-    /// <see cref="KuzushiPrecedingCommitSource"/> 로 감싼다)이 스스로 정한다.
+    /// <see cref="SetupPrecedingCommitSource"/> 로 감싼다)이 스스로 정한다.
     ///
     /// A 의 기술 선택 UI는 아직 없다 — <see cref="PlaceholderATechnique"/> 는
     /// <c>PlayModeSmokeTests</c> 가 이미 쓰던 자리표시자를 그대로 옮긴 것이고, A 의
@@ -30,7 +30,7 @@ namespace CounterTime.Game.Match
     {
         [SerializeField] RefereeProfile refereeProfile = RefereeProfile.Standard;
         [SerializeField] int randomSeed = 12345;
-        [SerializeField] bool kuzushiEnabled = false;
+        [SerializeField] bool setupEnabled = false;
 
         static readonly TechniqueSpec PlaceholderATechnique =
             new TechniqueSpec("밭다리", ActionCost.BigThrow, TechniqueClass.Standard);
@@ -43,13 +43,13 @@ namespace CounterTime.Game.Match
         HabitState _habitState;
         MatchBrainContext _bContext;
         HabitBrainCommitSource _bInner;
-        KuzushiPrecedingCommitSource _bSource;
+        SetupPrecedingCommitSource _bSource;
         readonly ResultNarrationTable _narration = ResultNarrationTable.CreateDefault();
 
         public MatchEngine Engine { get; private set; }
         public LiveAssembler A { get; private set; }
         public TendencyWindow Tendency => _window;
-        /// HUD 표시용 — 쿠즈시 게이트가 켜져 있는지 판단하는 데만 쓴다.
+        /// HUD 표시용 — 흔들기 게이트가 켜져 있는지 판단하는 데만 쓴다.
         public MatchRulesConfig Config => _cfg;
 
         /// 화면·로그가 붙는 지점 — Core 이벤트를 원본 그대로 낸다.
@@ -71,7 +71,7 @@ namespace CounterTime.Game.Match
 
         public void Build()
         {
-            _cfg = new MatchRulesConfig { KuzushiGateEnabled = kuzushiEnabled };
+            _cfg = new MatchRulesConfig { SetupGateEnabled = setupEnabled };
             _rng = new SystemRandomSource(randomSeed);
             Engine = new MatchEngine(_cfg, refereeProfile, _rng);
             A = new LiveAssembler(Engine, _cfg, FighterId.A);
@@ -84,7 +84,7 @@ namespace CounterTime.Game.Match
             _habitState = new HabitState(opponent);
             _bContext = new MatchBrainContext(Engine, FighterId.B);
             _bInner = new HabitBrainCommitSource(FighterId.B, _habitState, _bContext, _bContext, _rng);
-            _bSource = new KuzushiPrecedingCommitSource(_bInner, _bContext, kuzushiEnabled);
+            _bSource = new SetupPrecedingCommitSource(_bInner, _bContext, setupEnabled);
         }
 
         /// <summary>A 가 이번 교환의 커밋을 확정했다 — 굳히기가 열려 있는 동안은
@@ -96,7 +96,7 @@ namespace CounterTime.Game.Match
 
             _bSource.TryNext(out _, out var b);
             // 커밋이 실제로 이번 교환에 제출되는 시점 — 결정 시점(TryNext 내부, 사다리가
-            // 굴러간 순간)이 아니다. 쿠즈시 설치 교환에서는 LastDecision 이 default(발화
+            // 굴러간 순간)이 아니다. 흔들기 설치 교환에서는 LastDecision 이 default(발화
             // 없음)이므로, 여기서 그대로 알리면 그 교환엔 습관 알림이 안 나가고 다음
             // 교환(진짜 기술 제출)에서 알림이 나간다.
             _resolver.NoteOpponentHabit(_bSource.LastDecision);
