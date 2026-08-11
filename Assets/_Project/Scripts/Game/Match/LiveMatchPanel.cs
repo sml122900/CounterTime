@@ -57,10 +57,19 @@ namespace CounterTime.Game.Match
         CoreStance _core = CoreStance.Neutral;
         LegAction _legs = LegAction.Neutral;
 
-        Transform _handColumn, _coreColumn, _legsColumn;
+        // 2026-08-12 실전 UI 개편 — 손·코어·하체 상시 노출 3열 폐지, 캐릭터 옆 트리거
+        // 버튼 + 위로 펼치는 드롭다운으로 전환(사용자 결정: 주체 기준=전부 A 옆,
+        // 화면 고정 위치=본 추적 안 함). 상세 근거는 md/STATUS.md 참조.
+        Button _handTrigger, _coreTrigger, _legsTrigger, _confirmButton;
+        Transform _handDropdown, _coreDropdown, _legsDropdown;
+        GameObject _floatingControlsRoot;
+        // 확정 버튼 활성화 게이트 — 코어·하체는 기본값(중립)이 이미 "유효한 선택"이라
+        // _core/_legs 필드만으로는 "사용자가 실제로 골랐는지"를 못 가른다. 드롭다운에서
+        // 뭔가 하나라도 클릭해야(같은 값을 다시 골라도) true 가 된다.
+        bool _handChosen, _coreChosen, _legsChosen;
         GameObject _standingRoot, _osaekomiRoot;
         Transform _notesColumn;
-        TMP_Text _resultText, _selectionText, _logText, _adviceText;
+        TMP_Text _resultText, _logText, _adviceText;
         TMP_Text _phaseText, _statusTextA, _statusTextB;
         Image _warningMark, _dangerMark;
         TMP_Text _warningLabel, _dangerLabel;
@@ -147,6 +156,7 @@ namespace CounterTime.Game.Match
         void OnOsaekomiOpened()
         {
             _standingRoot.SetActive(false);
+            _floatingControlsRoot.SetActive(false);
             _osaekomiRoot.SetActive(true);
 
             bool aIsHolder = _runner.Engine.Osaekomi.Holder == FighterId.A;
@@ -180,6 +190,7 @@ namespace CounterTime.Game.Match
         {
             _osaekomiRoot.SetActive(false);
             _standingRoot.SetActive(true);
+            _floatingControlsRoot.SetActive(true);
             RefreshStanding();
             RefreshStatusHud();
         }
@@ -198,31 +209,34 @@ namespace CounterTime.Game.Match
             RefreshStatusHud();
         }
 
-        // ── 3열 입력 ─────────────────────────────────────────────────────────────
+        // ── 캐릭터 옆 드롭다운 입력 ──────────────────────────────────────────────
 
         void RefreshStanding()
         {
             _hand = HandTarget.None;
             _core = CoreStance.Neutral;
             _legs = LegAction.Neutral;
-            RebuildColumn(_handColumn, _runner.A.HandOptions(), HandLabel, o => _hand.Equals(o),
-                o => { _hand = (HandTarget)o; RebuildStandingColumns(); RefreshExposure(); });
-            RebuildColumn(_coreColumn, _runner.A.CoreOptions(), CoreLabel, o => _core.Equals(o),
-                o => { _core = (CoreStance)o; RebuildStandingColumns(); RefreshExposure(); });
-            RebuildColumn(_legsColumn, _runner.A.LegOptions(), LegsLabel, o => _legs.Equals(o),
-                o => { _legs = (LegAction)o; RebuildStandingColumns(); RefreshExposure(); });
+            _handChosen = _coreChosen = _legsChosen = false;
+            RebuildStandingColumns();
             RefreshExposure();
+            RefreshConfirmButton();
         }
 
         void RebuildStandingColumns()
         {
             // 그립 상태가 바뀌지 않는 한(확정 전) 손 후보는 그대로다 — 선택 강조만 새로 칠한다.
-            RebuildColumn(_handColumn, _runner.A.HandOptions(), HandLabel, o => _hand.Equals(o),
-                o => { _hand = (HandTarget)o; RebuildStandingColumns(); RefreshExposure(); });
-            RebuildColumn(_coreColumn, _runner.A.CoreOptions(), CoreLabel, o => _core.Equals(o),
-                o => { _core = (CoreStance)o; RebuildStandingColumns(); RefreshExposure(); });
-            RebuildColumn(_legsColumn, _runner.A.LegOptions(), LegsLabel, o => _legs.Equals(o),
-                o => { _legs = (LegAction)o; RebuildStandingColumns(); RefreshExposure(); });
+            RebuildAxisOptions(_handDropdown, _runner.A.HandOptions(), HandLabel, o => _hand.Equals(o),
+                o => { _hand = (HandTarget)o; _handChosen = true; RebuildStandingColumns(); RefreshExposure(); RefreshConfirmButton(); });
+            RebuildAxisOptions(_coreDropdown, _runner.A.CoreOptions(), CoreLabel, o => _core.Equals(o),
+                o => { _core = (CoreStance)o; _coreChosen = true; RebuildStandingColumns(); RefreshExposure(); RefreshConfirmButton(); });
+            RebuildAxisOptions(_legsDropdown, _runner.A.LegOptions(), LegsLabel, o => _legs.Equals(o),
+                o => { _legs = (LegAction)o; _legsChosen = true; RebuildStandingColumns(); RefreshExposure(); RefreshConfirmButton(); });
+
+            // 드롭다운이 닫혀 있어도 3축 상태가 한눈에 보이도록 트리거 라벨에 반영
+            // (2026-08-12 사용자 확정 — 옛 "선택: —·중립·중립" 요약 줄을 대체).
+            _handTrigger.GetComponentInChildren<TMP_Text>().text = "손: " + (_handChosen ? HandLabel(_hand) : "—");
+            _coreTrigger.GetComponentInChildren<TMP_Text>().text = "코어: " + CoreLabel(_core);
+            _legsTrigger.GetComponentInChildren<TMP_Text>().text = "하체: " + LegsLabel(_legs);
         }
 
         void Confirm()
@@ -253,20 +267,29 @@ namespace CounterTime.Game.Match
             _warningLabel.color = warn ? Warning : Dim;
             _dangerMark.color = danger ? Danger : Dim;
             _dangerLabel.color = danger ? Danger : Dim;
-
-            _selectionText.text = $"선택: {HandLabel(_hand)} · {CoreLabel(_core)} · {LegsLabel(_legs)}";
         }
 
-        void RebuildColumn<T>(Transform column, IReadOnlyList<T> options, System.Func<T, string> label,
-                              System.Func<object, bool> isSelected, System.Action<object> onPick)
+        /// 확정 버튼 — 3축(손·코어·하체) 전부 선택되기 전엔 비활성+Idle 회색(다른
+        /// 비활성 버튼과 시각 언어 통일 — 이 앱에서 회색은 이미 "아직 안 고른 상태"를
+        /// 뜻한다). 전부 선택되면 활성화+ShidoYellow(2026-08-12 사용자 확정 — 노란색.
+        /// 새 색 상수를 안 만들고 지도 카드에 이미 쓰는 순수 노랑을 재사용).
+        void RefreshConfirmButton()
         {
-            for (int i = column.childCount - 1; i >= 0; i--)
-                Destroy(column.GetChild(i).gameObject);   // 확정 전 재구성뿐이라 즉시 파괴로 충분
+            bool allChosen = _handChosen && _coreChosen && _legsChosen;
+            _confirmButton.interactable = allChosen;
+            _confirmButton.GetComponent<Image>().color = allChosen ? ShidoYellow : Idle;
+        }
+
+        void RebuildAxisOptions<T>(Transform dropdown, IReadOnlyList<T> options, System.Func<T, string> label,
+                                   System.Func<object, bool> isSelected, System.Action<object> onPick)
+        {
+            for (int i = dropdown.childCount - 1; i >= 0; i--)
+                Destroy(dropdown.GetChild(i).gameObject);   // 확정 전 재구성뿐이라 즉시 파괴로 충분
 
             foreach (var opt in options)
             {
                 var captured = opt;
-                var btn = MakeButton(column, label(opt), () => onPick(captured));
+                var btn = MakeButton(dropdown, label(opt), () => { onPick(captured); dropdown.gameObject.SetActive(false); });
                 var img = btn.GetComponent<Image>();
                 img.color = isSelected(captured) ? Selected : Idle;
             }
@@ -567,21 +590,10 @@ namespace CounterTime.Game.Match
             var rootLg = root.GetComponent<VerticalLayoutGroup>();
             rootLg.padding = new RectOffset(12, 12, 8, 8);
 
-            // ① 상단 — 점수판. 고정 높이 슬롯(레이아웃 그룹 아님) — 안쪽은 기존
-            // BuildScoreboard 그대로(무수정), 이 슬롯의 자식이 되도록 부모만 바뀐다.
-            var scoreboardRow = new GameObject("ScoreboardRow", typeof(RectTransform), typeof(LayoutElement), typeof(Image));
-            scoreboardRow.transform.SetParent(root, false);
-            SetFixedHeight(scoreboardRow.transform, 244);
-            // 경기 화면이 배경으로 깔리면서 점수판 글자가 하늘/바닥 위에 그대로 떠
-            // 안 읽힌다 — 사이드바에 이미 쓰던 PanelBg(반투명 어두운 판)를 재사용.
-            // 알파(0.92)는 스크린샷 없이 확정할 수 없어 하나 고른 값이다 — PanelBg
-            // 한 곳만 고치면 점수판·사이드바·하단 입력·서술 로그 스크림이 다 같이 바뀐다.
-            scoreboardRow.GetComponent<Image>().color = PanelBg;
-            BuildScoreboard(scoreboardRow.transform);
-
-            // ② 중단 — 좌(서술/로그) : 우(사이드바 3종) = 2:1. 경기 화면은 더 이상
-            // 이 열의 자식이 아니다(창 전체 배경으로 이동) — 좌상에 비어 있던 자리를
-            // NarrationLog 가 그대로 이어받는다.
+            // ① 중단 — 좌(서술/로그) : 우(사이드바 3종) = 2:1. 이제 RootLayout 의
+            // 첫 슬롯이다 — 점수판이 하단으로 옮겨가며(2026-08-12 실전 UI 개편,
+            // 사용자 지시) 옛 상단 244px 자리까지 이 블록이 자동으로 흡수한다
+            // (VerticalLayoutGroup 의 flexible 배분이라 여기 코드는 안 바뀐다).
             var middleRow = MakeHorizontalGroup(root, "MiddleRow", spacing: 12);
             SetFlexible(middleRow, 1, 1);
 
@@ -595,17 +607,42 @@ namespace CounterTime.Game.Match
             BuildNotesBox(sidebar);
             BuildTendencyBox(sidebar);
 
-            // ③ 하단 — 입력. 고정 높이 슬롯 — StandingInput/OsaekomiInput 이 번갈아
-            // 이 슬롯을 꽉 채운다(SetActive 토글, 기존 패턴 그대로). 스크림은 위
-            // ScoreboardRow 주석 참조 — PanelBg 재사용.
-            var bottomRow = new GameObject("BottomInputRow", typeof(RectTransform), typeof(LayoutElement), typeof(Image));
-            bottomRow.transform.SetParent(root, false);
-            SetFixedHeight(bottomRow.transform, 300);
-            bottomRow.GetComponent<Image>().color = PanelBg;
-
-            _standingRoot = BuildStandingRoot(bottomRow.transform);
-            _osaekomiRoot = BuildOsaekomiRoot(bottomRow.transform);
+            // ② 굳히기 2지선다 — 서기 중엔 비활성(레이아웃에서 제외돼 공간을 안 씀).
+            // 옛 BottomInputRow 안에 있던 걸 그대로 옮겼을 뿐 — 내부 배선
+            // (SubmitOsaekomi 등, BuildOsaekomiRoot)은 무수정.
+            var osaekomiRow = new GameObject("OsaekomiRow", typeof(RectTransform), typeof(LayoutElement), typeof(Image));
+            osaekomiRow.transform.SetParent(root, false);
+            SetFixedHeight(osaekomiRow.transform, 200);
+            osaekomiRow.GetComponent<Image>().color = PanelBg;
+            BuildOsaekomiRoot(osaekomiRow.transform);
+            _osaekomiRoot = osaekomiRow;
             _osaekomiRoot.SetActive(false);
+
+            // ③ 확정 버튼 — 화면 중앙, 점수판 바로 위(사용자 지시). 손·코어·하체
+            // 3열은 더 이상 여기 없다 — 캐릭터 옆 드롭다운으로 옮겨졌다(§⑤).
+            var confirmRow = MakeHorizontalGroup(root, "ConfirmRow", spacing: 0);
+            SetFixedHeight(confirmRow, 48);
+            confirmRow.GetComponent<HorizontalLayoutGroup>().childAlignment = TextAnchor.MiddleCenter;
+            _confirmButton = MakeButton(confirmRow, "확정", Confirm);
+            SetFixedWidth(_confirmButton.transform, 200);
+            _confirmButton.GetComponent<LayoutElement>().flexibleHeight = 0;
+            _standingRoot = confirmRow.gameObject;
+
+            // ④ 점수판 — 화면 중앙 하단(사용자 지시). 안쪽은 기존 BuildScoreboard
+            // 그대로(무수정) — 슬롯 위치만 상단에서 하단으로 옮겼다.
+            var scoreboardRow = new GameObject("ScoreboardRow", typeof(RectTransform), typeof(LayoutElement), typeof(Image));
+            scoreboardRow.transform.SetParent(root, false);
+            SetFixedHeight(scoreboardRow.transform, 244);
+            // 경기 화면이 배경으로 깔리면서 점수판 글자가 하늘/바닥 위에 그대로 떠
+            // 안 읽힌다 — 사이드바에 이미 쓰던 PanelBg(반투명 어두운 판)를 재사용.
+            // 알파(0.92)는 스크린샷 없이 확정할 수 없어 하나 고른 값이다 — PanelBg
+            // 한 곳만 고치면 점수판·사이드바·확정 버튼 행·서술 로그 스크림이 다 같이 바뀐다.
+            scoreboardRow.GetComponent<Image>().color = PanelBg;
+            BuildScoreboard(scoreboardRow.transform);
+
+            // ⑤ 캐릭터 옆 손·코어·하체 드롭다운 — RootLayout 의 세로 흐름 밖, 캔버스
+            // 최상단 sibling(모든 패널 위)에 고정 좌표로 떠 있는 별도 레이어.
+            BuildFloatingControls(go.transform);
         }
 
         /// 창 전체 배경 — <see cref="ArenaStageView"/> 의 320x180 RenderTexture 를 캔버스
@@ -643,7 +680,20 @@ namespace CounterTime.Game.Match
         void BuildNarrationLog(Transform parent)
         {
             var box = MakeVerticalGroup(parent, "NarrationLog", spacing: 4);
-            SetFlexible(box, 1, 1f);
+            // 2026-08-12 실전 UI 개편 후속(범위 밖이지만 이번에 한해 예외로 허용됨,
+            // 사용자 확정) — NarrationLog 가 leftColumn 전체(756px 높이)를 그대로
+            // 채우면 A 옆 손·코어·하체 트리거(고정 좌표 x≈475, 닫힌 상태 y=561~773)
+            // 와 겹친다는 게 회귀 검사 실측으로 드러났다. 트리거 밴드 위쪽에 붙는
+            // 고정 높이(280px)로 줄이고 leftColumn 상단에 앵커한다 — 아래쪽 빈
+            // 공간은 경기 화면 배경이 그대로 보인다. 드롭다운이 열릴 때(예: 코어
+            // 드롭다운은 최대 y=831 까지)는 NarrationLog 아래쪽과 살짝 겹칠 수
+            // 있다 — 팝오버가 열려 있는 동안 뒤 콘텐츠를 잠깐 덮는 것과 같은
+            // 종류라 허용(닫힌 상태 겹침만 실제 문제였다).
+            var le = box.GetComponent<LayoutElement>();
+            le.preferredHeight = le.minHeight = 280;
+            le.flexibleHeight = 0;
+            le.flexibleWidth = 1;
+            parent.GetComponent<VerticalLayoutGroup>().childAlignment = TextAnchor.UpperLeft;
             box.gameObject.AddComponent<Image>().color = PanelBg;
 
             _phaseText = MakeFlexText(box, "", TextAlignmentOptions.TopLeft, 1, 0, minHeight: 24);
@@ -726,41 +776,82 @@ namespace CounterTime.Game.Match
             return img;
         }
 
-        GameObject BuildStandingRoot(Transform parent)
+        /// 캐릭터 옆 손·코어·하체 드롭다운 트리거 3개를 짓는다. 2026-08-12 사용자
+        /// 결정 3건: (a) 주체 기준 — 전부 A 캐릭터 옆(상대를 노리는 손도 포함) —
+        /// 조작 버튼이 한 곳에 몰려 실수 적음. (b) 화면 고정 위치 — 본 추적 안 함.
+        /// A 의 Fight Idle 1.5초(12fps 18스텝) 실측: 골반 x±5.1/y±2.0px, 머리
+        /// x±17.5/y±2.9px, 오른손 x±10.3/y±11.3px — 본을 그대로 따라가면 83ms
+        /// 마다 버튼이 튀어 보인다(클릭 대상은 정밀 포즈 추종보다 안정성이 중요).
+        /// (c) 위로 펼침 — 코어(144px)·하체(194px) 드롭다운은 A 자신 위로만 펼쳐져
+        /// 상대(B)와 안 겹친다(A·B 사이 여백 179px 실측 확인). 손 드롭다운은 그립
+        /// 상황에 따라 옵션이 최대 10개(≈460px)까지 늘어날 수 있어 세 트리거 중
+        /// 가장 위(어깨 높이)에 두어도 화면 위로 넘칠 수 있다 — 알려진 한계, 코드로
+        /// 안 고침(스크롤 등은 범위 밖). 트리거끼리도 가깝게 쌓아 위쪽 드롭다운이
+        /// 열리면 아래 트리거를 잠깐 가릴 수 있다 — 한 번에 하나만 열리므로
+        /// (<see cref="ToggleDropdown"/>) 치명적이지 않다고 판단.
+        /// 좌표는 1920 기준 캔버스 좌표 실측값(카메라 x=0.6 상태에서 A 본 위치) —
+        /// CanvasScaler ScaleWithScreenSize 라 이 고정 오프셋은 다른 해상도에서도
+        /// 비례적으로 맞는다(BuildScoreboard 의 고정 오프셋과 같은 원리).
+        void BuildFloatingControls(Transform canvasRoot)
         {
-            var t = MakeVerticalGroup(parent, "StandingInput", spacing: 8);
-            var rt = (RectTransform)t;
+            var go = new GameObject("FloatingControls", typeof(RectTransform));
+            go.transform.SetParent(canvasRoot, false);
+            var rt = (RectTransform)go.transform;
             rt.anchorMin = Vector2.zero;
             rt.anchorMax = Vector2.one;
             rt.offsetMin = rt.offsetMax = Vector2.zero;
-            t.GetComponent<VerticalLayoutGroup>().padding = new RectOffset(16, 16, 8, 8);
+            _floatingControlsRoot = go;
 
-            // 손/코어/하체 3열 — HorizontalLayoutGroup 이 3등분을 계산한다. anchorX
-            // 상수를 손으로 찍지 않는다(지난 겹침 버그의 원인이 바로 그 손 계산이었다).
-            var columnsRow = MakeHorizontalGroup(t, "InputColumns", spacing: 12);
-            SetFlexible(columnsRow, 1, 1);
-            _handColumn = BuildColumnRoot(columnsRow, "손");
-            _coreColumn = BuildColumnRoot(columnsRow, "코어");
-            _legsColumn = BuildColumnRoot(columnsRow, "하체");
-
-            var confirmRow = MakeHorizontalGroup(t, "ConfirmRow", spacing: 12);
-            SetFixedHeight(confirmRow, 56);
-            _selectionText = MakeFlexText(confirmRow, "", TextAlignmentOptions.MidlineLeft, 1, 1,
-                fontSizeOverride: 16);
-            var confirmBtn = MakeButton(confirmRow, "확정", Confirm);
-            SetFixedWidth(confirmBtn.transform, 160);
-            confirmBtn.GetComponent<LayoutElement>().flexibleHeight = 1;
-
-            return t.gameObject;
+            (_legsTrigger, _legsDropdown) = BuildAxisControl(go.transform, "하체", new Vector2(475, 561));
+            (_coreTrigger, _coreDropdown) = BuildAxisControl(go.transform, "코어", new Vector2(475, 647));
+            (_handTrigger, _handDropdown) = BuildAxisControl(go.transform, "손", new Vector2(475, 733));
         }
 
-        Transform BuildColumnRoot(Transform parent, string title)
+        /// 트리거 버튼 하나 + 그 위로 펼쳐지는 드롭다운 하나. 부모(<paramref name="anchoredPos"/>
+        /// 를 쓰는 anchor 오브젝트)는 레이아웃 그룹이 아닌 순수 고정 좌표 앵커라,
+        /// 자식들의 위치·크기는 LayoutElement 가 아니라 RectTransform 을 직접 쓴다
+        /// (레이아웃 그룹 안에서만 의미가 있는 LayoutElement 헬퍼들과 다른 규칙 —
+        /// 주석으로 밝혀둔다, 실수로 SetFlexible 등을 여기 쓰면 아무 효과가 없다).
+        (Button trigger, Transform dropdown) BuildAxisControl(Transform parent, string axisId, Vector2 anchoredPos)
         {
-            var t = MakeVerticalGroup(parent, title + "Column", spacing: 6);
-            SetFlexible(t, 1, 1);
-            var lg = t.GetComponent<VerticalLayoutGroup>();
-            lg.childAlignment = TextAnchor.UpperCenter;
-            return t;
+            var anchor = new GameObject(axisId + "Control", typeof(RectTransform));
+            anchor.transform.SetParent(parent, false);
+            var art = (RectTransform)anchor.transform;
+            art.anchorMin = art.anchorMax = Vector2.zero;
+            art.pivot = new Vector2(0.5f, 0);
+            art.anchoredPosition = anchoredPos;
+            art.sizeDelta = Vector2.zero;
+
+            var trigger = MakeButton(anchor.transform, axisId, null);
+            var trt = (RectTransform)trigger.transform;
+            trt.anchorMin = trt.anchorMax = new Vector2(0.5f, 0);
+            trt.pivot = new Vector2(0.5f, 0);
+            trt.anchoredPosition = Vector2.zero;
+            trt.sizeDelta = new Vector2(150, 40);
+
+            var dropdown = MakeVerticalGroup(anchor.transform, axisId + "Dropdown", spacing: 4);
+            var drt = (RectTransform)dropdown;
+            drt.anchorMin = drt.anchorMax = new Vector2(0.5f, 0);
+            drt.pivot = new Vector2(0.5f, 0);
+            drt.anchoredPosition = new Vector2(0, 44);   // 트리거(40px) 바로 위, 4px 여백
+            drt.sizeDelta = new Vector2(170, 0);          // 높이는 ContentSizeFitter 가 정함
+            dropdown.gameObject.AddComponent<Image>().color = PanelBg;
+            dropdown.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            dropdown.gameObject.SetActive(false);
+
+            trigger.onClick.AddListener(() => ToggleDropdown(dropdown.gameObject));
+            return (trigger, dropdown);
+        }
+
+        /// 한 번에 하나만 열리게 한다 — 트리거를 눌렀을 때 그게 이미 열려 있었으면
+        /// 닫고(토글), 아니면 셋 다 닫은 뒤 그것만 연다.
+        void ToggleDropdown(GameObject dropdown)
+        {
+            bool willOpen = !dropdown.activeSelf;
+            _handDropdown.gameObject.SetActive(false);
+            _coreDropdown.gameObject.SetActive(false);
+            _legsDropdown.gameObject.SetActive(false);
+            dropdown.SetActive(willOpen);
         }
 
         GameObject BuildOsaekomiRoot(Transform parent)
