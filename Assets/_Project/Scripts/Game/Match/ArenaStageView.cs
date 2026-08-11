@@ -68,7 +68,12 @@ namespace CounterTime.Game.Match
         void BuildCamera()
         {
             var go = new GameObject("ArenaStageCamera", typeof(Camera));
-            go.transform.SetPositionAndRotation(new Vector3(0, 1.6f, -6f), Quaternion.identity);
+            // Main.unity 카메라(0,1.6,-6 / FOV45 / 수평)를 그대로 썼을 때 320x180 에서
+            // 캐릭터 세로가 70.8px 로 실측돼 목표(≈100px)에 못 미쳤다. FOV 는 그대로 두고
+            // 거리만 좁히고(-6→-4.25) 하향 11° 를 줘서 재실측 — A 100.9px/B 99.6px,
+            // 좌우(57~232, 프레임 0..320)·상하(41~143, 프레임 0..180) 모두 클리핑 없음
+            // (2026-08-12, ArenaStageCamera.WorldToScreenPoint 로 두 파이터 바운즈 직접 실측).
+            go.transform.SetPositionAndRotation(new Vector3(0, 1.6f, -4.25f), Quaternion.Euler(11f, 0, 0));
             var cam = go.GetComponent<Camera>();
             cam.fieldOfView = 45f;
             cam.nearClipPlane = 0.3f;

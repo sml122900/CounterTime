@@ -49,6 +49,14 @@ namespace CounterTime.Game.Editor
                 return;
             }
 
+            // Game View 의 커스텀 렌더 해상도는 에디터 세션에 걸쳐 남는다 — 지난 세션이
+            // 좁은 화면 레이아웃 테스트로 719x404 등을 남겨두면, 다음에 Play 를 누르는
+            // 사람은 CanvasScaler(참조 해상도 1920x1080) 가 그 실제 해상도에 맞춰 scaleFactor
+            // 를 낮춰버려 UI 텍스트 전체가 저해상도로 렌더된 뒤 창 크기로 늘어나 보인다
+            // (2026-08-12 "UI 텍스트까지 도트화" 신고 — Canvas.scaleFactor=0.374 로 실측
+            // 확인, RT 파이프라인과는 무관). 매번 CanvasScaler 참조 해상도와 맞춰 리셋한다.
+            UnityEditor.PlayModeWindow.SetCustomRenderingResolution(1920, 1080, "CounterTime Play");
+
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
             var camGo = new GameObject("Main Camera", typeof(Camera));
