@@ -648,9 +648,14 @@ namespace CounterTime.Game.Match
             rt.sizeDelta = new Vector2(0, 320);
             rt.anchoredPosition = Vector2.zero;
 
+            // 각 열의 anchorX 는 중심이고 폭은 BuildColumnRoot 안에서 ±0.14 로 고정이다 —
+            // 이웃 열과 안 겹치려면 중심 간격이 0.28 이상이어야 한다. 손-코어는 0.32(여유
+            // 0.04)라 괜찮았지만 코어-하체는 0.24(부족 −0.04)였다 — 실측(2026-08-11,
+            // Play 모드 GetWorldCorners)으로 확인한 실제 겹침이다. 하체만 0.68 로 밀어
+            // 간격을 0.02(코어-하체)·0.06(하체-확정버튼, anchorX 0.9) 으로 만든다.
             _handColumn = BuildColumnRoot(root.transform, "손", new Vector2(0.06f, 0.5f));
             _coreColumn = BuildColumnRoot(root.transform, "코어", new Vector2(0.38f, 0.5f));
-            _legsColumn = BuildColumnRoot(root.transform, "하체", new Vector2(0.62f, 0.5f));
+            _legsColumn = BuildColumnRoot(root.transform, "하체", new Vector2(0.68f, 0.5f));
 
             var confirmBtn = MakeButton(root.transform, "확정", Confirm);
             var confirmRt = (RectTransform)confirmBtn.transform;
