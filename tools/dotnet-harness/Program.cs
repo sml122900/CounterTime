@@ -34,6 +34,16 @@ class Program
 
     static int Main(string[] args)
     {
+        // 2026-08-13 overnight data collection — kept fully separate from the normal
+        // test+fingerprint path below so it never slows down or interferes with the
+        // existing regression gate. See tools/dotnet-harness/Overnight/OvernightRunner.cs
+        // and docs/overnight-2026-08-13.md.
+        if (args.Contains("--overnight"))
+        {
+            CounterTime.Harness.Overnight.OvernightRunner.Run();
+            return 0;
+        }
+
         bool check = args.Contains("--check");
 
         var asm = Assembly.GetExecutingAssembly();

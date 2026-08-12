@@ -45,6 +45,9 @@
          so it needs only the Application/JsonUtility.ToJson shim additions above. -->
     <Compile Include="..\..\Assets\_Project\Scripts\Game\Save\SaveData.cs" />
     <Compile Include="..\..\Assets\_Project\Scripts\Game\Save\SaveSystem.cs" />
+    <!-- §H 3.5b-로스터 tournament bracket — pure logic (no MonoBehaviour), needed by
+         the 2026-08-13 overnight tournament-robustness pass (Overnight/OvernightRunner.cs). -->
+    <Compile Include="..\..\Assets\_Project\Scripts\Game\Meta\TournamentBracket.cs" />
 
     <Compile Include="..\..\Assets\_Project\Scripts\Game\Tests\ScenarioTurnChoicesTests.cs" />
     <Compile Include="..\..\Assets\_Project\Scripts\Game\Tests\ScriptedReadResolverTests.cs" />
@@ -57,6 +60,13 @@
 
     <Compile Include="UnityEngineShim.cs" />
     <Compile Include="Program.cs" />
+
+    <!-- 2026-08-13 overnight data collection — new tooling code, no production files
+         touched. See Overnight/OvernightRunner.cs's header comment. -->
+    <Compile Include="Overnight\AutoAPlayer.cs" />
+    <Compile Include="Overnight\MatchResult.cs" />
+    <Compile Include="Overnight\MatchSimulator.cs" />
+    <Compile Include="Overnight\OvernightRunner.cs" />
   </ItemGroup>
 
 </Project>
