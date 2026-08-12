@@ -5,10 +5,12 @@ Update this file every time a session resets. This is the ONLY copy — the root
 Current State (last updated: 2026-08-12)
 **MATCH_RULES.md 는 v4.0** (구 v3.8). §S 스탠스(제3 자원) 신설, §4.4 흔들기가
 [초안]에서 스탠스 기반 확정판으로, §A~§G(입력 모델·기술 로스터·인지와 적응·
-예측 되치기·판정 승격·숙련도·이월 목록) 신설 — 서기 국면 대형 개정, 문서
-전용 세션이라 **코드는 전혀 안 바뀌었다**(§H 구현 0~8단계는 아래 Next Up
-참조, 아직 착수 전). 판단 대기 2건(스탠스 이름 충돌 / TechniqueClass·흔들기
-강등 우선순위)은 §8 과 Next Up 에 등재돼 있다.
+예측 되치기·판정 승격·숙련도·이월 목록) 신설 — 서기 국면 대형 개정. 판단
+대기 2건(스탠스 이름 충돌 / TechniqueClass·흔들기 강등 우선순위)은 §8 과
+Next Up 에 등재돼 있다 — 3단계(스탠스 축 구현) 착수 전 사람 결정 필요.
+**§H 구현 0~1단계 완료** (다음 항목): `GripSystem.CanUseConversion` 반대 손
+버그 수정, 손 축 2단 선택 UI(손→타겟). 하니스 212/212, 지문 IDENTICAL, 7해상도
+0/0, Play 실클릭 전체 흐름 확인. 2~8단계는 아직 착수 전 — Next Up 참조.
 **용어 대응표**: "쿠즈시" = 구 명칭, 2026-08-11 오후 전체 개명 완료 → 화면 표시 "흔들기" / 코드 식별자 `Setup*`(예: `HandTarget.Setup`, `SetupGateEnabled`, `SetupPrecedingCommitSource`). 이 파일의 이전 세션 로그·docs/overnight-*·decisions/·daily/ 는 기록이라 "쿠즈시"로 그대로 남아있다 — 그 시점엔 그게 맞는 이름이었다. 지금 코드/MATCH_RULES.md 를 볼 때는 전부 흔들기/Setup 이다.
 Unity 6.3.21f1 LTS editor installed
 CounterTime project created (Universal 3D template, location C:\project_2026\CounterTime)
@@ -140,7 +142,79 @@ Full detail, including the exact 현실적 A osaekomi-entry-shortfall breakdown 
   Unity Editor + MCP 브리지가 밤새 연결 유지(사람 없음) — 매 작업 후 AssetDatabase.Refresh() + GetConsoleLogs 로 0 에러/0 경고 재확인, RunCommand 안에서 짧은 이름(CompilationPipeline 등)이 Unity.AI.Assistant.* 네임스페이스와 충돌하는 기존 함정 재확인(전체 경로로 우회)
 
 Next Up (in priority order)
-**가장 최근 — MATCH_RULES v4.0 반영 완료 (문서 전용 세션, 코드 무수정).**
+**가장 최근 — §H 구현 0~1단계 완료 (CanUseConversion 버그 수정 + 손 분리 UI).**
+세션 시작에 Unity MCP 컴파일 0/0 확인(지난 세션은 문서 전용이라 스킵, 이번엔
+코드를 건드리기 전에 재확인 필수 지시대로 진행).
+**0단계 — `GripSystem.CanUseConversion` 버그 수정.** 반대 손 조건이 아예 없었다
+(`Value(who) > 0`, 즉 "내 그립이 하나라도 있으면"만 검사 — 자기 손으로 자기
+그립을 틀어잡기 전환하는 게 막혀 있지 않았다, MATCH_RULES §2 "다른 손이 이미
+잡고 있을 때만" 위반). 시그니처를 `CanUseConversion(FighterId who, Hand
+convertingHand)`로 바꿔 반대 손(`Other(h)`)의 그립만 검사하도록 수정 — 콜사이트
+2곳(`MatchEngine.cs`는 `mine.OwnHand` 그대로 전달, `LiveAssembler.cs`는 아직
+UI가 손을 안 물어봐서 `Hand.Right` 고정 — 1단계에서 진짜 값으로 교체됨).
+새 테스트 2개(`GripSystemTests`): 반대 손 없음→불가, 반대 손 있음→가능(같은
+손 자기 그립으로는 불가인 것도 같이 고정). **지문 확인 — 안 깨졌다.** 42노드
+`[m3] A Left→RightSleeve` → `[m8] A Right→TwistGrip`이 원래도 다른 손으로
+잡고 다른 손으로 전환하는 올바른 패턴이라 스크립트 경로는 이 버그에 애초에
+안 걸려 있었다(실측 확인, 재고정 불필요). `LiveAssemblerTests`의 기존 테스트
+1개는 정확히 이 버그를 밟고 있었다(같은 손 그립으로 전환 옵션이 열리는 걸
+"정상"으로 검증하던 테스트) — 의도를 살려 다른 손으로 잡도록 고치고, 반대
+케이스(같은 손만 잡았을 때 전환 안 열림) 테스트를 추가했다. 209→211.
+**1단계 — 손 분리 UI.** 구현 전 조사·보고 후 사용자 확정(AskUserQuestion,
+실측 근거 제시): **(b) 손 트리거 1개 유지 + 2단 선택(손→타겟)**을 골랐다(트리거
+2개 분리안 (a)는 기각 — 트리거가 3개→4개로 늘어 기존 검증된 220px 세로
+공간이 부족해지는 문제가 있었다). 결정적 근거: 방사형 메뉴 배치 공식
+(`angleDeg = -90 + idx*(180/(n-1))`)에서 항목이 정확히 2개일 때 −90°/+90°에
+배치되고 그 각도의 cos 는 0이라 **반지름과 무관하게 x축 돌출이 0** —
+1단계(손 고르기, 2항목)는 A 캐릭터와 거의 안 겹친다(실측 확인, WorldToViewportPoint
+투영). 2단계(타겟 고르기)는 기존 손 휠과 완전히 같은 위치·반지름·겹침(이미
+승인된 범위).
+구현: `LiveMatchPanel`에 `_ownHand`/`_pendingOwnHand`/`_handStageTarget` 필드
+추가. `RebuildAxisOptions`에 `closeOnPick` 매개변수 신설(기본 true, 손
+1단계만 false — 골라도 안 닫히고 2단계로 이어짐). `BuildAxisControl`에
+`onOpening` 콜백 신설(손 트리거만 사용 — 열 때마다 1단계로 리셋, 닫힌 채
+남아있던 2단계 내용이 다음에 열 때 먼저 뜨는 걸 방지). `Confirm()`/
+`RefreshExposure()`가 `_runner.A.Build(...)`에 `_ownHand`를 실제로 넘기도록
+수정(전엔 기본값 `Hand.Right` 고정). **`LiveAssembler.HandOptions()`도
+`Hand ownHand` 매개변수를 받도록 고쳤다** — 이게 이번 작업의 핵심: 전환
+게이트(0단계에서 고친 반대손 검사)와 뜯기 게이트(전엔 "아무 손이나 잡혔으면"
+이었는데 손이 둘로 나뉜 이상 "이 손이 잡혔으면"이어야 함, `LockState(_me,
+ownHand)`로 교체)가 이제 실제로 손마다 다른 답을 낸다. 새 테스트
+`HandOptions_TearOnlyOffered_ForTheSpecificHeldHand`가 이걸 직접 고정한다.
+Core 규칙 자체는 무수정 — 전부 이미 손 단위로 짜여 있던 `GripSystem` API를
+실제로 손 인자와 함께 부르는 배선 작업이었다. 211→212.
+**검증**: Unity MCP 컴파일 0/0(경고 1개는 Unity AI Assistant 패키지 자체의
+네트워크 폴링 스레드 중단 메시지 — 프로젝트 코드와 무관, 아래 MCP 불안정과
+같은 맥락으로 보임). 하니스 212/212, 지문 IDENTICAL. **Play 모드 실클릭
+전체 흐름 성공**: 손 트리거 열기 → 왼손/오른손 2항목 → 왼손 선택 → 타겟
+5항목(그립 없는 초기 상태라 전환·뜯기·유지·흔들기 전부 안 뜸, 기대대로) →
+왼소매 선택 → 휠 닫힘+트리거 복원+요약 "왼손 · 왼소매" 정확 → 코어/하체
+중립 선택 → 확정 버튼 활성화 → 확정 클릭 → 판정까지 정상 진행(그립 스코어 0 —
+같은 교환에 B 도 습관 브레인으로 A 의 반대쪽을 잡아서 상쇄, 기대대로).
+7해상도(1920~320) 닫힌 상태 전부 zeroSize=0/겹침=0(트리거·요약 텍스트 —
+이번 세션이 그 좌표를 안 건드려서 당연한 결과지만 재확인).
+**세션 중 겪은 일 — Unity MCP 브리지가 여러 차례 멈췄다(무한루프 아님).**
+Play 모드 진행 중 특정 조작(주로 코어 축 클릭) 직후 MCP 호출이 120초+
+응답 없이 백그라운드로 넘어가는 일이 세 번 있었다. 재연결하면 풀렸고, 한
+번은 지연 실행된 명령이 그사이 Play 모드가 꺼진 상태를 못 찾아
+NullReferenceException 을 냈다(코드 버그 아님 — Play 모드가 바뀐 채로 오래
+대기하던 명령이 뒤늦게 실행된 결과). 이후 세션 종료 시점 콘솔에서 확인한
+"Network polling encountered an error: Thread was being aborted"
+(Unity.AI.Toolkit.Accounts 쪽 경고)가 같은 현상의 원인으로 보인다 — 이
+프로젝트 코드가 아니라 Unity AI Assistant 패키지 자체의 네트워크 폴링
+스레드 문제. 여러 클릭을 한 RunCommand 안에 묶어 왕복 횟수를 줄이는 방식으로
+우회해 끝까지 검증을 마쳤다.
+**다음 우선순위 — §H 2~8단계** (판단 대기 2건은 여전히 열려 있음, 3단계
+착수 전 결정 필요 — 아래 "가장 최근 (그 앞)" 블록 참조):
+2. 기술 레지스트리 + 기술 탭 + 공격자 통일(§A.2–A.3, §B)
+3. 스탠스 축(§S) + 흔들기 게이트 재배선(§4.4) — 판단 대기 1·2번 선결 필요
+4. 판정 승격(§E)
+5. 인지 목록 + 예측 되치기(§D — n30~n37 재현 테스트, 시나리오 보드 확장 필요)
+6. B 기술 빈도 관측 + 적응(§C.2)
+7. 숙련도(§F — 영구 저장 포맷 포함)
+8. 위장 가중(§A.4)
+
+**가장 최근 (그 앞) — MATCH_RULES v4.0 반영 완료 (문서 전용 세션, 코드 무수정).**
 `md/MATCH_RULES_revision-v4-final.md`(사용자 확정본, [결정 대기] 없음)를
 `md/MATCH_RULES.md` 본문에 반영. §S 스탠스(체력·그립에 이은 제3의 자원, HUD
 노출) 신설, §4.4 [초안]을 §S 기반 확정판으로 교체(강등 게이트를 "흔들기
@@ -461,6 +535,77 @@ Why Assets/Editor/HubForceResolve.cs disappeared — nobody deleted it. It is Un
 Whether to keep the Unity Cloud link (cloudProjectId / organizationId in ProjectSettings.asset) — keep and commit. cloudEnabled is 0, it is a project GUID rather than a secret, ProjectSettings.asset is tracked anyway, and the editor rewrites it if removed.
 
 Session Log (newest first)
+2026-08-12 (§H 구현 세션 — 0~1단계: CanUseConversion 버그 수정 + 손 분리 UI)
+작업0 — 세션 시작 확인: 문서 통독(이전 세션에서 이미 전체 통독한 문맥 유지) +
+`git status`/`core.hooksPath` 확인 + 스탬프 3종 exit 0 + 하니스 209/209 그린+
+지문 IDENTICAL. **Unity MCP 컴파일 0/0 재확인**(지시대로 — 지난 세션은 문서
+전용이라 스킵했던 걸 이번엔 코드를 건드리기 전에 반드시 확인). 세션 시작
+시점엔 Unity MCP 도구가 아예 안 잡혀서(연결 중 표시조차 없음) 사용자에게
+확인을 물었고, 사용자가 Unity 에디터를 확인한 뒤 도구가 연결됨.
+작업1 — §H 0단계. `GripSystem.CanUseConversion(FighterId who)` → `(FighterId
+who, Hand convertingHand)`로 시그니처 변경, 내부적으로 `Other(convertingHand)`
+(반대 손) 헬퍼를 새로 두고 그 손의 그립만 검사하도록 수정 — 기존엔
+`Value(who) > 0`(내 그립이 하나라도 있으면)만 봐서 자기 손으로 자기 그립을
+전환하는 게 안 막혀 있었다(MATCH_RULES §2 "다른 손이 이미 잡고 있을 때만"
+위반, 이전 세션 §H 설계 시점에 발견된 버그). 콜사이트 2곳 수정
+(`MatchEngine.cs`는 `mine.OwnHand`, `LiveAssembler.cs`는 이 시점엔 UI가 아직
+손을 안 물어봐서 `Hand.Right` 임시 고정 — 작업2에서 진짜 값으로 교체).
+`GripSystemTests`에 반대 손 없음/있음 테스트 2개 추가, 기존
+`Conversion_RequiresAnExistingHold`는 이름·내용을 반대 손 시나리오로 교체.
+`LiveAssemblerTests`의 기존 테스트 1개(`HandOptions_AfterGrippingWithTheOtherHandFree_...`)
+가 정확히 이 버그(같은 손 그립으로 전환이 열리는 것)를 정상으로 검증하고
+있었던 걸 발견 — 의도(다른 손이 잡았을 때 전환이 열린다)를 살려 그립을
+다른 손으로 옮기고, 반대 케이스(같은 손만 잡았을 때 전환 안 열림) 테스트를
+새로 추가했다. 하니스 209→211, **지문 IDENTICAL** — 42노드 스크립트 경로
+실측 확인 결과(`[m3] A Left→RightSleeve` 후 `[m8] A Right→TwistGrip`) 원래도
+다른 손으로 잡고 다른 손으로 전환하는 올바른 패턴이라 이 버그에 애초에
+안 걸려 있었다.
+작업2 — §H 1단계. 구현 전 조사: 방사형 메뉴에서 손 축을 손 분리로 확장하는
+두 안((a) 트리거를 왼손/오른손 2개로 분리 vs (b) 트리거 1개 유지, 2단
+선택(손→타겟))을 Play 모드 실측(카메라 투영으로 A 캐릭터 화면 바운딩 박스
+재확인, 기존 세션 값과 일치 — x=[77,806]/y=[227,842] at 1920)과 코드상 배치
+공식(`angleDeg = -90 + idx*(180/(n-1))`) 분석으로 비교해 보고. 결정적 사실:
+항목이 정확히 2개일 때 이 공식은 −90°/+90°에 배치하고 그 각도의 cos 는 0이라
+**반지름과 무관하게 x축 돌출이 0** — (b)안의 1단계(손 고르기, 2항목)는 A 와
+거의 안 겹친다. (a)안은 트리거가 3개→4개로 늘어 기존에 검증된 220px 세로
+공간(간격 110px×3)이 부족해지는 문제가 있음도 같이 보고. AskUserQuestion 으로
+제시 → 사용자가 **(b) 안**(권장안) 확정.
+구현: `LiveMatchPanel`에 `_ownHand`/`_pendingOwnHand`/`_handStageTarget` 필드,
+`RebuildAxisOptions`에 `closeOnPick` 매개변수(기본 true, 손 1단계만 false),
+`BuildAxisControl`에 `onOpening` 콜백(손 트리거 전용 — 열 때마다 1단계로
+리셋). `Confirm()`/`RefreshExposure()`가 `_ownHand`를 실제로 `Build()`에
+넘기도록 수정(전엔 기본값 `Hand.Right` 고정이라 왼손이 UI에서 한 번도 노출된
+적이 없었다). **`LiveAssembler.HandOptions()`도 `Hand ownHand` 매개변수를
+받도록 변경** — 전환 게이트(0단계에서 고친 반대손 검사)와 뜯기 게이트(전엔
+`AnyHandHeldOnMe()`로 "아무 손이나 잡혔으면"이었는데, 손이 실제로 둘로
+나뉘는 이상 "이 손이 잡혔으면"이 맞는 질문이라 `LockState(_me, ownHand)`로
+교체, `AnyHandHeldOnMe()` 헬퍼는 이 변경으로 안 쓰여 삭제)가 이제 손마다
+실제로 다른 답을 낸다 — 이게 이 작업의 실질적 핵심이다. Core 규칙은 무수정,
+전부 이미 손 단위로 짜여 있던 `GripSystem` API(3.1/3.2 설계 당시부터 손별
+배열이었다)를 실제로 손 인자와 함께 부르는 배선 작업. 새 테스트
+`HandOptions_TearOnlyOffered_ForTheSpecificHeldHand`가 손마다 다른 답이
+나오는 것 자체를 고정한다. 211→212.
+작업3 — 검증. Unity MCP 컴파일 0/0(경고는 Unity AI Assistant 패키지 자체의
+네트워크 폴링 스레드 경고, 프로젝트 코드 무관). 하니스 212/212, 지문
+IDENTICAL. Play 모드 실클릭 — 손 트리거 열기→왼손/오른손 2항목 확인→왼손
+선택→타겟 5항목(그립 없는 초기 상태라 전환·뜯기·유지·흔들기 없음, 기대대로)
+확인→왼소매 선택→휠 닫힘+트리거 복원+요약 "왼손 · 왼소매" 정확→코어/하체
+중립 선택→확정 버튼 활성화 확인→확정 클릭→판정 진행(그립 스코어 0, 같은
+교환에 B 도 습관 브레인으로 A 의 반대쪽을 잡아 상쇄 — 기대대로) 전부 확인.
+7해상도(1920~320) 닫힌 상태 zeroSize=0/겹침=0(이번 세션이 트리거·요약 좌표를
+안 건드려서 당연한 결과지만 재확인).
+**세션 중 겪은 일 — Unity MCP 브리지 불안정(무한루프 아님으로 판명).** Play
+모드 진행 중 특정 조작(주로 코어 축 클릭 직후) 뒤에 MCP 호출이 120초+ 응답
+없이 백그라운드로 넘어가는 일이 세 차례 있었다. 재연결로 매번 풀렸고, 한
+번은 지연 실행되던 명령이 그 사이 Play 모드가 꺼진 걸 못 찾아
+`NullReferenceException`을 냈다(내 코드 버그가 아니라 Play 모드 상태가 바뀐
+채로 뒤늦게 실행된 결과 — `EditorApplication.isPlaying`이 그 사이 False로
+바뀌어 있었다). 세션 종료 시점 콘솔에 뜬 "Network polling encountered an
+error: Thread was being aborted"(`Unity.AI.Toolkit.Accounts` 쪽)가 같은
+현상의 원인으로 보인다 — CounterTime 코드가 아니라 Unity AI Assistant
+패키지 자체의 네트워크 폴링 스레드 문제로 추정(확신은 아님). 여러 클릭을
+한 `RunCommand` 안에 순서대로 묶어 왕복 횟수를 줄이는 방식으로 우회해
+끝까지 검증을 마쳤다.
 2026-08-12 (문서 세션 — MATCH_RULES v4.0 반영)
 작업0 — 세션 시작 확인: HANDOFF(`HANDOFF_session_2026-08-11.md`, 2종 구
 HANDOFF 는 전 세션에서 삭제 확인됨)→MATCH_RULES→CORE_DESIGN→OPPONENT_BRAIN→

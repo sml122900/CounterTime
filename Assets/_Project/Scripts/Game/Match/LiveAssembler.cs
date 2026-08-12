@@ -33,9 +33,13 @@ namespace CounterTime.Game.Match
         public IReadOnlyList<LegAction> LegOptions() => AllLegOptions;
 
         /// <summary>
-        /// §2 — 상대 지정 넷 + 회피는 언제나 열려 있다. 틀어잡기/등싸잡기는 다른 손이
-        /// 이미 소매·깃을 잡고 있을 때만(§2 "unlocked conversions"). 흔들기는 [초안]
-        /// §4.4 대로 자기 그립이 있고 플래그가 켜져 있을 때만.
+        /// §2 — 상대 지정 넷 + 회피는 언제나 열려 있다. 틀어잡기/등싸잡기는 <paramref
+        /// name="ownHand"/> 이 아닌 다른 손이 이미 소매·깃을 잡고 있을 때만(§2
+        /// "unlocked conversions", §H 0단계 CanUseConversion 반대 손 버그 수정 반영).
+        /// 뜯기는 <paramref name="ownHand"/> 자신이 상대에게 잡혀 있을 때만 — 손이
+        /// 둘로 나뉜 이상(§A.1) "아무 손이나 잡혔으면"이 아니라 "이 손이 잡혔으면"이
+        /// 맞는 질문이다. 흔들기는 [초안] §4.4 대로 자기 그립이 있고(어느 손이든)
+        /// 플래그가 켜져 있을 때만.
         ///
         /// 뜯기·잡기 유지는 §2 표 자체에는 없고 §3.2 서술로만 나온다 — 여기 게이트는
         /// 그 서술("당신의 뜯기 vs 상대의 그 턴 선택", "상대가 잡기 유지를 고르면")에서
@@ -44,7 +48,7 @@ namespace CounterTime.Game.Match
         /// 대상이지만, 이 두 선택지 없이는 §3.2 전체가 UI 에서 시험조차 못 되므로
         /// 최선의 추론으로 일단 열어 두고 보고했다.
         /// </summary>
-        public IReadOnlyList<HandTarget> HandOptions()
+        public IReadOnlyList<HandTarget> HandOptions(Hand ownHand)
         {
             var options = new List<HandTarget>
             {
@@ -52,13 +56,13 @@ namespace CounterTime.Game.Match
                 HandTarget.LeftLapel, HandTarget.RightLapel, HandTarget.Evade,
             };
 
-            if (_engine.Grip.CanUseConversion(_me))
+            if (_engine.Grip.CanUseConversion(_me, ownHand))
             {
                 options.Add(HandTarget.TwistGrip);
                 options.Add(HandTarget.BackGrab);
             }
 
-            if (AnyHandHeldOnMe()) options.Add(HandTarget.Tear);
+            if (_engine.Grip.LockState(_me, ownHand) != GripLock.Free) options.Add(HandTarget.Tear);
             if (_engine.Grip.HasAnyGrip(_me)) options.Add(HandTarget.MaintainGrip);
 
             if (_cfg.SetupGateEnabled && _engine.Grip.HasAnyGrip(_me))
@@ -66,10 +70,6 @@ namespace CounterTime.Game.Match
 
             return options;
         }
-
-        bool AnyHandHeldOnMe() =>
-            _engine.Grip.LockState(_me, Hand.Left) != GripLock.Free ||
-            _engine.Grip.LockState(_me, Hand.Right) != GripLock.Free;
 
         public TurnChoice Build(HandTarget hand, CoreStance core, LegAction legs, Hand ownHand = Hand.Right) =>
             new TurnChoice(hand, core, legs, ownHand);

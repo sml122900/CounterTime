@@ -56,6 +56,15 @@ namespace CounterTime.Game.Match
         HandTarget _hand = HandTarget.None;
         CoreStance _core = CoreStance.Neutral;
         LegAction _legs = LegAction.Neutral;
+        // §A.1 손 분리(v4.0) — 손 축은 2단 선택이다: 먼저 왼손/오른손을 고르고(스테이지1),
+        // 그 손 기준 타겟 목록을 고른다(스테이지2). _ownHand 는 확정된 값(Build 에 실제로
+        // 들어감), _pendingOwnHand 는 스테이지1에서 고른 뒤 스테이지2 목록을 계산하는 동안의
+        // 임시값 — 스테이지2에서 타겟을 고를 때 비로소 _ownHand 로 승격된다. 미지시 손은
+        // §A.1 확정대로 자동으로 그립을 유지한다(Core 가 원래 그렇게 동작한다 — 그 턴에
+        // TurnChoice 가 안 건드리는 손은 GripSystem 상태가 그대로 남는다. 새 배선 불필요).
+        Hand _ownHand = Hand.Right;
+        Hand _pendingOwnHand = Hand.Right;
+        bool _handStageTarget;
 
         // 2026-08-12 실전 UI 개편 — 손·코어·하체 상시 노출 3열 폐지 → 캐릭터 옆
         // 트리거+드롭다운(주체 기준=전부 A 옆, 화면 고정 위치=본 추적 안 함) →
@@ -230,6 +239,9 @@ namespace CounterTime.Game.Match
             _hand = HandTarget.None;
             _core = CoreStance.Neutral;
             _legs = LegAction.Neutral;
+            _ownHand = Hand.Right;
+            _pendingOwnHand = Hand.Right;
+            _handStageTarget = false;
             _handChosen = _coreChosen = _legsChosen = false;
             RebuildStandingColumns();
             RefreshExposure();
@@ -241,13 +253,33 @@ namespace CounterTime.Game.Match
         // 이 여유를 그대로 지켰다(트리거가 넓으면 휠 원점이 A 쪽으로 밀려 여유가
         // 줄어든다 — 아래 BuildAxisControl 주석 참조). 코어·하체는 항목이 적어
         // 반지름을 더 좁혀도 간격이 넉넉하다(실측: 코어 90→64px 여유, 하체 100→54px).
-        const float HandRadius = 130f, CoreRadius = 90f, LegsRadius = 100f;
+        // HandSideRadius(스테이지1, 왼손/오른손 2개)는 항목이 정확히 2개일 때 배치
+        // 공식(-90°~+90° 균등분배)이 각 항목을 정확히 ±90°에 놓는다는 실측에 근거한다
+        // — cos(90°)=0 이라 반지름을 얼마로 잡든 A 쪽(x축)으로는 전혀 안 뻗는다.
+        // 70 은 두 버튼(세로 36) 사이에 여유를 두기 위한 값일 뿐 A 와의 겹침과 무관하다.
+        const float HandRadius = 130f, HandSideRadius = 70f, CoreRadius = 90f, LegsRadius = 100f;
+
+        static readonly Hand[] HandSideOptions = { Hand.Left, Hand.Right };
+        static string HandSideLabel(Hand h) => h == Hand.Left ? "왼손" : "오른손";
 
         void RebuildStandingColumns()
         {
-            // 그립 상태가 바뀌지 않는 한(확정 전) 손 후보는 그대로다 — 선택 강조만 새로 칠한다.
-            RebuildAxisOptions(_handDropdown, HandRadius, _runner.A.HandOptions(), HandLabel, o => _hand.Equals(o),
-                o => { _hand = (HandTarget)o; _handChosen = true; RebuildStandingColumns(); RefreshExposure(); RefreshConfirmButton(); });
+            // 손 축은 2단 선택(§A.1, v4.0) — 스테이지1(손 고르기)은 고른 즉시 닫지 않고
+            // (closeOnPick: false) 스테이지2(타겟 고르기)로 넘어간다. 스테이지2에서 타겟을
+            // 고르면 그제서야 _ownHand 가 확정되고 휠이 닫힌다(기본 closeOnPick: true).
+            if (_handStageTarget)
+            {
+                RebuildAxisOptions(_handDropdown, HandRadius, _runner.A.HandOptions(_pendingOwnHand), HandLabel,
+                    o => _hand.Equals(o),
+                    o => { _hand = (HandTarget)o; _ownHand = _pendingOwnHand; _handChosen = true;
+                           RebuildStandingColumns(); RefreshExposure(); RefreshConfirmButton(); });
+            }
+            else
+            {
+                RebuildAxisOptions(_handDropdown, HandSideRadius, HandSideOptions, HandSideLabel, o => false,
+                    o => { _pendingOwnHand = (Hand)o; _handStageTarget = true; RebuildStandingColumns(); },
+                    closeOnPick: false);
+            }
             RebuildAxisOptions(_coreDropdown, CoreRadius, _runner.A.CoreOptions(), CoreLabel, o => _core.Equals(o),
                 o => { _core = (CoreStance)o; _coreChosen = true; RebuildStandingColumns(); RefreshExposure(); RefreshConfirmButton(); });
             RebuildAxisOptions(_legsDropdown, LegsRadius, _runner.A.LegOptions(), LegsLabel, o => _legs.Equals(o),
@@ -257,16 +289,16 @@ namespace CounterTime.Game.Match
             // 반영한다(2026-08-12 방사형 개편 — 트리거 자체는 축 이름만 표시하는
             // 작은 버튼이라 선택 내용은 별도 줄로 뺐다. 여전히 "닫힌 상태에서도
             // 트리거 쪽만 보면 3축이 다 읽힌다"는 요구는 만족한다).
-            _handSummary.text = _handChosen ? HandLabel(_hand) : "—";
+            _handSummary.text = _handChosen ? $"{HandSideLabel(_ownHand)} · {HandLabel(_hand)}" : "—";
             _coreSummary.text = CoreLabel(_core);
             _legsSummary.text = LegsLabel(_legs);
         }
 
         void Confirm()
         {
-            string myChoiceLabel = $"{HandLabel(_hand)} · {CoreLabel(_core)} · {LegsLabel(_legs)}";
+            string myChoiceLabel = $"{HandSideLabel(_ownHand)} · {HandLabel(_hand)} · {CoreLabel(_core)} · {LegsLabel(_legs)}";
             BeginPending();
-            var choice = _runner.A.Build(_hand, _core, _legs);
+            var choice = _runner.A.Build(_hand, _core, _legs, _ownHand);
             _runner.SubmitA(choice);
             string outcome = BuildOutcome();
             bool matte = _pendingEvents.Exists(e => e is MatteCalled);
@@ -282,7 +314,7 @@ namespace CounterTime.Game.Match
         /// 사이드바로 이관하며 라벨을 상시 표시로 바꾼 것뿐이다.</summary>
         void RefreshExposure()
         {
-            var candidate = _runner.A.Build(_hand, _core, _legs);
+            var candidate = _runner.A.Build(_hand, _core, _legs, _ownHand);
             bool warn = _runner.Tendency.MajorityMatches(candidate);
             bool danger = _runner.Tendency.ConsecutiveMatches(candidate);
 
@@ -306,10 +338,16 @@ namespace CounterTime.Game.Match
         /// 항목을 반지름 <paramref name="radius"/> 짜리 오른쪽으로 여는 반원(−90°~+90°,
         /// 트리거 중심 기준)에 균등 배치한다. 항목이 1개뿐이면 각도 계산이 0 으로
         /// 나뉘는 걸 피해 정면(0°)에 둔다 — 이 앱에서 실제로 1개짜리 축은 없지만
-        /// 방어적으로 막아둔다.
+        /// 방어적으로 막아둔다. 항목이 정확히 2개면 공식이 각각 −90°/+90°에 놓는다 —
+        /// cos(90°)=0 이라 반지름과 무관하게 x축 돌출이 0 이다(§A.1 손 축 스테이지1이
+        /// 이 성질에 기댄다).
+        ///
+        /// <paramref name="closeOnPick"/> 이 false 면 고른 뒤에도 휠을 안 닫는다 — 손 축
+        /// 스테이지1(손 고르기)이 스테이지2(타겟 고르기)로 이어지는 데 쓴다. 기본값
+        /// true 는 기존 동작(고르면 즉시 닫힘) 그대로다.
         void RebuildAxisOptions<T>(Transform dropdown, float radius, IReadOnlyList<T> options,
                                    System.Func<T, string> label, System.Func<object, bool> isSelected,
-                                   System.Action<object> onPick)
+                                   System.Action<object> onPick, bool closeOnPick = true)
         {
             for (int i = dropdown.childCount - 1; i >= 0; i--)
                 Destroy(dropdown.GetChild(i).gameObject);   // 확정 전 재구성뿐이라 즉시 파괴로 충분
@@ -322,7 +360,7 @@ namespace CounterTime.Game.Match
                 float rad = angleDeg * Mathf.Deg2Rad;
                 var pos = new Vector2(radius * Mathf.Cos(rad), radius * Mathf.Sin(rad));
 
-                var btn = MakeButton(dropdown, label(captured), () => { onPick(captured); CloseAllWheels(); });
+                var btn = MakeButton(dropdown, label(captured), () => { onPick(captured); if (closeOnPick) CloseAllWheels(); });
                 var brt = (RectTransform)btn.transform;
                 brt.anchorMin = brt.anchorMax = new Vector2(0.5f, 0.5f);
                 brt.pivot = new Vector2(0.5f, 0.5f);
@@ -864,7 +902,12 @@ namespace CounterTime.Game.Match
             _floatingControlsRoot = go;
 
             (_legsTrigger, _legsDropdown, _legsSummary) = BuildAxisControl(go.transform, "하체", new Vector2(25, 440));
-            (_handTrigger, _handDropdown, _handSummary) = BuildAxisControl(go.transform, "손", new Vector2(25, 550));
+            // 손 트리거를 열 때마다 스테이지1(손 고르기)로 되돌린다 — 지난번에 스테이지2
+            // (타겟 고르기)까지 갔다가 확정 없이 닫았어도, 다시 열면 항상 손부터 다시
+            // 고른다(§A.1, v4.0. 안 하면 닫혀 있던 동안 유지된 드롭다운 내용이 그대로
+            // 남아 스테이지2가 먼저 뜬다).
+            (_handTrigger, _handDropdown, _handSummary) = BuildAxisControl(go.transform, "손", new Vector2(25, 550),
+                onOpening: () => { _handStageTarget = false; RebuildStandingColumns(); });
             (_coreTrigger, _coreDropdown, _coreSummary) = BuildAxisControl(go.transform, "코어", new Vector2(25, 660));
         }
 
@@ -875,8 +918,12 @@ namespace CounterTime.Game.Match
         /// 안에서만 의미가 있는 LayoutElement 헬퍼들과 다른 규칙 — 실수로
         /// SetFlexible 등을 여기 쓰면 아무 효과가 없다). anchor 의 원점 자체가
         /// 휠의 각도 계산 기준점이다(<see cref="RebuildAxisOptions"/> 참조).
+        ///
+        /// <paramref name="onOpening"/> 은 휠이 닫힌 상태에서 트리거를 눌러 "열릴" 때만
+        /// (닫힐 때는 안) 호출된다 — 열림 여부를 SetActive 가 바뀌기 전에 판정해서 넘기므로
+        /// 순서 걱정 없이 쓸 수 있다. 손 축이 스테이지를 리셋하는 데 쓴다(§A.1).
         (Button trigger, Transform dropdown, TMP_Text summary) BuildAxisControl(
-            Transform parent, string axisId, Vector2 anchoredPos)
+            Transform parent, string axisId, Vector2 anchoredPos, System.Action onOpening = null)
         {
             var anchor = new GameObject(axisId + "Control", typeof(RectTransform));
             anchor.transform.SetParent(parent, false);
@@ -908,7 +955,11 @@ namespace CounterTime.Game.Match
             drt.sizeDelta = Vector2.zero;
             dropdown.SetActive(false);
 
-            trigger.onClick.AddListener(() => ToggleDropdown(dropdown));
+            trigger.onClick.AddListener(() =>
+            {
+                if (!dropdown.activeSelf) onOpening?.Invoke();   // about to open, not close
+                ToggleDropdown(dropdown);
+            });
             return (trigger, dropdown.transform, summary);
         }
 

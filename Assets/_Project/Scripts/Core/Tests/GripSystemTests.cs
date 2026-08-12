@@ -135,11 +135,23 @@ namespace CounterTime.Core.Tests
         // ---- §2 conversion gate ----
 
         [Test]
-        public void Conversion_RequiresAnExistingHold()
+        public void Conversion_RequiresTheOtherHandAlreadyHolding()
         {
-            Assert.IsFalse(_g.CanUseConversion(FighterId.A));
+            Assert.IsFalse(_g.CanUseConversion(FighterId.A, Hand.Right),
+                "no hold anywhere yet — the other (left) hand has nothing to lean on");
             _g.Grab(FighterId.A, Hand.Left, Hand.Right, GripKind.Normal);
-            Assert.IsTrue(_g.CanUseConversion(FighterId.A));
+            Assert.IsTrue(_g.CanUseConversion(FighterId.A, Hand.Right),
+                "left hand already holds, so the right hand may convert");
+        }
+
+        [Test]
+        public void Conversion_SameHandCannotSupplyItsOwnPrerequisite()
+        {
+            _g.Grab(FighterId.A, Hand.Right, Hand.Left, GripKind.Normal);
+            Assert.IsFalse(_g.CanUseConversion(FighterId.A, Hand.Right),
+                "the converting hand's own hold does not count — §2 requires the OTHER hand");
+            Assert.IsTrue(_g.CanUseConversion(FighterId.A, Hand.Left),
+                "the left hand may still convert, since the right hand holds");
         }
 
         // ---- §3.2 matte reset ----

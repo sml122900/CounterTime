@@ -343,7 +343,7 @@ namespace CounterTime.Core
                 case HandTarget.TwistGrip:
                 case HandTarget.BackGrab:
                     // §2 — conversions need the other hand already holding.
-                    if (!Grip.CanUseConversion(who)) break;
+                    if (!Grip.CanUseConversion(who, mine.OwnHand)) break;
                     Grip.Grab(who, mine.OwnHand, Hand.None, GripKind.Dominant);
                     ev.Add(new GripChanged(who, mine.OwnHand, mine.Hand, GripKind.Dominant));
                     break;

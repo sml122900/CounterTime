@@ -19,6 +19,7 @@ namespace CounterTime.Core
 
         static int Ix(Hand h) => (int)h - 1;
         static FighterId Opp(FighterId f) => f == FighterId.A ? FighterId.B : FighterId.A;
+        static Hand Other(Hand h) => h == Hand.Left ? Hand.Right : Hand.Left;
 
         /// `ownHand` takes a grip of `kind`. `opponentHand` is the sleeve being held,
         /// or Hand.None for a lapel/back grip (§3.2 tracks lock state on hands only).
@@ -64,8 +65,11 @@ namespace CounterTime.Core
             return Hand.None;
         }
 
-        /// §2 — 틀어잡기/등싸잡기 need the other hand to already hold something.
-        public bool CanUseConversion(FighterId who) => Value(who) > 0;
+        /// §2 — 틀어잡기/등싸잡기 need the OTHER hand to already hold something; the
+        /// hand performing the conversion cannot supply its own prerequisite (a hand
+        /// cannot self-convert without the other hand holding a grip).
+        public bool CanUseConversion(FighterId who, Hand convertingHand) =>
+            _holding[(int)who, Ix(Other(convertingHand))] != GripKind.None;
 
         /// §4.4 [초안] — 흔들기(setup) 게이트: 자기 그립이 하나라도 있어야 선언 가능.
         public bool HasAnyGrip(FighterId who) => Value(who) > 0;
