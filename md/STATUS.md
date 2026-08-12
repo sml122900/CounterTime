@@ -3,6 +3,12 @@ STATUS
 Update this file every time a session resets. This is the ONLY copy — the root CLAUDE.md pulls it in with `@md/STATUS.md`, so it loads automatically at session start. Do not create a second copy anywhere. Check "Current State" and "Next Up" before starting work.
 
 Current State (last updated: 2026-08-12)
+**MATCH_RULES.md 는 v4.0** (구 v3.8). §S 스탠스(제3 자원) 신설, §4.4 흔들기가
+[초안]에서 스탠스 기반 확정판으로, §A~§G(입력 모델·기술 로스터·인지와 적응·
+예측 되치기·판정 승격·숙련도·이월 목록) 신설 — 서기 국면 대형 개정, 문서
+전용 세션이라 **코드는 전혀 안 바뀌었다**(§H 구현 0~8단계는 아래 Next Up
+참조, 아직 착수 전). 판단 대기 2건(스탠스 이름 충돌 / TechniqueClass·흔들기
+강등 우선순위)은 §8 과 Next Up 에 등재돼 있다.
 **용어 대응표**: "쿠즈시" = 구 명칭, 2026-08-11 오후 전체 개명 완료 → 화면 표시 "흔들기" / 코드 식별자 `Setup*`(예: `HandTarget.Setup`, `SetupGateEnabled`, `SetupPrecedingCommitSource`). 이 파일의 이전 세션 로그·docs/overnight-*·decisions/·daily/ 는 기록이라 "쿠즈시"로 그대로 남아있다 — 그 시점엔 그게 맞는 이름이었다. 지금 코드/MATCH_RULES.md 를 볼 때는 전부 흔들기/Setup 이다.
 Unity 6.3.21f1 LTS editor installed
 CounterTime project created (Universal 3D template, location C:\project_2026\CounterTime)
@@ -134,7 +140,57 @@ Full detail, including the exact 현실적 A osaekomi-entry-shortfall breakdown 
   Unity Editor + MCP 브리지가 밤새 연결 유지(사람 없음) — 매 작업 후 AssetDatabase.Refresh() + GetConsoleLogs 로 0 에러/0 경고 재확인, RunCommand 안에서 짧은 이름(CompilationPipeline 등)이 Unity.AI.Assistant.* 네임스페이스와 충돌하는 기존 함정 재확인(전체 경로로 우회)
 
 Next Up (in priority order)
-**가장 최근 — 선택 UI를 방사형(휠) 메뉴로 전환 (위 드롭다운이 A 를 가리고 손
+**가장 최근 — MATCH_RULES v4.0 반영 완료 (문서 전용 세션, 코드 무수정).**
+`md/MATCH_RULES_revision-v4-final.md`(사용자 확정본, [결정 대기] 없음)를
+`md/MATCH_RULES.md` 본문에 반영. §S 스탠스(체력·그립에 이은 제3의 자원, HUD
+노출) 신설, §4.4 [초안]을 §S 기반 확정판으로 교체(강등 게이트를 "흔들기
+선언"에서 "상대 스탠스가 임계 이상"으로 일반화 — 흔들기·견제 발기술·무득점
+진짜 시도 전부가 게이트를 여는 경로가 됨), §A(손 분리·기술 턴·공격자 통일·
+위장 기준)~§F(숙련도)를 새 섹션으로 편입, §G 이월 목록(굳히기 확장·스카우팅·
+훈련 시스템·인지 알고리즘·페이크 흔들기) 명기. 버전 v3.8→v4.0, `tools/stamp.sh`
+로 해시 재계산(`b3957a9`), `--check` exit 0 확인. §H 구현 순서(0~8단계, 아래)는
+이 문서가 아니라 STATUS 에만 등재 — MATCH_RULES 는 "무엇"을, STATUS 는 "다음에
+뭘"을 담는다는 기존 문서 역할 분리를 따름.
+**반영 중 발견해 정정한 사실 1건**: 개정본 §4.4′ 원문은 게이트 플래그를
+`KuzushiGateEnabled`→`StanceGate` 로 적었으나, 그 플래그는 2026-08-11 오후
+세션에서 이미 `Kuzushi*`→`Setup*` 로 전면 개명되어 현재 이름은
+`SetupGateEnabled` 다 — 개정본 작성자가 개명 사실을 놓친 것으로 보인다.
+MATCH_RULES.md 에는 정정된 이름(`SetupGateEnabled`→`StanceGate`)으로 반영하고
+이 사실을 본문에도 남겨뒀다. 이름 정정은 의미 재해석이 아니라 현재 코드와
+일치시킨 것이라 판단해 사용자 확인 없이 진행 — 필요하면 되돌릴 것.
+**판단 대기로 남긴 것 2건(MATCH_RULES §8에도 기록)**:
+1. §4.3/§9.4에 이미 있던 "Stance" 리셋 행(그쳐/이탈 시 초기화)이 원래는 Core
+   자세 선택(공격적/중립/수비적) 리셋을 뜻했는데, 신설 §S 스탠스(수치 자원)와
+   이름이 겹친다 — 각주로 구분만 표시(동작 무변경). 그쳐 시 §S 스탠스가 100
+   으로 완전 리셋되는지, §S 자체 회복량(⚙)만 적용되는지는 개정본에 명시가
+   없다.
+2. §F 숙련도가 정하는 `TechniqueClass`(레벨 기반)와 §4.4 흔들기 게이트의
+   Sloppy 강등이 같은 교환·같은 큰기술에 동시에 걸릴 때 우선순위/적용 순서가
+   개정본에도 이 문서에도 없다.
+검증: 반영 전후 `sh tools/stamp.sh --check md/*.md` exit 0(3종 전부), 하니스
+`dotnet run -- --check` 209/209 그린 + 지문 IDENTICAL(문서만 바꿨으므로 당연한
+결과 — 재확인 목적), `git status --short` 로 `md/MATCH_RULES.md` 외에 다른
+파일이 안 바뀌었음을 확인. Unity MCP 는 이 세션 내내 "연결 중" 상태로 도구가
+안 뜸(코드를 안 건드리는 세션이라 컴파일 확인 자체가 불필요했음, CLAUDE.md의
+"MCP 끊기면 파일 편집만 진행" 원칙대로 진행) — 다음 세션에서 코드를 건드리기
+전에는 재확인 필요.
+**다음 우선순위 — §H 구현 순서 (문서 개정 1회, 구현은 단계별. 각 단계 회귀+
+지문 확인, 지문 깨지는 단계는 사유 커밋 후 baseline 1회 재고정):**
+0. `CanUseConversion` 버그 수정(반대 손 조건 누락, §2 위반 — 즉시 가능, 개정과 무관)
+1. 손 분리 UI 노출(§A.1)
+2. 기술 레지스트리 + 기술 탭 + 공격자 통일(§A.2–A.3, §B)
+3. 스탠스 축(§S) + 흔들기 게이트 재배선(§4.4)
+4. 판정 승격(§E)
+5. 인지 목록 + 예측 되치기(§D — n30~n37 재현 테스트, 아직 없는 보드라 시나리오
+   보드 확장도 같이 필요)
+6. B 기술 빈도 관측 + 적응(§C.2)
+7. 숙련도(§F — 영구 저장 포맷 포함)
+8. 위장 가중(§A.4 — 스탠스가 3단계에서 먼저 생겨야 하므로 마지막)
+위 판단 대기 2건은 0단계 착수 전 사람이 먼저 결정하거나, 최소한 3단계(스탠스
+축 구현) 전에는 결정이 필요하다(1번 항목이 3단계 구현 자체에 영향, 2번 항목은
+3+4단계 구현에 영향).
+
+**가장 최근 (그 앞) — 선택 UI를 방사형(휠) 메뉴로 전환 (위 드롭다운이 A 를 가리고 손
 목록이 화면 밖으로 잘린다는 Play 실측 신고 후속).** LoL 핑 휠/오버쿡드 감정표현/
 스파이더맨 웹 기술 계열의 배치 패턴(트리거는 화면 왼쪽 끝 세로, 선택지는
 오른쪽으로 호를 그리며 펼침)만 차용 — 특정 게임 에셋·아이콘 복제 없음.
@@ -405,6 +461,37 @@ Why Assets/Editor/HubForceResolve.cs disappeared — nobody deleted it. It is Un
 Whether to keep the Unity Cloud link (cloudProjectId / organizationId in ProjectSettings.asset) — keep and commit. cloudEnabled is 0, it is a project GUID rather than a secret, ProjectSettings.asset is tracked anyway, and the editor rewrites it if removed.
 
 Session Log (newest first)
+2026-08-12 (문서 세션 — MATCH_RULES v4.0 반영)
+작업0 — 세션 시작 확인: HANDOFF(`HANDOFF_session_2026-08-11.md`, 2종 구
+HANDOFF 는 전 세션에서 삭제 확인됨)→MATCH_RULES→CORE_DESIGN→OPPONENT_BRAIN→
+STATUS 순으로 통독. `git config core.hooksPath`=tools/githooks 확인,
+`sh tools/stamp.sh --check` 3종 exit 0, 하니스 `dotnet run -- --check` 209/209
+그린+지문 IDENTICAL. Unity MCP 는 세션 내내 연결 중 상태로 도구가 안 떠서
+컴파일 확인은 스킵(문서 전용 세션이라 불필요 — CLAUDE.md "MCP 끊기면 파일
+편집만" 원칙).
+작업1 — `md/MATCH_RULES_revision-v4-final.md`(사용자가 세션 시작 전에 이미
+넣어둔 확정본, [결정 대기] 없음) 통독.
+작업2 — `md/MATCH_RULES.md` 본문 반영. §S 스탠스 신설(§3 Grip 과 §4 Judgment
+formula 사이에 배치), §4.4 [초안]을 스탠스 기반 확정판으로 교체(강등 게이트
+일반화: "흔들기 선언" → "상대 스탠스가 임계 이상"), §2 표의 Hand/Legs 행과
+§6.3/§7/§8 을 새 섹션 참조로 업데이트, 파일 끝에 §A~§G 를 새 최상위 섹션으로
+추가(§H 구현 순서는 STATUS 에만 등재 — 역할 분리 유지). 버전 v3.8→v4.0,
+`sh tools/stamp.sh md/MATCH_RULES.md` 로 해시 재계산(`b3957a9`).
+반영 중 두 가지를 자체 판단 없이 처리: (1) 개정본이 `KuzushiGateEnabled`→
+`StanceGate` 로 적은 것을, 그 사이 이미 있었던 `Kuzushi*`→`Setup*` 개명
+(2026-08-11 오후)을 반영해 `SetupGateEnabled`→`StanceGate` 로 정정 — 의미
+재해석이 아니라 현재 이름과 맞춘 것으로 판단해 진행. (2) 기존 §4.3/§9.4 의
+"Stance"(Core 자세 선택 리셋)와 신설 §S 스탠스(수치 자원)의 이름 충돌을
+발견 — 동작은 안 바꾸고 각주로만 구분, 실제 상호작용(그쳐 시 §S 도 완전
+리셋되는가)은 정하지 않고 §8/STATUS 에 판단 대기로 등재. 그 외에 §F 숙련도의
+TechniqueClass 와 §4.4 흔들기 강등이 같은 교환에 동시 적용될 때 순서도 개정본에
+없어 판단 대기로 등재.
+작업3 — 무수정 확인: `git status --short` 로 이번 세션에 `md/MATCH_RULES.md`
+외 어떤 파일도 안 바뀌었음을 확인(CORE_DESIGN/OPPONENT_BRAIN/시나리오 JSON/
+코드/테스트 전부 그대로), 하니스 재실행 209/209 그린 + 지문 IDENTICAL(문서만
+바꿨으니 당연한 결과지만 재확인).
+작업4 — 이 STATUS 갱신이 그 결과물. §H 구현 0~8단계를 Next Up 최상단에 등재.
+커밋·푸시는 사용자 확인 후 진행.
 2026-08-12
 작업0 — 세션 시작 확인: `md/HANDOFF_session_2026-08-11.md`→MATCH_RULES→CORE_DESIGN→
 OPPONENT_BRAIN→STATUS 순으로 읽음. 스탬프 3종 `tools/stamp.sh --check` exit 0,
