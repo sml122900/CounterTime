@@ -146,7 +146,32 @@ Full detail, including the exact 현실적 A osaekomi-entry-shortfall breakdown 
   Unity Editor + MCP 브리지가 밤새 연결 유지(사람 없음) — 매 작업 후 AssetDatabase.Refresh() + GetConsoleLogs 로 0 에러/0 경고 재확인, RunCommand 안에서 짧은 이름(CompilationPipeline 등)이 Unity.AI.Assistant.* 네임스페이스와 충돌하는 기존 함정 재확인(전체 경로로 우회)
 
 Next Up (in priority order)
-**가장 최근 — §H 구현 0~1단계 완료 (CanUseConversion 버그 수정 + 손 분리 UI).**
+**가장 최근 — CORE_DESIGN v4 + META_DESIGN 정본 편입 (문서 전용, 코드 무수정).**
+사용자가 md/에 넣어둔 초안 2종(`CORE_DESIGN_v4-draft.md`, `META_DESIGN-draft.md`)을
+검토·편입. `CORE_DESIGN_MatchEngine.md`에 새 최상위 절 "v4.0 revision — technique
+registry, Balance axis, persistence seam (§H steps 2–3)"을 추가 — §2단계-A(TechniqueDef/
+TechniqueRegistry/AlgoClass·JudoCategory/ClassFromMastery/IMasteryStore stub, 저작
+데이터·런타임 상태 분리, 스크립트 경로는 AuthoredClass로 지문 보존), §3단계
+(BalanceSystem, StaminaSystem 미러 + MatchRulesConfig 밸런스 상수 전부 ⚙ +
+`SetupGateEnabled`→`BalanceGate` 재배선 + `MatchEvent.BalanceChanged`), §영구 저장
+(Core는 `IMasteryStore`/`IAdaptationLedger`/`IRecognitionSet` 주입·추출 인터페이스만,
+감쇠는 Game 계층)만 편입 — 초안의 §2단계-B(기술 탭 UI·공격자 통일)는 덤프의 8개
+판단 대기와 대조가 아직 안 끝나 **의도적으로 제외**하고 그 사실을 문서에 명기.
+덤프 실측 사실(`MasteryReadReductionPerLevel` 소비자 0, 12기술 중 코드 4개뿐, SO
+약속 주석은 근거 없음) 그대로 반영, ⚙ 표기는 "제안 초기치"로 계속 표시(확정값
+아님). 버전 v3.2→v4.0, `sh tools/stamp.sh`로 해시 재계산(`381212e`).
+`md/META_DESIGN-draft.md`를 `md/META_DESIGN.md`(신규 정본, v1.0, 1행 스탬프
+`e64fc96`)로 승격 — §M0~M6(세이브 스키마 JSON 1개·슬롯 1개, 지도 3곳[유도장/집/
+경기장], 연습 대회 32강 대진표[다른 매치는 시드 동전던지기로 채움]+동메달
+결정전[4강 패 → 동메달전, 승 동/패 노메달], 평판 확산[직접=상대별 adaptation
+누적, 간접=대회 성과에 따른 미대전 상대 scoutingLevel 소폭 상승]) 그대로.
+초안 2개는 내용이 정본으로 이동해 삭제, 커밋 메시지에 "정본 편입 완료로 초안
+폐기, 사용자 확인" 명시(아래 STATUS 갱신과 같은 커밋으로 진행).
+검증: `sh tools/stamp.sh --check md/*.md` exit 0(5종 — 새 META_DESIGN.md 포함),
+하니스 `dotnet run -- --check` **212/212 그린 + 지문 IDENTICAL**(문서만 바꿨으므로
+당연한 결과 — 재확인 목적), `git config core.hooksPath`=tools/githooks 확인. 문서
+전용 세션이라 Unity MCP 컴파일 확인은 스킵(CLAUDE.md 원칙 그대로).
+**가장 최근 (그 앞) — §H 구현 0~1단계 완료 (CanUseConversion 버그 수정 + 손 분리 UI).**
 세션 시작에 Unity MCP 컴파일 0/0 확인(지난 세션은 문서 전용이라 스킵, 이번엔
 코드를 건드리기 전에 재확인 필수 지시대로 진행).
 **0단계 — `GripSystem.CanUseConversion` 버그 수정.** 반대 손 조건이 아예 없었다
@@ -208,17 +233,29 @@ NullReferenceException 을 냈다(코드 버그 아님 — Play 모드가 바뀐
 프로젝트 코드가 아니라 Unity AI Assistant 패키지 자체의 네트워크 폴링
 스레드 문제. 여러 클릭을 한 RunCommand 안에 묶어 왕복 횟수를 줄이는 방식으로
 우회해 끝까지 검증을 마쳤다.
-**다음 우선순위 — §H 2~8단계** (판단 대기 2건은 2026-08-12 문서 세션에서 해소됨 —
-자원명 밸런스/Balance 확정 + §F↔§4.4 게이트 우선순위 확정, 아래 "해결됨 (2026-08-12)
-— v4.0 판단 대기 2건" 블록 및 MATCH_RULES §S/§4.4/§8 참조. 3단계 착수 전 더 이상
-사람 결정 대기 없음):
-2. 기술 레지스트리 + 기술 탭 + 공격자 통일(§A.2–A.3, §B)
+**다음 우선순위 — §H 2~8단계 (2026-08-12 CORE_DESIGN v4/META_DESIGN 편입 세션에서
+META_DESIGN §M6대로 재배치, 3.5단계 신설).** 판단 대기 2건은 앞선 2026-08-12 문서
+세션에서 이미 해소됨 — 자원명 밸런스/Balance 확정 + §F↔§4.4 게이트 우선순위 확정,
+"해결됨 (2026-08-12) — v4.0 판단 대기 2건" 블록 및 MATCH_RULES §S/§4.4/§8 참조.
+설계는 `CORE_DESIGN_MatchEngine.md`의 "v4.0 revision" 절(2·3단계·영구 저장 인터페이스)
+과 `META_DESIGN.md`(3.5단계 세이브·지도·대회 뼈대)에 확정돼 있다 — 3단계 착수 전
+더 이상 사람 결정 대기 없음:
+0. `CanUseConversion` 버그 수정 — **완료**
+1. 손 분리 UI(§A.1) — **완료**
+2. 기술 레지스트리 + 기술 탭 + 공격자 통일(§A.2–A.3, §B) — 탭 UI·공격자 통일 절반은
+   CORE_DESIGN v4 편입에서 의도적으로 제외됐다(덤프의 8개 판단 대기와 대조 필요,
+   위 블록 참조) — 이 단계 착수 전에 그 대조부터.
 3. 밸런스 축(§S, 구 "스탠스" — 코드 식별자 `Balance`, `CoreStance` 와 충돌 회피
    목적. `SetupGateEnabled`→`BalanceGate` 개명 포함) + 흔들기 게이트 재배선(§4.4)
+3.5. **세이브 계층(META_DESIGN §M1) + 지도·대회 뼈대(§M2~M4).** 5·6·7단계가 결과를
+   영구 저장할 자리(§C 적응·§F 숙련도의 "상대별 영구" 상태)가 이 단계 전에는
+   존재하지 않는다 — 그래서 판정 승격(4단계) 다음, 인지/예측 되치기(5단계) 전에
+   끼워 넣는다.
 4. 판정 승격(§E)
-5. 인지 목록 + 예측 되치기(§D — n30~n37 재현 테스트, 시나리오 보드 확장 필요)
-6. B 기술 빈도 관측 + 적응(§C.2)
-7. 숙련도(§F — 영구 저장 포맷 포함)
+5. 인지 목록 + 예측 되치기(§D — n30~n37 재현 테스트, 시나리오 보드 확장 필요) →
+   3.5단계의 `knownByMe` 영구화와 연결
+6. B 기술 빈도 관측 + 적응(§C.2) → 3.5단계의 `adaptation` 영구화와 연결
+7. 숙련도(§F) → 3.5단계의 `mastery` 영구화와 연결
 8. 위장 가중(§A.4)
 
 **가장 최근 (그 앞) — MATCH_RULES v4.0 반영 완료 (문서 전용 세션, 코드 무수정).**

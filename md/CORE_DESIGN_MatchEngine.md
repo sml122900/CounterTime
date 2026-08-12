@@ -1,4 +1,4 @@
-<!-- v3.2 | body:a24d23c -->
+<!-- v4.0 | body:381212e -->
 # CORE_DESIGN_MatchEngine.md — CounterTime.Core implementation design
 
 Implements `MATCH_RULES.md` (that file wins on any conflict). Target:
@@ -293,3 +293,226 @@ StaminaSystemTests
    OralMatchReplayTests. 7. Update STATUS.md (English) with results.
 Commit checkpoint after each numbered step. Do not touch CounterTime.Game,
 NodeMotionMap, or the scenario runner in this pass.
+
+---
+
+# v4.0 revision — technique registry, Balance axis, persistence seam (§H steps 2–3)
+
+Confirmed design for `MATCH_RULES.md` §S/§4.4/§A–§F's implementation surface, promoted
+from `md/CORE_DESIGN_v4-draft.md` (source draft, now retired — see `md/STATUS.md`).
+Grounded in a code-state dump (`md/DUMP_technique-structure.md`); citations below are
+that dump's measurements, not assumptions. The draft's §2단계-B (기술 탭 UI · 공격자
+결정 통일) is **NOT** part of this promotion — it has an open dependency on reconciling
+against the dump's 8 unresolved judgment calls and stays in draft status until that
+reconciliation happens; only §2단계-A (technique registry), §3단계 (Balance axis), and
+the persistence seam are confirmed here.
+
+## Technique registry (§H step 2)
+
+### Current state (measured)
+`TechniqueSpec.cs` has five fields — Id / Cost / Class / MasteryLevel / SurpriseExempt.
+None of §B's display name, algorithm classification, five-category classification, or a
+registry exist. `TechniqueClass` is a hardcoded literal at seven separate call sites
+(`LiveMatchRunner.cs:36`'s "밭다리" placeholder, `MatchEngine.cs:371`,
+`ScriptedAssembler.cs:93`/`104`, `HabitBrainCommitSource.cs:173`,
+`HabitCatalogue.cs:31`/`46`) — **zero of them derive it from mastery.** Of §B's 12
+techniques, 4 exist in code; the promised ScriptableObject wrapper is a comment, not a
+type.
+
+### Design
+
+**1. Split authored data from runtime state.** `TechniqueSpec` currently conflates
+immutable authored data with a mutable `MasteryLevel`. Split it:
+
+```csharp
+// TechniqueDef — new, immutable authored data, Core-pure
+public sealed class TechniqueDef {
+    public readonly string Id;              // stable key, e.g. "hattari", "seoi"
+    public readonly string DisplayName;     // "밭다리걸기"
+    public readonly AlgoClass Algo;         // match-algorithm split: FeintFootsweep | BigThrow
+    public readonly JudoCategory Category;  // teaching-screen classification: Hand|Foot|Hip|Sacrifice|Variant
+    public readonly int BaseCost;           // was TechniqueSpec.Cost
+    public readonly bool SurpriseExempt;
+}
+```
+
+- `AlgoClass` is §B's binary split (견제 발기술 / 큰 기술) — the only classification §D.4's
+  special case and §4.4's Balance gate read.
+- `JudoCategory` is the five standard judo categories — teaching-screen only, **match
+  logic never reads it** (§B, confirmed).
+
+`TechniqueRegistry` (new, Core-pure) holds all 12 `TechniqueDef`s keyed by Id, replacing
+the seven scattered literals. Lookup: `Get(id)`.
+
+**2. `TechniqueClass` is derived, not stored.** §F: mastery level decides
+`TechniqueClass` (0–1 Sloppy / 2–3 Standard / 4–5 Signature, boundaries ⚙). So class
+becomes a function, not a spec field:
+
+```csharp
+static TechniqueClass ClassFromMastery(int level, MatchRulesConfig cfg)
+```
+
+Resolution order (per `MATCH_RULES.md` v4.1's §4.4/§F priority decision):
+`ClassFromMastery(mastery)` first, then the Balance gate may downgrade to `Sloppy` as
+the final step (unless `SurpriseExempt`).
+
+**Scripted-path exception.** The 42-node script and the habit catalogue have no mastery
+concept, and the script's `TechniqueClass` literals ARE part of the source of the
+42-node fingerprint — replacing them with a derivation risks changing it. So the commit
+carries an optional authored override instead of the def carrying a fixed class:
+
+```csharp
+TechniqueClass? AuthoredClass   // scripted path only; live path leaves this null
+```
+
+Live path: `AuthoredClass == null` → use `ClassFromMastery`. Scripted path: existing
+literals move to `AuthoredClass` unchanged. **Fingerprint IDENTICAL is this step's gate
+test.**
+
+**3. `MasteryLevel` moves off the spec.** Mastery is a property of the (fighter,
+technique) pair, not the technique — A's 업어치기 mastery and B's are independent, which
+today's single `TechniqueSpec.MasteryLevel` field cannot express.
+
+```csharp
+public interface IMasteryStore {
+    int LevelOf(FighterId who, string techId);
+}
+```
+
+Step 2 ships a **stub returning 0 always** — measured: nothing in current production
+feeds it a nonzero value, so this is behavior-preserving. Real growth and persistence
+wait for §F once the save layer (below) exists.
+
+**Measured gap worth flagging while touching this area**: `MasteryReadReductionPerLevel`
+(§5.4's "opponent's chance to read that technique −5%p per level") has **zero
+consumers** today — the read-reduction half of mastery was never wired to anything.
+Wiring a consumer is new work for the §F step, not a fix to something already broken.
+
+**4. No ScriptableObject wrapper yet.** The registry stays 12 Core-pure hardcoded
+`TechniqueDef`s. A Game-side SO authoring layer is deferred until a real need for
+data-driven authoring is confirmed — until then it would wrap something that doesn't
+exist. The existing "SO wrapper" promise-comment is removed with this step, not kept as
+aspirational text.
+
+### Step 2 gate test
+42-node fingerprint IDENTICAL (scripted path supplies the same `TechniqueClass` values
+via `AuthoredClass` that it used to supply directly).
+
+## Balance axis (§H step 3)
+
+### Current state (measured)
+`StaminaSystem`/`GripSystem` share a clean pattern — fixed range + `MatchRulesConfig`
+constants + constructor wiring in `MatchEngine` — that Balance can mirror directly. Core
+holds no Core-stance-selection state today (that lives in Game/UI), so Balance belongs
+at Stamina/Grip's tier in Core, not alongside a UI selection. §4.4's 흔들기
+declare/gate/cost path is already wired in `MatchEngine.cs`, but **its actual balance-
+drain effect is currently a no-op** — step 3 is exactly what fills that gap. A search for
+`Balance`/`BalanceSystem` identifiers in the codebase returns zero hits — this is new
+surface, not a rename colliding with anything that currently exists.
+
+### Design
+
+`BalanceSystem` (new, Core-pure) — mirrors `StaminaSystem`'s shape:
+
+```csharp
+int  Get(FighterId who);                 // 0..BalanceMax
+void Drain(FighterId who, int amount);   // floored at 0
+void RecoverDefenseSuccess(FighterId who);
+void RecoverMattePartial(FighterId who); // partial only — v4.1 confirmed, not a full reset
+void ResetBetweenMatches(FighterId who); // the ONLY full reset
+```
+
+`MatchRulesConfig` additions (all ⚙ — **proposed initial values, not confirmed
+numbers**, same convention as every other tunable in this file):
+
+```csharp
+public int BalanceMax = 100;
+public int BalanceOnsetThreshold = 70;      // §4.4 gate: opponent Balance ≥ this → big throw downgrades to Sloppy
+public int BalanceDrainSetup;               // ⚙ one 흔들기
+public int BalanceDrainFeintFootsweep;      // ⚙ a landed 견제 발기술 (§D.4 floor)
+public int BalanceDrainThreatNoScore;       // ⚙ a genuine realAttempt that scored None (§S)
+public int BalanceRecoverDefense;           // ⚙ a successful defense
+public int BalanceRecoverMatte;             // ⚙ matte partial recovery, same shape as StaminaSystem.MatteRecovery
+```
+
+**Gate rewiring (§4.4, confirmed).** `SetupGateEnabled` (a boolean-only flag today)
+becomes `BalanceGate`, and its condition changes from "no 흔들기 this exchange" to
+"opponent Balance ≥ `BalanceOnsetThreshold`" — downgrading the incoming big throw's
+`TechniqueClass` to `Sloppy` unless `SurpriseExempt`. This generalizes what opens the
+gate from 흔들기 alone to any Balance-draining threat (흔들기 · a landed 견제 발기술 · a
+genuine no-score attempt — all §S). Priority vs §F: `ClassFromMastery` first,
+`BalanceGate` checked last and wins (`MATCH_RULES.md` v4.1, §4.4's closing bullet).
+Rename via `git mv` to preserve file GUIDs — the same practice established for the
+쿠즈시→흔들기/Setup rename.
+
+**Drain call sites:**
+- 흔들기 declare (existing `MatchEngine.cs` location) → `Drain(opponent, BalanceDrainSetup)`.
+- A landed 견제 발기술 → `Drain(opponent, BalanceDrainFeintFootsweep)` (§D.4 floor case).
+- A `realAttempt` exchange that resolves `Judgement.None` → `Drain(opponent, BalanceDrainThreatNoScore)`.
+- Successful-defense handling → `RecoverDefenseSuccess`.
+- Matte handling → `RecoverMattePartial`, alongside the existing `StaminaSystem.RecoverMatte` call.
+
+**HUD.** Balance is a confirmed, always-visible number at grip's tier (§7) — unlike a
+tell, it is never withheld. New event: `MatchEvent.BalanceChanged`.
+
+### Step 3 gate tests
+- 흔들기 actually drains opponent Balance (today's no-op effect becomes real).
+- Opponent Balance ≥ threshold → next big throw downgrades to Sloppy; below threshold →
+  class unchanged.
+- `SurpriseExempt` techniques pass the gate regardless of Balance.
+- Matte grants partial recovery only; full reset (100) happens only between matches.
+- A genuine no-score attempt drains Balance; a poke (no judgment fired) does not.
+- **42-node fingerprint**: the scripted path keeps `BalanceGate` disabled (continuing the
+  existing `SetupGateEnabled`-off convention) — IDENTICAL is the target, not a side effect.
+
+## Persistence seam (Core injection/extraction interfaces)
+
+User decision: **Plan A** — build the save layer now (not deferred to career scope), but
+only the minimal scaffold the save needs to sit on (`md/META_DESIGN.md` owns the actual
+scope and schema).
+
+**Division of responsibility:**
+- **Save file, schema, and serialization live in Game** (`META_DESIGN.md` §M1). Core
+  knows nothing of files, `JsonUtility`, or `UnityEngine` — the purity rule is unchanged.
+- **Core defines only the injection/extraction interfaces.** Game injects saved values
+  into Core at match start and extracts this match's resulting state at match end:
+
+```csharp
+// (fighter, technique) mastery — §F. Step 2's IMasteryStore stub gets its real backend here.
+public interface IMasteryStore {
+    int  LevelOf(FighterId who, string techId);
+    void Set(FighterId who, string techId, int level);   // extraction/injection
+}
+
+// B's adaptation ledger to A's techniques — §C.2. Seeded from saved counts at match
+// start, extracted for persistence at match end.
+public interface IAdaptationLedger {
+    int  ExposureOf(string techId);
+    void Seed(IReadOnlyDictionary<string,int> saved);
+    IReadOnlyDictionary<string,int> Snapshot();
+}
+
+// A's recognition list — §C.1. Predictive-counter candidates; added to during a match
+// from observation, persisted per opponent.
+public interface IRecognitionSet {
+    bool Knows(string techId);
+    void Add(string techId);
+    IReadOnlyCollection<string> Snapshot();
+}
+```
+
+- **Decay (§C.3) is applied by Game to the saved values**, not by Core — the rule that
+  lowers `ExposureOf`/mastery/recognition as matches pass elapses runs at the save layer,
+  and Core only ever receives an already-seeded value. This keeps any notion of "how many
+  matches have passed" out of Core.
+- Existing match-lifetime state (`HabitState`, `ObservationLedger`) is **untouched** —
+  these interfaces seed and extract from a layer above it, not replace it.
+
+Actual wiring and the on-disk format land in §H step 3.5 (save layer); this section only
+fixes the surface Core must expose.
+
+---
+
+*Implementation order for §H steps 2–8 (and the persistence-layer step 3.5 inserted
+before step 5) is tracked in `md/STATUS.md`'s Next Up, not here — same split as
+`MATCH_RULES.md`.*
