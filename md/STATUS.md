@@ -146,7 +146,47 @@ Full detail, including the exact 현실적 A osaekomi-entry-shortfall breakdown 
   Unity Editor + MCP 브리지가 밤새 연결 유지(사람 없음) — 매 작업 후 AssetDatabase.Refresh() + GetConsoleLogs 로 0 에러/0 경고 재확인, RunCommand 안에서 짧은 이름(CompilationPipeline 등)이 Unity.AI.Assistant.* 네임스페이스와 충돌하는 기존 함정 재확인(전체 경로로 우회)
 
 Next Up (in priority order)
-**가장 최근 — 밸런스 ⚙ 확정값 적용: `BalanceDrainSetup` 35→40.** 밸런스 경제를
+**가장 최근 — §H 3.5a: 세이브 계층 (데이터 기반, 스펙 구현. Core/Brain·판정 무수정).**
+Core 순수성 유지 — 새 영속 시임 3개를 CORE_DESIGN "Persistence seam" 절 원안 그대로
+Core 에 추가: `IMasteryStore`(기존 stub 인터페이스에 실구현 `MasteryStore` 신설, `Set`
+자체는 §H 2단계부터 이미 있었음), `IAdaptationLedger`(신규, §C.2용), `IRecognitionSet`
+(신규, §D 인지 목록용, CORE_DESIGN 원안대로 `Seed` 없이 `Knows/Add/Snapshot`만 —
+`Add`가 멱등이라 반복 호출로 시딩 가능, 별도 API 불필요하다고 판단). 셋 다
+Dictionary/HashSet 기반 **실동작** 컨테이너다 — "이번 단계는 빈 값/0 유지" 지시를
+"컨테이너 자체가 영구 무동작이어야 한다"가 아니라 "MatchEngine/Brain 어디서도 아직
+안 불러야 한다"는 뜻으로 해석했다(둘 다 자연히 빈 상태로 시작해 지시 문구 자체는
+만족, 실제 채움은 아래 이월 항목). `ZeroMasteryStore`는 손 안 댐 — §H 2단계부터
+이미 살아있는 컨슈머(MatchEngine 기본 주입)가 있어 그건 영구 무동작이 계약이고,
+`MasteryStore`는 그와 별개로 §H 7단계가 실제로 쓸 새 구현체.
+세이브 파일(Game 전용, Core 는 파일/JsonUtility 여전히 모름): `Game/Save/SaveData.cs`
+(META_DESIGN §M1 스키마 1:1 — JsonUtility 가 Dictionary 를 못 실어서 `{techId,level}`/
+`{techId,count}` 같은 `List<Entry>` 래퍼로 표현) + `SaveSystem.cs`(경로 인자 오버로드 +
+`Application.persistentDataPath` 편의 오버로드, 원자적 쓰기 — 임시파일에 쓰고 대상
+있으면 지우고 rename).
+새 테스트 18개: `AdaptationLedgerTests`(5)/`RecognitionSetTests`(4)/`MasteryStoreTests`
+(4)/`SaveSystemTests`(5 — 스키마 전 필드 개별 왕복·파일없음 시 빈 SaveData·임시파일
+안 남음·덮어쓰기·폴더 자동 생성).
+하니스 확장: `UnityEngineShim.cs`에 `JsonUtility.ToJson`(object / object+pretty 두
+오버로드, 실제 Unity 처럼 런타임 타입으로 직렬화) + `UnityEngine.Application.
+persistentDataPath`(OS 임시 폴더) 추가, `Harness.csproj`에 `Game/Save/*.cs` +
+`SaveSystemTests.cs` 컴파일 대상 등록, `Program.cs` COVERAGE 문구에 SaveSystemTests
+추가.
+검증: Unity MCP 컴파일 0/0 — 새 타입 5개(`MasteryStore`/`AdaptationLedger`/
+`RecognitionSet`/`SaveData`/`SaveSystem`)를 직접 참조·실행하는 RunCommand 로 재확인.
+**세션 중 발견(제품 결함 아님, RunCommand 샌드박스 전용 제약)**: `System.IO.File.Delete`
+를 RunCommand 안에서 단독 호출하면 "User interactions are not supported for MCP tool
+calls" 로 막힌다 — 이분법 격리로 원인 확정(Write+Read 만 있으면 통과, 그 뒤
+`File.Delete` 한 줄만 추가하면 실패, `SaveSystem.Write`가 내부적으로 하는
+"기존 파일 있으면 지우고 rename"의 그 Delete 도 같은 제약을 탄다). `SaveSystem.cs`
+자체는 결함이 아니다 — 같은 delete 경로가 dotnet 하니스(진짜 프로세스, RunCommand
+샌드박스 아님)의 `Write_Overwrites_PreviousSave`/`Write_DoesNotLeaveTempFileBehind`
+로 이미 통과 검증됐다. RunCommand 로 Play 모드 이외 파일 삭제를 확인해야 할 다음
+세션을 위해 기록만 해두고 코드는 안 고침. 하니스 235→253(+18) 그린, **42노드 지문
+IDENTICAL**(어느 인터페이스도 아직 MatchEngine/Brain 에 안 물렸다는 뜻 — 지시가
+경고한 "물리면 지문이 깨진다"의 반증).
+**이월**: 실제 채움(디코딩한 세이브를 매치에 반영)은 §H 5단계(`IRecognitionSet`)/
+6단계(`IAdaptationLedger`)/7단계(`IMasteryStore`)로 넘어간다 — 3.5a 는 자리만.
+**가장 최근 (그 앞) — 밸런스 ⚙ 확정값 적용: `BalanceDrainSetup` 35→40.** 밸런스 경제를
 엄밀히 도출한 결과 흔들기 드레인만 조정, 나머지 6개(견제 −20/무득점 −15/
 그쳐 +3/수비 +10/임계 70/최대 100)는 무수정.
 **작업0**: 스탬프 exit 0, 하니스 235/235·지문 IDENTICAL, Unity MCP 컴파일
@@ -920,6 +960,19 @@ Why Assets/Editor/HubForceResolve.cs disappeared — nobody deleted it. It is Un
 Whether to keep the Unity Cloud link (cloudProjectId / organizationId in ProjectSettings.asset) — keep and commit. cloudEnabled is 0, it is a project GUID rather than a secret, ProjectSettings.asset is tracked anyway, and the editor rewrites it if removed.
 
 Session Log (newest first)
+2026-08-12 (§H 구현 세션 — 3.5a: 세이브 계층)
+작업 지시: §H 3.5a — 세이브 계층(데이터 기반, META_DESIGN §M1 스펙 구현). 세션이
+컨텍스트 압축으로 이어졌다 — 파일 작성(Core 시임 3개, Game 세이브 계층, 테스트
+18개, 하니스 확장)은 이미 끝난 상태에서 재개해 검증부터 진행했다.
+작업1 — 검증. 하니스 `dotnet run -- --check`: 253/253 그린(235→253), 42노드 지문
+IDENTICAL. Unity MCP: `AssetDatabase.Refresh()` 로 새 파일(.meta 자동 생성 확인) 반영
+후 컴파일 로그 0 에러/0 경고, 새 타입 5개를 직접 참조하는 RunCommand 로 실행까지
+재확인. 그 과정에서 `System.IO.File.Delete` 단독 호출이 RunCommand 샌드박스에서
+막히는 것을 발견해 이분법으로 원인을 좁히고(Write+Read 는 통과, Delete 추가 시
+실패) — 코드 결함이 아니라 하니스가 이미 통과시킨 동작(SaveSystem 내부 delete 경로
+포함)이라는 것까지 확인, 기록만 하고 코드는 안 고침. 상세는 위 Next Up 항목 참조.
+작업2 — 이 STATUS 갱신이 그 결과물. 3.5a 완료 명기, 실채움은 §H 5/6/7 로 이월.
+커밋·푸시는 사용자 확인 후 진행.
 2026-08-12 (문서 세션 — v4.0 §8 판단 대기 2건 확정 반영, v4.0→v4.1)
 사용자 지시: v4.0 반영 세션이 §8 에 남겨둔 판단 대기 2건을 사용자가 확정한 결정대로
 MATCH_RULES.md 에 반영(문서만, 코드 무수정).

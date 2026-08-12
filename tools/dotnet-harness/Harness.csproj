@@ -41,11 +41,16 @@
     <Compile Include="..\..\Assets\_Project\Scripts\Game\Match\MatchRunner.cs" />
     <Compile Include="..\..\Assets\_Project\Scripts\Game\Match\ResultNarrationTable.cs" />
     <Compile Include="..\..\Assets\_Project\Scripts\Game\Match\LiveAssembler.cs" />
+    <!-- §H step 3.5a — save layer. Pure file I/O + JsonUtility, no Canvas/TMP/Animator,
+         so it needs only the Application/JsonUtility.ToJson shim additions above. -->
+    <Compile Include="..\..\Assets\_Project\Scripts\Game\Save\SaveData.cs" />
+    <Compile Include="..\..\Assets\_Project\Scripts\Game\Save\SaveSystem.cs" />
 
     <Compile Include="..\..\Assets\_Project\Scripts\Game\Tests\ScenarioTurnChoicesTests.cs" />
     <Compile Include="..\..\Assets\_Project\Scripts\Game\Tests\ScriptedReadResolverTests.cs" />
     <Compile Include="..\..\Assets\_Project\Scripts\Game\Tests\ResultNarrationTableTests.cs" />
     <Compile Include="..\..\Assets\_Project\Scripts\Game\Tests\LiveAssemblerTests.cs" />
+    <Compile Include="..\..\Assets\_Project\Scripts\Game\Tests\SaveSystemTests.cs" />
     <!-- MatchRunnerHandActionTests.cs is deliberately NOT included — it needs
          GameObject/AddComponent/DestroyImmediate (Unity's real object model),
          which this shim does not attempt to fake. Run it in the Unity Test Runner. -->

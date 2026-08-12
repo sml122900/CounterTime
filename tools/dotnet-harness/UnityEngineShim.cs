@@ -55,7 +55,29 @@ namespace UnityEngine
             IncludeFields = true,
             PropertyNameCaseInsensitive = false,
         };
+        static readonly JsonSerializerOptions PrettyOpts = new JsonSerializerOptions
+        {
+            IncludeFields = true,
+            PropertyNameCaseInsensitive = false,
+            WriteIndented = true,
+        };
 
         public static T FromJson<T>(string json) => JsonSerializer.Deserialize<T>(json, Opts);
+
+        // §H step 3.5a — added for SaveSystem.cs (Game/Save). Real Unity's ToJson takes
+        // the object's runtime type, not a generic <T>, so this mirrors that signature.
+        public static string ToJson(object obj) => JsonSerializer.Serialize(obj, obj.GetType(), Opts);
+        public static string ToJson(object obj, bool prettyPrint) =>
+            JsonSerializer.Serialize(obj, obj.GetType(), prettyPrint ? PrettyOpts : Opts);
+    }
+
+    // §H step 3.5a — added for SaveSystem.cs's DefaultPath property. Every actual
+    // Read/Write call SaveSystemTests.cs exercises takes an explicit path instead, so
+    // this only needs to exist for the file to compile — its value is never read by a
+    // test. Points at the OS temp dir, matching what a "some writable scratch folder"
+    // stand-in should reasonably be outside the real Unity Editor/Player.
+    public static class Application
+    {
+        public static string persistentDataPath => System.IO.Path.GetTempPath();
     }
 }
