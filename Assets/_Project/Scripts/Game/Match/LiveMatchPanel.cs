@@ -514,6 +514,10 @@ namespace CounterTime.Game.Match
             CounterReadyApplied cr => $"{FighterLabel(cr.Who)} 카운터 준비 적중 — 상대 읽기 하락",
             OsaekomiEscapeResolved er => er.EscapeCredited ? "이탈 성공" : "눌림 유지 — 이탈 실패",
             GripChanged g => $"{FighterLabel(g.Who)} {HandLabel(g.Part)} 확보",
+            // §S/§H 3단계 후속 — 한 교환에 여러 개가 뜰 수 있어도(예: 그쳐 시 A·B 둘 다)
+            // BuildOutcome 의 "발생한 이벤트 중 뜻이 있는 첫 번째" 관행 그대로 첫 것만
+            // 보여준다 — 다른 이벤트들과 같은 한계(GripChanged 등도 동일).
+            BalanceChanged bc => $"{FighterLabel(bc.Who)} 밸런스 {bc.NewValue}",
             _ => null,
         };
 
@@ -637,8 +641,27 @@ namespace CounterTime.Game.Match
             string setup = _runner.Config.BalanceGate
                 ? $"  흔들기 {(eng.IsSetupActive(who) ? "유효" : "없음")}"
                 : "";
-            return $"{FighterLabel(who)}  체력 {stamina}  그립 {grip:+0;-0;0}  " +
+            return $"{FighterLabel(who)}  체력 {stamina}  그립 {grip:+0;-0;0}  밸런스 {BalanceText(eng, who)}  " +
                    $"왼손 {left} 오른손 {right}{setup}";
+        }
+
+        /// §S — 밸런스는 확정 수치라 체력·그립과 같은 급으로 상시 노출한다(예비동작과
+        /// 달리 숨길 정보 아님, §7). `BalanceGate`가 꺼져 있으면 밸런스 시스템 자체가
+        /// 완전 비활성(§H 3단계 — 모든 드레인/회복이 그 플래그로 게이트돼 있다)이라
+        /// 값이 항상 BalanceMax(100)로 고정 표시된다 — 흔들기 표시줄과 달리 이 줄은
+        /// 플래그로 안 숨긴다, 정확한 값(설령 늘 100이어도)이라는 원칙을 지키기 위해.
+        ///
+        /// [설계 판단] 온전 임계(BalanceOnsetThreshold) 이상이면 강조색(Warning,
+        /// 내 성향 경고선과 같은 색 재사용— 새 색 추가 안 함). 근거: 그 값 이상이면
+        /// "지금 이 상대에게 큰기술을 던지면 §4.4에 의해 Sloppy로 강등된다"는 뜻이라
+        /// 공격 타이밍을 정할 때 직접 참고하는 실전 정보다. 정확한 임계 숫자를 안
+        /// 외워도 이분법만으로 판단 가능하게 하는 목적 — 그 외 시각 구분(바 형태 등)은
+        /// 안 함, 기존 체력·그립도 순수 숫자 표시라 같은 급을 유지한다.
+        string BalanceText(MatchEngine eng, FighterId who)
+        {
+            int value = eng.Balance.Get(who);
+            bool full = value >= _runner.Config.BalanceOnsetThreshold;
+            return full ? $"<color=#{ColorUtility.ToHtmlStringRGB(Warning)}>{value}</color>" : value.ToString();
         }
 
         // ── 우측 사이드바 1: 코치의 조언 ─────────────────────────────────────────
