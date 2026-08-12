@@ -2,7 +2,178 @@ STATUS
 
 Update this file every time a session resets. This is the ONLY copy — the root CLAUDE.md pulls it in with `@md/STATUS.md`, so it loads automatically at session start. Do not create a second copy anywhere. Check "Current State" and "Next Up" before starting work.
 
-Current State (last updated: 2026-08-12)
+Current State (last updated: 2026-08-13)
+**§H 3.5b-로스터 완료 — 구별되는 상대 6명 실저작(습관만).** ROSTER.md 근거. 3.5b-뼈대의
+진도윤 임시 배치를 6명으로 교체 — 콤보([step7])·예측 되치기[step5]·적응[step6]·평판
+확산은 전부 이월, 지금은 습관만으로 싸운다(작업 지시 그대로). 경기 엔진 무수정 — 전부
+Brain 계층(`Assets/_Project/Scripts/Brain/`) 확장.
+**신규 파일**: `HwangDochul.cs`(32강)/`MoonJunbae.cs`(16강)/`SeoDohyun.cs`(8강, ROSTER
+초안 placeholder "서강윤"에서 개명)/`ImJunchul.cs`(4강, "임세라"에서 개명)/`OhJaehoon.cs`
+(동메달전) — 전부 `Jindoyun.cs` 패턴 그대로(코드 팩토리, `OpponentAsset` 안 씀). 결승은
+`Jindoyun.cs` 자체를 "결승 상향"으로 수정(아래).
+**신규 습관 9개**(`HabitId` 5→14): 황도철 `BigThrowAlways`(조건 없음, 90%, 쿨다운2) /
+문준배 `CounterThrowOnGripEdge`(그립 우세, 35%, 쿨다운5 — "가끔"만, 나머지는 §4 3단
+폴백이 큰기술 없이 자연히 방어적으로 만든다) / 서도현 `CounterReadyOnOpponentSetup`
+(상대 흔들기 중, 70%) + `StayDefensiveWhenBalanceHigh`(밸런스 온전, 75%, 좁은→넓은
+순서) / 임준철 `ShoulderThrowOnGripEdge`+`HeelHookOnGripEdge`(그립 우세, 60%, 쿨다운2
+씩 나란히 — 아래 "번갈아" 근사 참조)+`FeintAfterShido`(지도 후 2턴, 75%, 견제기라
+진도윤 H2와 다른 Id) / 오재훈 `MixedBigThrowA`+`MixedBigThrowB`(그립 우세, 50%,
+쿨다운2 나란히 — "특출난 축 없이").
+**[설계 판단] "두 갈래를 번갈아"(ROSTER §R4/§R6) 근사**: 정확한 매 순간 50/50 무작위
+대신, 같은 조건에 쿨다운 2를 나란히 준 두 습관으로 구현 — 첫 습관이 뜨면 쿨다운에
+걸려 둘째 차례가 오고, 그 다음엔 다시 첫째 차례(그립 우세가 매 턴 유지된다는 전제하에
+엄격한 A-B-A-B). `HabitAction`/`HabitLadder` 를 안 건드리고 기존 쿨다운 메커니즘만
+재사용한 것 — 진짜 매 순간 무작위 50/50 을 원하면 그 둘을 확장해야 한다(다음 판단
+필요 목록 참조). 단위테스트로 A-B-A-B 를 직접 고정해뒀다.
+**변칙기(하드 규칙, 습관 아님) 실제 배선** — 이전 세션까지 "말아업어치기는 습관이
+아니라 하드 규칙"이라는 문서/테스트만 있고 실제 트리거 코드가 어디에도 없었다(재확인
+후 신규 구현). `SurpriseTechnique.cs`(신규, 불변: techniqueId + 조건) +
+`OpponentDefinition.Surprise`(nullable 필드) + `HabitState.TryFireSurprise`(경기당
+1회 플래그 — HabitId 가 없는 변칙기는 기존 `_lastFiredTurn` 딕셔너리에 넣을 자리가
+없어 별도 bool). `HabitBrainCommitSource.TryNext` 가 사다리를 그대로 돌린 뒤(턴 계수
+보존) 변칙기가 발화하면 결과를 덮어쓴다 — `LastDecision` 은 비워 관측 원장에 절대
+안 남는다(습관이 아니므로). 진도윤 말아업어치기(체력<30) + 임준철 안오금띄기(밸런스
+<50 ⚙) 둘 다 실제로 배선. **부작용 1건(문서화)**: 사다리 결과와 변칙기가 같은 턴에
+동시에 조건이 서면(드묾 — 둘 다 소모 상태 조건이라 자주 안 겹침) 버려진 습관의
+쿨다운이 이미 시작된 채로 남는다 — `HabitLadder`의 "부르는 쪽이 턴 증가를 잊을 수
+없다" 계약을 지키는 대가로 받아들인 사소한 튜닝 오차.
+**결승 진도윤 상향**(ROSTER §R5): 습관 신뢰도 5개 전부 기본값(0.75)→0.65(더 섞음 ⚙),
+scoutingLevel 0→1 시드("결승쯤 오면 내 앞선 경기를 봤다" 서사 — 3.5a 관행대로 필드만
+채우고 효과는 §5/6 배선 전까지 inert). 습관 목록 자체(H1~H4b)와 순서는 무수정.
+**IHabitContext 확장(2개, 보고 후)**: `OpponentSetupActive`(서도현 H1 — "예고"=독심이
+아니라 §4.4 흔들기의 실제 게임 상태, 인과상 이미 지나간 사실) / `OwnBalance`(서도현
+H2 + 임준철 변칙기 — 이미 공개된 `MatchEngine.Balance.Get` 을 그대로 읽음). 둘 다
+`IBrainContext` 전용 개념(지도 개수·시계·게이트)이 아니라 습관 면에 새는 게 아니다.
+`MatchBrainContext` 에 두 줄만 추가. 관문 테스트
+(`LiveReadResolverTests.HabitConditionsNeverSeeTheBrainContext_OnlyIHabitContext`)를
+넷→여섯으로 갱신 — 이게 "새 습관이 실제로 요구할 때만" 규약을 지킨 흔적이다.
+**대진표 배선**: `LiveMatchRunner`에 `_opponentFactory`(기본 `Jindoyun.Create`, 기존
+호출부 전부 무수정 컴파일) + `SetOpponent(Func&lt;...&gt;)` 최소 추가.
+`MetaFlowController.OpponentFactoryFor(round)` 가 라운드→팩토리 매핑(엔진 쪽), `Tourna
+mentBracket`의 `RoundOpponentName`/신규 `RoundOpponentId` 가 이름/세이브id 매핑(표시
+쪽) — 두 매핑이 정확히 같은 스케줄(ROSTER 순서)을 공유. `TournamentBracket`은 Brain
+어셈블리 참조를 안 늘리려고 일부러 엔진 팩토리 매핑을 안 갖는다(그건 이미
+LiveMatchRunner 와 얽혀 있는 MetaFlowController 쪽 책임). `ConfirmMatchResult`의
+`RecordOpponentFought` 호출도 하드코딩된 진도윤 상수 대신
+`TournamentBracket.PlayerOpponentId/Name(round)` 를 쓰도록 교체.
+**ROSTER.md 갱신(v1.0→v1.1)**: 8강/4강 placeholder 이름을 서강윤→서도현, 임세라→
+임준철로 확정(작업 지시가 3.5b-뼈대 세션의 ROSTER 초안과 다른 이름을 줘서, 코드와
+문서를 동시에 맞췄다). §R9 확인 필요 4건 중 이름·동메달전 스텁 여부·⚙ 초기치 3건을
+해소로 갱신.
+**검증**: Unity MCP 컴파일 0/0(전 과정 재확인 — 새 Brain 파일 6개+수정 파일 다수).
+하니스 253→**257/257 그린**(신규 단위테스트 4개: 변칙기 경기당 1회 / 변칙기가
+`HabitBrainCommitSource` 를 통해 실제로 사다리를 덮어쓰고 관측 원장에 안 남는 것 /
+임준철 A-B-A-B 교대 / 서도현 좁은→넓은 순서) **+ 42노드 지문 IDENTICAL**(엔진 무수정
+재확인). 기존 테스트 4개 갱신(값이 실제로 바뀌어서 — `HabitFiresAtSeventyFivePercent_
+NotAlways`→`HabitFiresBelowThreshold_NotAlways`(0.65 로), `Jindoyun_ShipsAtScoutingLe
+velZero`→`...LevelOne`, `TendencyWindowTests.ScoutingLevel0_StartsEmpty`→
+`TendencyWindow_StartsEmpty_RegardlessOfShippedScoutingLevel`, `SurpriseTechIsNotAHabi
+t_AndIsNeverLogged` 의 5→14 카운트 + 변칙기 2종 직접 확인 추가).
+**Play 실측** — 6상대 전부 `LiveMatchRunner.SetOpponent`로 실제 전환되는 것 확인
+(이름 일치 6/6), 각 40교환 스모크: 황도철 judgements=3(가장 공격적, B 체력 100→10)
+/ 문준배·서도현 judgements=0(가장 소극적, 설계 의도와 일치) / 임준철 judgements=1 /
+진도윤 judgements=5(가장 활발, "완성형"과 일치) / 오재훈 judgements=1. **변칙기
+발화 문턱 실측 통과**: 진도윤전 80교환까지 몰아 B 체력 16(<30 문턱 통과, 정상 종료)
+/ 임준철전 77교환에서 B 체력 3·밸런스 13(둘 다 문턱<50 통과, 정상 종료) — 둘 다
+에러 없이 완주해 변칙기 경로가 실전에서도 안 깨진다는 걸 확인. B 의 구체적 기술
+선택 자체는 설계상 공개 API로 안 새므로(플레이어에게 숨기는 게 의도) 조건 로직의
+정확성은 위 단위테스트가, 파이프라인이 안 깨진다는 건 이 스모크가 각각 담당한다.
+**세션 중 발견**: RunCommand 스크립트에서 `GameObject.Find`는 비활성 오브젝트를 못
+찾는다(재확인, 지난 세션에도 걸렸던 함정) — `SceneManager.GetActiveScene().
+GetRootGameObjects()` 순회로 우회. `CommandScript`에 헬퍼 메서드를 추가했을 때도
+헬퍼 없이 인라인했을 때도 초반 NRE가 재현됐다가, 원인이 사실은 `GameObject.Find`
+문제였음이 이번에 밝혀졌다 — 지난 세션에 "헬퍼 메서드 탓"으로 잠정 결론 냈던 것은
+정정이 필요할 수 있다(다음 세션 참고, 근본 원인 조사는 범위 밖).
+**판단 필요 (정하지 않고 목록)**:
+1. "번갈아" 근사(쿨다운 기반 A-B-A-B) 대 진짜 매 순간 50/50 무작위 — 그립 우세가
+   연속되지 않으면 엄격한 교대가 안 보일 수 있다. 진짜 무작위를 원하면 `HabitAction`
+   에 대안 기술 슬롯을 추가하고 `HabitLadder`가 발화 시점에 고르게 해야 한다(공유
+   Brain 인프라 변경, 이번 세션은 안 건드림).
+2. 문준배·서도현의 "웬만하면 방어" 를 별도 습관 없이 §4 3단 폴백(정의상 무공격)에만
+   의존하는 설계 — 스모크에서 judgements=0 으로 의도대로 보였지만, 이게 "너무
+   답답하다"는 인상을 줄지는 실플레이 판단 필요.
+3. 임준철 변칙기 임계(밸런스<50)와 신뢰도 수치들(문준배 35%/쿨다운5, 진도윤 결승
+   0.65) 전부 이번 세션이 새로 고른 ⚙ — ROSTER 가 숫자를 준 것(90%/70%/60%)은
+   그대로 따랐지만 안 준 것은 전부 실플레이 튜닝 대상.
+4. ROSTER.md 이름 변경(서강윤→서도현, 임세라→임준철)이 3.5b-뼈대 세션에 이미 커밋된
+   각종 대화·아직 커밋 안 된 코드에서 문서만 갱신됐다 — 커밋 시점에 STATUS.md 옛
+   세션 로그(3.5b-뼈대)는 기록이라 옛 이름 그대로 남겨뒀다(그 시점엔 그게 맞는
+   이름이었다), 헷갈리면 이 갱신 항목을 기준으로 볼 것.
+**§H 3.5b-뼈대 완료 — 지도·연습 대회 대진표·경기 흐름 (진도윤 임시 배치).** META_DESIGN
+§M2~M4 근거. 경기 엔진(MatchEngine/규칙) 무수정 — 새 코드는 전부 Game 메타 계층
+(`Assets/_Project/Scripts/Game/Meta/`). 구별되는 6명 저작은 다음 세션(§H 3.5b 본작업),
+이번엔 대회 흐름이 실제로 도는지를 진도윤 하나로 검증했다.
+**신규 파일**: `TournamentBracket.cs`(순수 로직 — 32강 그리드 생성, 코인플립 진출자,
+승/패 라운드 전환 규칙) + `MetaFlowController.cs`(오케스트레이션 + 런타임 캔버스 UI,
+`LiveMatchPanel` 과 같은 "씬 무수정, 전부 코드로 짓는다" 패턴). **확장**: `SaveData.cs`
+에 `TournamentRound` enum + `CareerSaveData.practiceCupRound` 필드(원래 META_DESIGN
+§M1 스키마엔 없던 필드 — "진행 중 라운드"가 저장 안 되면 재접속 시 대회가 어디였는지
+잃어버려서 추가, `practiceCupResult != None` 이면 stale로 문서화). **최소 추가**:
+`LiveMatchRunner.Rebuild(int seed)`(공개 `Build()` 재호출 래퍼) + `LiveMatchPanel.
+ResetForNewMatch()`(공개, 로그·선택 상태 초기화) — LiveMatch GameObject 를 매 라운드
+새로 짓지 않고 비활성화만 했다 재사용한다(3D 무대 재구성 비용 회피). `PlayModeSetupMenu.cs`
+개편: 진입점이 지도로 바뀌었다 — LiveMatch 는 에디터에서 미리 `SetActive(false)` 로
+지어두고 "경기 시작" 클릭 시에만 켜진다(Awake 타이밍 경쟁을 코드가 아니라 비활성
+상태로 원천 차단).
+**[설계 판단] 상대 정체성**: 대진표 화면 이름은 ROSTER.md 확정 이름(32강 황도철→16강
+문준배→8강 서강윤→4강 임세라→결승 진도윤, 동메달전 오재훈)을 그대로 쓰지만, 실제
+엔진에 붙는 상대는 라운드와 무관하게 항상 진도윤이다(`LiveMatchRunner.Build()`가
+이미 `Jindoyun.Create()` 고정, 손 안 댐 — 작업 지시 그대로). **[설계 판단] 다른 31명**:
+32강 화면에서만 16쌍 실제 렌더 + 코인플립 진출자 캡션 한 줄. 16강부터는 다른 대진을
+다시 그리지 않는다 — `TournamentBracket` 이 애초에 player 대진만 라운드별 고정 스케줄로
+추적하고(ROSTER 순서 그대로), 나머지 31명은 32강 한 번만 코스메틱으로 계산되고 그 이후
+라운드로 이어지는 실제 데이터 구조가 없다(정직하게 트리를 만들지 않은 단순화 — 아래
+판단 필요 #2 참조).
+**세이브 시점**: 경기 결과 확정 직후(`ConfirmMatchResult`) + 지도 복귀(`ShowMap`) +
+앱종료(`OnApplicationQuit`). **세션 중 발견**: 유니티 에디터에서 Play 모드 종료가
+실제로 `OnApplicationQuit()`을 호출한다 — 세이브 리셋 테스트가 계속 무효화되는 원인이었다
+(직전 인스턴스의 메모리 상태가 재기록됨). 우회: Play 종료 → Edit 모드에서 세이브 파일
+새로 쓰기 → Play 재진입 순서를 지켜야 리셋이 실제로 먹힌다. **opponents[] 기록**은 이번
+세션은 id/name 만 채운다(작업 지시 "필드만 채워지고 경기 영향 0") — adaptation/
+knownByMe/scoutingLevel 실채움은 §H 5/6 이월.
+**검증**: Unity MCP 컴파일 0/0(전 과정 재확인). 하니스 253/253 그린 + 42노드 지문
+IDENTICAL(엔진 무수정 재확인). **Play 실측 — 양쪽 경로 다 실제 엔진 매치로 완주**:
+(1) 지도→유도장/집 왕복, 지도→경기장→연습 대회→32강 대진표(16쌍 렌더, 내 대진
+하이라이트+"경기 시작" 버튼이 이름 사이에 정확히 배치됨 확인) → 기술 휠 클릭 1회
+실측(스태미나 100→99 정확) 후 나머지는 `LiveMatchRunner.SubmitA` 공개 API 루프로
+자동 진행(같은 프로덕션 코드 경로, 클릭 반복만 생략) → **패배 경로**: 32강 패배 →
+`Lost`, "메달 없음" 터미널 화면 + "경기 시작" 버튼 소멸 + 대회 목록 상태줄 "결과: 메달
+없음" 전부 확인. (2) **승리 경로**: 32강(황도철)→16강(문준배)→8강(서강윤)→4강(임세라,
+**일부러 패배**)→**동메달전(오재훈) 자동 전환 확인**(`practiceCupResult` 는 `None`
+유지, `practiceCupRound` 만 `BronzeMatch` 로 바뀜 — 터미널 아님을 실측 확인)→동메달전
+승리→**`Bronze` 저장 확인**. 다섯 라운드 전부 실제 엔진 매치(각 12~49교환)로
+완주했고, 매 라운드 대진표 표시 이름·"경기 시작" 버튼 위치·라운드 전환이 ROSTER.md
+스케줄과 정확히 일치했다. `opponents[]` 는 5경기 내내 1개(jindoyun/진도윤)로 유지 —
+`RecordOpponentFought` 의 멱등성(중복 안 쌓임) 확인.
+**세션 중 겪은 것 2건(제품 결함 아님, RunCommand 샌드박스/에디터 특성 — 기록만)**:
+(1) `System.Reflection` 은 `using` 뿐 아니라 완전정규화 이름(`System.Reflection.
+BindingFlags...`)까지 정적 분석으로 차단됨(기존에 알려졌던 제약의 더 엄격한 형태
+재확인) — 리플렉션으로 실행 중 인스턴스 상태를 조작하는 우회는 이번 세션에 전혀 안
+됐다, 그래서 라운드 전환 테스트는 전부 "진짜 매치를 진짜로 이겨서" 진행했다(승리
+전략 탐색: 무작정 공격 스팸은 지더라, 공격/카운터 준비/그립 확보를 3턴 주기로 섞는
+전략에 seed=1 로 이겼다). (2) RunCommand 스크립트의 `CommandScript` 클래스에
+`Execute()` 말고 별도 헬퍼 메서드를 추가하면 정체불명의 이른 단계 NullReferenceException
+이 재현됐다(2회) — 헬퍼 없이 `Execute()` 안에 전부 인라인하면 해결. 원인 불명(Unity
+AI Assistant 패키지 쪽으로 추정), 다음 세션 RunCommand 스크립트 작성 시 참고할 것.
+**부수 수정 1건**: `MetaFlowController.ShowBracket()`의 자식 정리를 `Destroy()`→
+`DestroyImmediate()`로 바꿨다 — 자동화 테스트 중 같은 프레임 재진입으로 보이는 자식
+중복(6→9개)을 실측으로 잡아 방어적으로 강화한 것, 실제 사람의 단일 클릭 흐름에서
+재현되는 결함인지는 불확실하다(자동화 스크립트의 빠른 연속 invoke 아티팩트일 가능성이
+더 높다고 판단) — 화면이 드물게만 재구성되는 곳이라 즉시 파괴로 바꿔도 성능 비용은
+없다.
+**판단 필요 (정하지 않고 목록)**:
+1. 대진표 표시 이름(ROSTER 확정 이름)과 실제 엔진 상대(항상 진도윤)의 불일치를 화면에
+   아무 표시 없이 그대로 둘지 — 다음 세션에 6명이 실제 저작되면 자연히 해소되지만, 그
+   전에 이 스켈레톤을 오래 쓸 경우 혼동 소지가 있다.
+2. 32강 이후 라운드에서 다른 참가자 대진을 재구성하지 않고 정적 캡션만 보여주는 것 —
+   `TournamentBracket` 이 player 라운드만 고정 스케줄로 추적하고 나머지 31명은 32강
+   1회만 코스메틱 계산하는 단순화 트레이드오프(화면 몰입감 vs 구현 비용), 실제 트리를
+   원하면 재설계 필요.
+3. 세이브 저장 시점(경기 결과 확정 직후/지도 복귀/앱종료)이 META_DESIGN §M1 문구
+   그대로인지, 훈련/휴식 화면 방문 자체도 저장 트리거로 넣어야 하는지 — 스캐폴딩이라
+   최소로만 구현했다.
+4. 패배 후 재도전(새 대회 시작) UI가 없다 — 터미널 화면은 "지도로 돌아가기"만 제공
+   (META_DESIGN §M5 "[간단히] 지도 복귀만"과 일치하나, 실플레이에선 답답할 수 있다).
 **MATCH_RULES.md 는 v4.1** (구 v3.8→v4.0→v4.1). §S 밸런스(제3 자원, 구 명칭
 "스탠스" — v4.1에서 개명, `CoreStance` enum 과의 충돌 회피) 신설, §4.4 흔들기가
 [초안]에서 밸런스 기반 확정판으로, §A~§G(입력 모델·기술 로스터·인지와 적응·
@@ -146,7 +317,27 @@ Full detail, including the exact 현실적 A osaekomi-entry-shortfall breakdown 
   Unity Editor + MCP 브리지가 밤새 연결 유지(사람 없음) — 매 작업 후 AssetDatabase.Refresh() + GetConsoleLogs 로 0 에러/0 경고 재확인, RunCommand 안에서 짧은 이름(CompilationPipeline 등)이 Unity.AI.Assistant.* 네임스페이스와 충돌하는 기존 함정 재확인(전체 경로로 우회)
 
 Next Up (in priority order)
-**가장 최근 — ROSTER + DESIGN_future-mechanics 정본화 (문서 전용, 코드 무수정).**
+**가장 최근 — §H 3.5b-로스터: 구별되는 상대 6명 실저작(습관만).** 상세는 위 Current
+State 항목 참조. 요약: `Assets/_Project/Scripts/Brain/`에 5개 신규 상대 팩토리
+(`HwangDochul`/`MoonJunbae`/`SeoDohyun`/`ImJunchul`/`OhJaehoon`) + `SurpriseTechnique`
+(변칙기 하드 규칙, 신규) + `HabitId` 5→14 + `IHabitContext` 2개 확장(보고 후) +
+진도윤 결승 상향(신뢰도↓+scoutingLevel 1)+변칙기 실배선. 대진표(`TournamentBracket`/
+`MetaFlowController`)가 라운드마다 실제로 다른 Brain 팩토리를 골라 쓰도록 배선.
+ROSTER.md v1.0→v1.1(8강/4강 이름 확정: 서강윤→서도현, 임세라→임준철). 하니스
+253→257/257+지문 IDENTICAL. Play 스모크로 6상대 전부 이름 일치 확인 + 상대별로
+확연히 다른 공격 빈도(황도철 최다·문준배/서도현 0·진도윤 최다) + 변칙기 두 종
+(말아업어치기/안오금띄기) 문턱을 실제로 넘겨도 안 깨짐 확인. 판단 필요 4건은
+Current State 항목 끝에 목록으로 남김.
+**다음 — §H 4: 판정 승격(§E).**
+**가장 최근 (그 앞) — §H 3.5b-뼈대: 지도·연습 대회 대진표·경기 흐름 (진도윤 임시 배치).**
+상세는 Session Log 참조. 요약: `Assets/_Project/Scripts/Game/Meta/`
+신설(`TournamentBracket.cs`/`MetaFlowController.cs`), `SaveData.cs`에 `TournamentRound`+
+`practiceCupRound` 추가, `LiveMatchRunner.Rebuild`/`LiveMatchPanel.ResetForNewMatch`
+최소 추가로 LiveMatch GameObject 재사용, `PlayModeSetupMenu.cs` 진입점을 지도로 전환.
+Play 실측으로 패배 경로(32강 패배→Lost)와 승리 경로(32강→16강→8강→4강 패배→
+동메달전→Bronze) 둘 다 실제 엔진 매치 5~6판으로 완주 확인. 하니스 253/253+지문
+IDENTICAL(엔진 무수정).
+**가장 최근 (그 앞 그 앞) — ROSTER + DESIGN_future-mechanics 정본화 (문서 전용, 코드 무수정).**
 사용자가 md/에 넣어둔 초안 2종(`ROSTER_DESIGN-draft.md`, `DESIGN_future-mechanics-
 draft.md`)을 검토·편입. 내용은 초안 그대로(지어넣기 없음) — 헤더만 "초안, 검토용"
 지위에서 정본 지위로 교체하고 1행 스탬프를 붙였다.
@@ -660,12 +851,19 @@ META_DESIGN §M6대로 재배치, 3.5단계 신설).** 판단 대기 2건은 앞
    mechanics.md` §3의 `linkages{"a→b"→레벨}` 필드를 지금 스키마에 값 없이 미리
    예약해둘지는 아직 안 정함 — 나중에 채워도 마이그레이션 없이 되는 이점 vs 지금은
    안 쓰는 필드를 미리 넣는 부담, 사람 판단.
-3.5b. **지도·대회 뼈대(META_DESIGN §M2~M4) + 로스터 6상대 습관 저작(`ROSTER.md`).**
-   32강 대진표·매치 실행·지도 3곳 뼈대와 함께, `ROSTER.md`가 정의한 6상대(32강
-   황도철~결승 진도윤+동메달전 오재훈, 이름 전부 placeholder)를 [now] 마킹된 습관·
-   주력기·변칙기·신뢰도로 실제 저작(코드 팩토리, OpponentAsset 안 씀 — 진도윤
-   `Jindoyun.Create()` 패턴 확장). 예측 되치기[step5]·적응[step6]·콤보/변칙기술
-   성장[step7]은 이 단계에서 안 붙는다 — 로스터 문서의 단계 마킹 그대로.
+3.5b-뼈대. **지도·대회 뼈대(META_DESIGN §M2~M4)** — **완료**(2026-08-13). 지도 3곳
+   (유도장/집/경기장 → 훈련/휴식 템플릿 + 연습 대회), 32강 대진표(코인플립 진출자),
+   경기 시작→LiveMatch→결과→라운드 전환→세이브까지 전부 실제 엔진 매치로 승리·
+   동메달전 경로 양쪽 실측 확인. 플레이어 경로 상대는 전부 진도윤 임시 배치(작업
+   지시 그대로) — 상세는 위 Current State 항목 참조.
+3.5b. **로스터 6상대 습관 저작(`ROSTER.md`).** 3.5b-뼈대가 진도윤으로 임시 채워둔
+   자리에 `ROSTER.md`가 정의한 6상대(32강 황도철~결승 진도윤+동메달전 오재훈, 이름
+   전부 placeholder)를 [now] 마킹된 습관·주력기·변칙기·신뢰도로 실제 저작(코드
+   팩토리, OpponentAsset 안 씀 — 진도윤 `Jindoyun.Create()` 패턴 확장). 3.5b-뼈대의
+   대진표 표시 이름은 이미 라운드별로 정확하니, 이 단계는 그 이름 뒤에 실제로 다른
+   엔진 상대(습관·주력기)를 붙이는 작업이다(`LiveMatchRunner.Build()`의 고정
+   `Jindoyun.Create()` 호출을 라운드별 분기로 교체). 예측 되치기[step5]·적응[step6]·
+   콤보/변칙기술 성장[step7]은 이 단계에서 안 붙는다 — 로스터 문서의 단계 마킹 그대로.
 4. 판정 승격(§E)
 5. 인지 목록 + 예측 되치기(§D — n30~n37 재현 테스트, 시나리오 보드 확장 필요) →
    3.5a단계의 `knownByMe` 영구화와 연결, `ROSTER.md` 4강/결승 상대의 [step5] 점등
@@ -1026,6 +1224,132 @@ Why Assets/Editor/HubForceResolve.cs disappeared — nobody deleted it. It is Un
 Whether to keep the Unity Cloud link (cloudProjectId / organizationId in ProjectSettings.asset) — keep and commit. cloudEnabled is 0, it is a project GUID rather than a secret, ProjectSettings.asset is tracked anyway, and the editor rewrites it if removed.
 
 Session Log (newest first)
+2026-08-13 (§H 구현 세션 — 3.5b-로스터: 구별되는 상대 6명 저작)
+작업 지시: ROSTER.md 근거로 3.5b-뼈대의 진도윤 임시 배치를 6명으로 교체. 이번엔
+습관만(콤보·예측 되치기·적응·평판 확산 이월). 코드 팩토리 저작, 경기 엔진 무수정.
+작업0 — 스탬프 --check exit 0(6종), 하니스 253/253·지문 IDENTICAL, Unity MCP 컴파일
+0/0 확인 후 진행.
+작업1(습관 저작) — 기존 `HabitCatalogue`/`HabitId` 구조를 실측: 5개 기존 습관 전부
+진도윤 전용으로 기술명이 하드코딩돼 있어(§ "업어치기" 등), 새 상대마다 새 `HabitId`
+값 + `HabitCatalogue.Build` case 가 필요하다고 판단(9개 추가, 5→14). 각 습관을
+ROSTER 조건 문장에서 그대로 옮겼다 — 대부분 기존 `IHabitContext`(그립·체력·지도
+타이밍)로 표현됐지만 둘은 안 됐다:
+  - 서도현 H1 "내가 큰 기술을 예고하면"을 문자 그대로 읽으면 동시 턴 커밋 시스템에서
+    독심이 되므로, §4.4 흔들기(Setup)의 실제 게임 상태(인과상 이미 지나간 사실)로
+    재해석 — `IHabitContext.OpponentSetupActive` 신규(`MatchEngine.IsSetupActive`
+    그대로 읽음).
+  - 서도현 H2 "밸런스 온전 시 방어" + 임준철 변칙기 "밸런스가 낮을 때"는 `OwnBalance`
+    신규(`MatchEngine.Balance.Get` 그대로 읽음).
+  둘 다 `IHabitContext.cs` 자체 문서의 "새 습관이 실제로 요구할 때만" 규약을 따라
+  추가하고, 그 사실을 관문 테스트(`LiveReadResolverTests.
+  HabitConditionsNeverSeeTheBrainContext_OnlyIHabitContext`)에 반영해 "보고"를
+  실제로 diff 에 남겼다.
+작업2("두 갈래를 번갈아") — 임준철(어깨매치기/발뒤축걸기)과 오재훈(허리후리기/
+밭다리걸기) 둘 다 ROSTER 가 "번갈아"를 요구. 정확한 매 순간 50/50 무작위는
+`HabitAction`/`HabitLadder`(공유 Brain 인프라) 확장이 필요해 이번 세션 범위 밖으로
+판단, 대신 같은 조건에 쿨다운 2를 나란히 준 두 습관으로 근사(쿨다운 계산을 손으로
+검증: 2 면 정확히 한 턴 걸러 서로를 밀어내 A-B-A-B 가 나온다) — 단위테스트
+(`ImJunchul_AlternatesShoulderAndHeelHook_WhenGripStaysHigh`)로 직접 고정.
+작업3(변칙기 실배선, 계획에 없던 발견) — ROSTER/작업 지시가 "말아업어치기와 같은
+방식"이라고 전제했지만, 실측 결과 그 "하드 규칙"이 애초에 어디에도 구현돼 있지
+않았다(테스트 주석·설계 문서에만 존재, `HabitBrainCommitSource` 어디에도 트리거
+코드 없음). 임준철 안오금띄기를 실제로 발화시키려면 진도윤 것도 같이 만들어야
+했다 — `SurpriseTechnique.cs`(신규, techniqueId+조건) + `OpponentDefinition.Surprise`
++ `HabitState.TryFireSurprise`(경기당 1회, HabitId 가 없어 기존 쿨다운 딕셔너리와
+분리) + `HabitBrainCommitSource.TryNext` 가 사다리를 그대로 돌린 뒤(턴 계수 보존)
+변칙기 발화 시 결과를 덮어쓰고 `LastDecision` 을 비운다(관측 원장에 절대 안
+남도록). 두 조건이 같은 턴에 겹치면 버려진 습관의 쿨다운이 이미 시작된 채로 남는
+부작용을 문서화하고 받아들였다(HabitLadder 계약을 안 건드리는 대가).
+작업4(결승 상향) — ROSTER §R5 그대로: 진도윤 신뢰도 0.75→0.65(전 습관), scoutingLevel
+0→1(효과는 여전히 inert, 3.5a 관행). 영향받은 테스트 3개(`HabitFiresAtSeventyFive
+Percent_NotAlways`→`HabitFiresBelowThreshold_NotAlways`, `Jindoyun_ShipsAtScoutingLe
+velZero`→`...LevelOne`, `TendencyWindowTests.ScoutingLevel0_StartsEmpty`→
+`TendencyWindow_StartsEmpty_RegardlessOfShippedScoutingLevel`)를 실제 값을 따라
+갱신 — 결론(1.0 이 아니다/inert 하다)은 안 바뀜, 숫자만.
+작업5(대진표 배선) — `LiveMatchRunner._opponentFactory`(기본 `Jindoyun.Create`)+
+`SetOpponent` 최소 추가, `MetaFlowController.OpponentFactoryFor(round)` 가
+라운드→Brain 팩토리 매핑. `TournamentBracket`은 Brain 어셈블리를 안 늘리려고
+이름/세이브id 매핑만 갖고(신규 `RoundOpponentId`), 엔진 팩토리 매핑은
+`MetaFlowController`(이미 `LiveMatchRunner` 와 얽혀 있음)에 뒀다. `ConfirmMatchResult`
+의 상대 기록도 하드코딩 진도윤 상수 대신 `TournamentBracket.PlayerOpponentId/
+Name(round)`로 교체.
+작업6(문서 동기화) — 작업 지시의 8강/4강 이름(서도현/임준철)이 ROSTER.md 초안의
+placeholder(서강윤/임세라)와 달라서, 코드와 문서가 어긋나지 않도록 ROSTER.md 도
+같이 갱신(v1.0→v1.1, `sh tools/stamp.sh md/ROSTER.md` 로 해시 재계산) — §R9 확인
+필요 4건 중 3건(이름/동메달전 스텁 여부/⚙ 초기치)을 해소로 갱신.
+작업7(검증) — Unity MCP 컴파일 0/0(신규 파일 6개 포함 재확인). 하니스 253→257/257
+그린(신규 단위테스트 4개, 갱신 3개) + 42노드 지문 IDENTICAL. Play 실측: LiveMatch
+GameObject 를 직접 조작(SetOpponent+Rebuild)해 6상대 각 40교환 스모크 — 이름 일치
+6/6, 공격 빈도가 확연히 다름(황도철 judgements=3·B체력 100→10 최다 공격/문준배·
+서도현 judgements=0 최소 공격/진도윤 judgements=5 최다). 변칙기 두 종을 실제
+문턱(체력<30, 밸런스<50) 너머까지 몰아붙여도(80교환/77교환) 에러 없이 정상
+종료함을 확인 — B 의 구체적 기술 선택 자체는 설계상 공개 API로 안 새므로(의도된
+정보 은닉) 조건 로직 정확성은 단위테스트가, 파이프라인 무결성은 이 스모크가 각각
+담당한다고 판단.
+**세션 중 발견 — 지난 세션 "RunCommand 헬퍼 메서드 추가 시 NRE" 결론 재검토 필요.**
+이번 세션도 초반에 같은 NRE 를 겪었으나, 헬�퍼 메서드를 지워도 여전히 났고 원인이
+사실 `GameObject.Find` 가 비활성 오브젝트를 못 찾는 것(LiveMatch 가 비활성 상태였음)
+이었음을 확인 — `SceneManager.GetActiveScene().GetRootGameObjects()` 순회로 해결.
+지난 세션 STATUS 기록("헬퍼 메서드가 원인")이 틀렸을 가능성을 남겨둔다 — 이번
+세션은 재현 조건이 달라 확정적으로 반증하진 못했다(다음 세션에서 필요하면 재확인).
+`git status --short`로 의도한 파일(Brain 6개 신규+다수 수정, Game Meta 2개 무수정,
+md 2개)만 바뀌었음을 확인(`Assets/_Recovery/`는 이전 세션부터 있던 untracked,
+무관). 커밋·푸시는 사용자 확인 후 진행.
+2026-08-13 (§H 구현 세션 — 3.5b-뼈대: 지도·연습 대회·경기 흐름)
+작업 지시: META_DESIGN §M2~M4 근거로 대회 흐름을 세우고, 구별 6명 저작 전에 진도윤을
+플레이어 경로 모든 매치에 임시 배치해 흐름을 검증. 경기 엔진 무수정, 새 코드는 Game
+메타 계층.
+작업0 — 스탬프 --check exit 0(6종), 하니스 253/253·지문 IDENTICAL, Unity MCP 컴파일
+0/0 확인 후 진행.
+작업1(지도) — `MetaFlowController.cs` 신설(런타임 캔버스, `LiveMatchPanel` 과 같은
+"씬 무수정, 코드로 짓는다" 패턴). 지도 화면(유도장/집/경기장 3버튼) + 훈련/휴식
+템플릿(제목+지도 복귀 버튼, 내용 없음) 구현.
+작업2(대회) — `TournamentBracket.cs` 신설(순수 로직). 32강 그리드(플레이어+ROSTER
+32강 상대 황도철+필러 30명 시드 셔플), 필러끼리 매치는 코인플립으로 진출자만 계산
+(경기 시뮬 없음). "경기 시작" 버튼을 상대 이름과 내 이름 사이 공간에 배치(작업
+지시 그대로). **[설계 판단]** 플레이어의 라운드별 상대는 ROSTER 순서(32강→16강→
+8강→4강→결승/동메달전)를 고정 스케줄로 추적하고, 나머지 31명의 코스메틱 대진은
+32강 1회만 계산 — 두 트랙이 서로 안 얽힌다(진짜 대진 트리를 만들지 않은 단순화,
+STATUS 판단 필요 목록에 기록).
+작업3(매치 연동) — LiveMatch GameObject 를 매 라운드 새로 안 짓고 재사용하기 위해
+`LiveMatchRunner.Rebuild(int seed)`(공개 `Build()` 재호출)와 `LiveMatchPanel.
+ResetForNewMatch()`(공개, 로그/선택 초기화) 최소 추가. `PlayModeSetupMenu.cs` 를
+지도가 진입점이 되도록 개편 — LiveMatch 는 에디터에서 미리 비활성으로 지어두고
+"경기 시작" 클릭 시에만 `SetActive(true)`(Awake 타이밍 경쟁 회피, 상세는 코드 주석).
+`MetaFlowController` 가 `LiveMatchRunner.Presented` 를 구독해 `MatchEnded` 를 잡아
+결과 오버레이("승리!"/"패배...") 를 띄우고, "확인" 클릭 시 `ConfirmMatchResult` 가
+라운드 전환·메달 판정·세이브를 처리한다.
+작업4(세이브) — `SaveData.cs` 에 `TournamentRound` enum + `CareerSaveData.
+practiceCupRound` 필드 추가(원 스키마엔 없던 필드, 진행 중 라운드가 저장 안 되면
+재접속 시 대회 진행 상태를 잃어버려서 추가). 저장 시점: 경기 결과 확정 직후 + 지도
+복귀 + 앱종료(`OnApplicationQuit`). `opponents[]` 는 id/name 만 기록(작업 지시
+"필드만 채워지고 경기 영향 0" — adaptation/scouting 실채움은 §H 5/6 이월).
+작업5(검증) — Unity MCP 컴파일 0/0(전 과정 재확인). 하니스 253/253 그린 + 42노드
+지문 IDENTICAL. Play 실측을 사람 클릭 대신 `LiveMatchRunner.SubmitA`/
+`SubmitOsaekomi` 공개 API 루프로 자동 진행(같은 프로덕션 코드 경로, 왕복 횟수만
+줄임) — 기술 휠 클릭 1회는 직접 실측(스태미나 100→99 정확)해 UI 입력 경로 자체도
+안 건드렸음을 재확인. **패배 경로**: 32강 패배 → `Lost`, 터미널 화면("메달 없음",
+"경기 시작" 버튼 소멸)·대회 목록 상태줄 전부 정확. **승리 경로**: 32강(황도철)→
+16강(문준배)→8강(서강윤)→4강(임세라, 일부러 패배)→**동메달전(오재훈) 자동 전환**
+(`practiceCupResult` 는 `None` 유지, `practiceCupRound` 만 `BronzeMatch` — 터미널
+아님을 실측 확인)→동메달전 승리→`Bronze` 저장 확인. 다섯 라운드 전부 실제 엔진
+매치(12~49교환)로 완주, 매 라운드 표시 이름·버튼 위치가 ROSTER.md 스케줄과 정확히
+일치. `opponents[]` 는 5경기 내내 1개로 유지(멱등 확인).
+**세션 중 겪은 것들(기록만, 제품 결함 아님)**: (1) RunCommand 샌드박스가
+`System.Reflection` 을 `using` 뿐 아니라 완전정규화 이름까지 정적 차단 — 라운드
+전환 테스트를 리플렉션 없이 "진짜로 이겨서" 진행(승리 전략: 공격/카운터 준비/그립
+확보를 3턴 주기로 섞어 seed=1 에서 승리 확보 — 무작정 공격 스팸은 40개 시드
+전부 패배). (2) `CommandScript` 에 `Execute()` 외 헬퍼 메서드를 추가하면 이른
+단계 NullReferenceException 재현(2회) — 인라인으로 우회, 원인 불명(다음 세션
+참고). (3) 유니티 에디터의 Play 모드 종료가 `OnApplicationQuit()` 을 실제로 호출
+한다는 걸 재확인(세이브 리셋 시도가 계속 무효화된 원인) — Play 종료 → Edit 모드
+저장 → Play 재진입 순서로 우회.
+**부수 수정**: `MetaFlowController.ShowBracket()` 자식 정리를 `Destroy()`→
+`DestroyImmediate()` 로 변경 — 자동화 테스트 중 같은 프레임 재진입으로 보이는 자식
+중복(6→9개)을 실측으로 잡아 방어적으로 강화(실사용 결함인지는 불확실, 화면이
+드물게만 재구성돼 성능 비용 없음).
+`git status --short` 로 의도한 파일만 바뀌었음을 확인(`Assets/_Recovery/` 는 이전
+세션부터 있던 untracked 상태, 무관). 커밋·푸시는 사용자 확인 후 진행.
 2026-08-13 (문서 세션 — ROSTER + DESIGN_future-mechanics 정본화)
 작업 지시: 사용자가 md/에 넣어둔 초안 2종을 정본화(문서 전용, 코드 무수정).
 작업0 — 스탬프 --check exit 0(5종 당시 3종, ROSTER/DESIGN_future-mechanics는

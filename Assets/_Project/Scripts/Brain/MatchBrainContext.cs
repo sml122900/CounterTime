@@ -34,6 +34,8 @@ namespace CounterTime.Brain
         public int OwnStamina => _engine.Stamina.Get(_me);
         public int OpponentStamina => _engine.Stamina.Get(_foe);
         public int? TurnsSinceOwnShido => _turnsSinceShido;
+        public bool OpponentSetupActive => _engine.IsSetupActive(_foe);
+        public int OwnBalance => _engine.Balance.Get(_me);
 
         // ── IBrainContext ───────────────────────────────────────────────────────
 

@@ -23,6 +23,8 @@ namespace CounterTime.Brain.Tests
             public int? TurnsSinceOwnShido { get; set; }
             public int OwnStamina { get; set; } = 100;
             public int OpponentStamina { get; set; } = 100;
+            public bool OpponentSetupActive { get; set; }
+            public int OwnBalance { get; set; } = 100;
         }
 
         static readonly MatchRulesConfig Cfg = new MatchRulesConfig();
@@ -101,27 +103,33 @@ namespace CounterTime.Brain.Tests
         }
 
         /// <summary>
-        /// 발화는 0.75 이지 1.0 이 아니다. 1.0 이면 확정 습관이 B 를 결정론으로 만들고
-        /// 경기가 조회표가 된다.
+        /// 발화는 확률이 있지 1.0 이 아니다. 1.0 이면 확정 습관이 B 를 결정론으로
+        /// 만들고 경기가 조회표가 된다.
+        ///
+        /// §H 3.5b 결승 상향(ROSTER §R5) 이전에는 이 값이 기본값(0.75, 진도윤도
+        /// 그때는 기본값으로 출하됐다)이었다 — 지금은 진도윤 전용으로 낮춘 0.65 다.
+        /// 이 테스트의 요점(임계가 있다, 1.0 이 아니다)은 안 바뀌었으니 숫자만
+        /// 따라간다.
         /// </summary>
         [Test]
-        public void HabitFiresAtSeventyFivePercent_NotAlways()
+        public void HabitFiresBelowThreshold_NotAlways()
         {
             var s = FreshMatch();
             var ctx = new Ctx { OwnEffectiveGrip = 2 };
+            const float jindoyunFireProbability = 0.65f;
 
-            Assert.AreEqual(0.75f, Habit(s, HabitId.BigThrowOnGripEdge).FireProbability,
-                "기본 발화확률은 0.75 다");
+            Assert.AreEqual(jindoyunFireProbability, Habit(s, HabitId.BigThrowOnGripEdge).FireProbability,
+                "결승 상향 이후 진도윤의 발화확률은 0.65 다");
 
             // 상태를 매번 새로 만든다 — 같은 상태로 연속 호출하면 H1 의 쿨다운이 끼어든다.
             var missed = AlwaysMisses().Next(FreshMatch(), ctx);
             Assert.IsTrue(missed.ConditionHeld, "조건은 섰다");
-            Assert.IsFalse(missed.Fired, "그런데 25% 쪽에 걸렸다 — 항상 발화하면 안 된다");
+            Assert.IsFalse(missed.Fired, "그런데 빗나가는 쪽에 걸렸다 — 항상 발화하면 안 된다");
 
             Assert.IsTrue(AlwaysFires().Next(FreshMatch(), ctx).Fired, "같은 조건에서 통과하면 발화한다");
 
-            // 경계: 0.75 는 통과가 아니다. 0.75 미만이라야 발화다.
-            Assert.IsFalse(new HabitLadder(new FixedRandomSource(0.75f)).Next(FreshMatch(), ctx).Fired,
+            // 경계: 임계값 자체는 통과가 아니다. 임계 미만이라야 발화다.
+            Assert.IsFalse(new HabitLadder(new FixedRandomSource(jindoyunFireProbability)).Next(FreshMatch(), ctx).Fired,
                 "임계값 자체는 발화가 아니다");
         }
 
@@ -252,9 +260,14 @@ namespace CounterTime.Brain.Tests
         }
 
         /// <summary>
-        /// 말아업어치기는 습관이 아니라 하드 규칙이다 (체력 &lt;30, 경기당 1회).
-        /// 사전에 관측될 수 없고 수 노트에 남지 않는다 — 습관 목록에 있으면 그 순간
-        /// 읽기의 대상이 되어버린다 (<c>MATCH_RULES §7</c>).
+        /// 말아업어치기(진도윤)·안오금띄기(임준철)는 습관이 아니라 하드 규칙이다
+        /// (<see cref="SurpriseTechnique"/> — 진도윤은 체력&lt;30, 임준철은 밸런스&lt;50,
+        /// 둘 다 경기당 1회). 사전에 관측될 수 없고 수 노트에 남지 않는다 — 습관
+        /// 목록에 있으면 그 순간 읽기의 대상이 되어버린다 (<c>MATCH_RULES §7</c>).
+        ///
+        /// §H 3.5b 로스터 확장으로 HabitId 총합이 5→14 로 늘었다(신규 5상대 9개) —
+        /// 이 숫자가 늘어난 건 정상이다(새 상대들의 진짜 습관), 아래서 지켜야 하는
+        /// 것은 <b>변칙기 둘이 그 14개 안에 없다</b>는 것뿐이다.
         /// </summary>
         [Test]
         public void SurpriseTechIsNotAHabit_AndIsNeverLogged()
@@ -270,10 +283,86 @@ namespace CounterTime.Brain.Tests
             Assert.IsFalse(opp.Habits.Any(h => h.Action.Technique != null
                                             && h.Action.Technique.Id.Contains("말아업어치기")),
                 "기습기가 습관 행동으로 들어가 있으면 안 된다");
+            Assert.IsNotNull(opp.Surprise, "진도윤은 변칙기를 갖고 있어야 한다(습관과는 별도 필드)");
+            Assert.AreEqual("말아업어치기", opp.Surprise.TechniqueId);
 
-            // 원장은 HabitId 로만 센다 — 기습기를 셀 칸이 애초에 없다.
-            Assert.AreEqual(5, Enum.GetValues(typeof(HabitId)).Length,
-                "HabitId 에 기습기 항목이 생기면 그 순간 관측 대상이 된다");
+            var imJunchul = ImJunchul.Create(Cfg);
+            Assert.IsFalse(imJunchul.Habits.Any(h => h.Action.Technique != null
+                                                  && h.Action.Technique.Id.Contains("안오금띄기")),
+                "임준철의 변칙기도 습관 행동으로 들어가 있으면 안 된다");
+            Assert.IsNotNull(imJunchul.Surprise, "임준철도 변칙기를 갖고 있어야 한다");
+            Assert.AreEqual("안오금띄기", imJunchul.Surprise.TechniqueId);
+
+            // 원장은 HabitId 로만 센다 — 기습기를 셀 칸이 애초에 없다. §H 3.5b 로
+            // 5(진도윤 전용) → 14(6상대 전체)로 늘었다 — 늘어난 9개는 전부 새 상대의
+            // 진짜 습관이지 변칙기 항목이 아니다(위에서 직접 확인).
+            Assert.AreEqual(14, Enum.GetValues(typeof(HabitId)).Length,
+                "HabitId 에 기습기 항목이 새로 생기면 그 순간 관측 대상이 된다");
+        }
+
+        /// <see cref="HabitState.TryFireSurprise"/> — 경기당 1회. 조건이 계속 서 있어도
+        /// 두 번째 시도부터는 안 나온다.
+        [Test]
+        public void SurpriseFires_OnlyOnceEvenIfConditionKeepsHolding()
+        {
+            var state = new HabitState(ImJunchul.Create(Cfg));
+            var ctx = new Ctx { OwnBalance = 10 }; // 임계(50) 아래
+
+            Assert.IsTrue(state.TryFireSurprise(ctx), "조건이 서면 첫 시도는 발화한다");
+            Assert.IsFalse(state.TryFireSurprise(ctx),
+                "같은 경기 안에서는 조건이 여전히 서도 두 번째부터 안 나온다 — 경기당 1회");
+        }
+
+        /// §H 3.5b — 변칙기가 사다리 결과를 덮어쓰고, <see cref="HabitDecision"/> 은
+        /// 비워져야 한다(관측 원장이 절대 못 보게).
+        [Test]
+        public void SurpriseFiring_OverridesTheLadder_AndNeverRecordsAHabitDecision()
+        {
+            var state = new HabitState(ImJunchul.Create(Cfg));
+            var ctx = new BrainCtx { OwnBalance = 10, OwnEffectiveGrip = 0 };
+            var brain = new HabitBrainCommitSource(FighterId.B, state, ctx, ctx, new FixedRandomSource(0f));
+
+            brain.TryNext(out _, out _);
+
+            Assert.AreEqual("안오금띄기", brain.LastTechnique.Id, "변칙기가 이번 턴 기술이어야 한다");
+            Assert.IsTrue(brain.LastTechnique.SurpriseExempt, "변칙기는 밸런스 게이트 면제여야 한다");
+            Assert.IsFalse(brain.LastDecision.Fired,
+                "변칙기가 나간 턴은 습관이 발화한 것으로 기록되면 안 된다 — 관측 안 됨의 전부");
+            Assert.IsNull(brain.LastDecision.Habit, "변칙기 턴의 습관 결정은 비어 있어야 한다");
+        }
+
+        /// §H 3.5b — ROSTER §R4 "두 갈래를 번갈아"의 실제 근사(HabitCatalogue 주석
+        /// 참조): 같은 조건, 쿨다운 2 인 두 습관이 서로를 밀어내며 A-B-A-B 를 낸다 —
+        /// 그립 우세가 매 턴 유지된다는 전제하에.
+        [Test]
+        public void ImJunchul_AlternatesShoulderAndHeelHook_WhenGripStaysHigh()
+        {
+            var state = new HabitState(ImJunchul.Create(Cfg));
+            var ladder = AlwaysFires();
+            var ctx = new Ctx { OwnEffectiveGrip = 2 };
+
+            Assert.AreEqual(HabitId.ShoulderThrowOnGripEdge, ladder.Next(state, ctx).Habit.Id);
+            Assert.AreEqual(HabitId.HeelHookOnGripEdge, ladder.Next(state, ctx).Habit.Id,
+                "쿨다운이 첫 습관을 밀어내 두 번째 습관 차례가 온다");
+            Assert.AreEqual(HabitId.ShoulderThrowOnGripEdge, ladder.Next(state, ctx).Habit.Id,
+                "쿨다운이 풀려 다시 첫 습관 차례");
+            Assert.AreEqual(HabitId.HeelHookOnGripEdge, ladder.Next(state, ctx).Habit.Id);
+        }
+
+        /// §H 3.5b — ROSTER §R3, "좁은 조건부터"(<see cref="Jindoyun"/> 과 같은 원칙).
+        /// 상대가 흔들기 중이면(좁음) 카운터 준비가 밸런스 방어(넓음)보다 먼저 나온다.
+        [Test]
+        public void SeoDohyun_OrdersCounterReadyBeforeStayDefensive()
+        {
+            var bothHold = new Ctx { OpponentSetupActive = true, OwnBalance = 100 };
+            Assert.AreEqual(HabitId.CounterReadyOnOpponentSetup,
+                AlwaysFires().Next(new HabitState(SeoDohyun.Create(Cfg)), bothHold).Habit.Id,
+                "둘 다 조건이 서면 좁은 쪽(H1)이 이긴다");
+
+            var onlyBalance = new Ctx { OpponentSetupActive = false, OwnBalance = 100 };
+            Assert.AreEqual(HabitId.StayDefensiveWhenBalanceHigh,
+                AlwaysFires().Next(new HabitState(SeoDohyun.Create(Cfg)), onlyBalance).Habit.Id,
+                "상대가 흔들기 중이 아니면 H2 로 내려간다");
         }
 
         // ── §2 관측 원장 ────────────────────────────────────────────────────────
@@ -437,6 +526,8 @@ namespace CounterTime.Brain.Tests
             public int? TurnsSinceOwnShido { get; set; }
             public int OwnStamina { get; set; } = 100;
             public int OpponentStamina { get; set; } = 100;
+            public bool OpponentSetupActive { get; set; }
+            public int OwnBalance { get; set; } = 100;
             public int OwnShidoCount { get; set; }
             public int SecondsRemaining { get; set; } = 240;
             public bool OwnStaminaLockout { get; set; }
@@ -509,11 +600,14 @@ namespace CounterTime.Brain.Tests
             Assert.Greater(bigThrows, 0, "전제: 이 구간에서 큰기술이 나오긴 했다");
         }
 
-        /// §5 — 필드는 있고 값은 0 이다. 커리어 작업은 데이터를 바꾸지 코드를 바꾸지 않는다.
+        /// §H 3.5b 결승 상향(ROSTER §R5) — "결승쯤 오면 내 앞선 경기를 봤다"는 서사로
+        /// 1 로 시드한다. 값은 채워져도 효과는 §5/6 이 §3 성향 창을 실제로 시딩할
+        /// 때까지 inert 다(커리어 작업은 데이터를 바꾸지 코드를 바꾸지 않는다는 원칙은
+        /// 그대로).
         [Test]
-        public void Jindoyun_ShipsAtScoutingLevelZero()
+        public void Jindoyun_ShipsAtScoutingLevelOne()
         {
-            Assert.AreEqual(0, Jindoyun.Create(Cfg).ScoutingLevel);
+            Assert.AreEqual(1, Jindoyun.Create(Cfg).ScoutingLevel);
         }
     }
 }

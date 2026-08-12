@@ -52,7 +52,33 @@ namespace CounterTime.Brain
         {
             who = _me;
 
+            // 사다리는 항상 그대로 돌린다 — HabitLadder.Next 가 턴 계수(BeginTurn)와
+            // 쿨다운을 책임지므로, 변칙기 분기 때문에 이 호출을 건너뛰면 턴 계수가
+            // 어긋난다. §H 3.5b — 변칙기가 이번 턴에 발화하면 사다리의 결론은 버리고
+            // 변칙기로 덮어쓴다(아래). 두 조건이 정확히 같은 턴에 겹치면(드묾 — 변칙기
+            // 조건은 체력<30/밸런스<50 같은 소모 상태라 자주 안 겹친다) 버려진 습관은
+            // 이미 NoteFired 로 쿨다운이 시작된 채로 남는다 — 사소한 튜닝 오차로
+            // 받아들였다(HabitLadder 의 "부르는 쪽이 턴 증가를 잊을 수 없다" 계약을
+            // 지키는 대가).
             var decision = _ladder.Next(_state, _habitContext);
+
+            if (_state.TryFireSurprise(_habitContext))
+            {
+                // §H 3.5b — 변칙기는 습관이 아니다(HabitId 없음, 관측 원장에 안 남는다).
+                // LastDecision 을 비워 그 계약을 지킨다 — 러너가 이걸로 관측 원장에
+                // 기록하면 안 되므로.
+                LastDecision = default;
+                LastUsedFallback = false;
+
+                var surpriseAction = Gate(new HabitAction(
+                    new TurnChoice(HandTarget.None, CoreStance.Neutral, LegAction.Attack),
+                    new TechniqueSpec(_state.Opponent.Surprise.TechniqueId, ActionCost.BigThrow,
+                        TechniqueClass.Standard, surpriseExempt: true)));
+                choice = surpriseAction.Commit;
+                LastTechnique = surpriseAction.Technique;
+                return true;
+            }
+
             LastDecision = decision;
 
             HabitAction action = decision.Fired ? decision.Habit.Action : Fallback();

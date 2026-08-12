@@ -76,6 +76,111 @@ namespace CounterTime.Brain
                 case HabitId.SeekGripLeftSleeve:
                     return SeekGrip(id, cfg, fireProbability, HandTarget.LeftSleeve, Hand.Left, isReserve: true);
 
+                // ── §H 3.5b 로스터 확장 (ROSTER.md) ─────────────────────────────
+
+                // 32강 황도철 H — 조건 없음, 신뢰도 90%(ROSTER 제안값). 쿨다운 2로
+                // 매 턴 반복만 막는다 — "가장 단순·가장 시끄러운 습관"이라 예외적으로
+                // 조건 자체가 없다(다른 습관은 전부 어떤 상태를 요구한다).
+                case HabitId.BigThrowAlways:
+                    return new HabitDefinition(id,
+                        ctx => true,
+                        new HabitAction(
+                            new TurnChoice(HandTarget.None, CoreStance.Neutral, LegAction.Attack),
+                            new TechniqueSpec("밭다리걸기", ActionCost.BigThrow, TechniqueClass.Standard)),
+                        fireProbability,
+                        minTurnsBetweenFirings: 2);
+
+                // 16강 문준배 H — "가끔 허리후리기 반격". 낮은 신뢰도(⚙ 0.35)+긴 쿨다운
+                // (5)으로 진짜 드물게만 나온다. 나머지 턴은 이 습관도 안 서므로 §4 3단
+                // 폴백(정의상 큰기술이 없다)이 "웬만하면 방어·중립"을 무료로 만든다 —
+                // 그래서 별도의 "항상 방어" 습관을 안 만들었다.
+                case HabitId.CounterThrowOnGripEdge:
+                    return new HabitDefinition(id,
+                        ctx => ctx.OwnEffectiveGrip >= 1,
+                        new HabitAction(
+                            new TurnChoice(HandTarget.None, CoreStance.Neutral, LegAction.Attack),
+                            new TechniqueSpec("허리후리기", ActionCost.BigThrow, TechniqueClass.Standard)),
+                        0.35f,
+                        minTurnsBetweenFirings: 5);
+
+                // 8강 서도현 H1 — 상대 흔들기 중이면 카운터 준비(신뢰도 70%, ROSTER
+                // 제안값). 기술 없음 — 카운터 준비 자체가 "받는" 행동이다(§2).
+                case HabitId.CounterReadyOnOpponentSetup:
+                    return new HabitDefinition(id,
+                        ctx => ctx.OpponentSetupActive,
+                        new HabitAction(
+                            new TurnChoice(HandTarget.None, CoreStance.Neutral, LegAction.CounterReady)),
+                        0.70f);
+
+                // 8강 서도현 H2 — 밸런스 온전(§S 임계 이상)이면 방어 유지. H1 보다
+                // 넓은 조건이라 사다리에서 H1 뒤에 둔다(진도윤 H1/H2 와 같은 원칙 —
+                // 좁은 것 먼저).
+                case HabitId.StayDefensiveWhenBalanceHigh:
+                    return new HabitDefinition(id,
+                        ctx => ctx.OwnBalance >= cfg.BalanceOnsetThreshold,
+                        new HabitAction(
+                            new TurnChoice(HandTarget.Evade, CoreStance.Defensive, LegAction.Defend)),
+                        fireProbability);
+
+                // 4강 임준철 H1 — 그립 우세 시 어깨 매치기 or 발뒤축걸기 "번갈아"
+                // (ROSTER). 정확한 매 순간 50/50 무작위 대신, 같은 조건에 쿨다운 2를
+                // 나란히 준 두 습관으로 근사했다 — 쿨다운은 실제로 낸 턴부터 세므로
+                // (HabitState.NoteFired) 어깨 매치기가 뜨면 다음 기회엔 쿨다운에
+                // 걸려 발뒤축걸기 차례가 오고, 그 다음엔 다시 어깨 매치기 차례가
+                // 온다(그립 우세가 매 턴 유지된다는 전제하에 엄격한 A-B-A-B). 신뢰도
+                // 60%(ROSTER 제안값) 는 두 습관 다 동일 적용.
+                case HabitId.ShoulderThrowOnGripEdge:
+                    return new HabitDefinition(id,
+                        ctx => ctx.OwnEffectiveGrip >= 1,
+                        new HabitAction(
+                            new TurnChoice(HandTarget.None, CoreStance.Neutral, LegAction.Attack),
+                            new TechniqueSpec("어깨 매치기", ActionCost.BigThrow, TechniqueClass.Standard)),
+                        0.60f,
+                        minTurnsBetweenFirings: 2);
+                case HabitId.HeelHookOnGripEdge:
+                    // §B 레지스트리 확인 — 발뒤축걸기는 견제 발기술(Poke)로 등록돼 있다
+                    // (TechniqueRegistry.cs, AlgoClass.FeintFootsweep). ROSTER 의 2지선다
+                    // 한쪽은 진짜 시도(BigThrow), 다른 쪽은 견제기라 비용/판정 성격이
+                    // 다르다 — 레지스트리를 따랐다(Core §B 확정 표, 손 안 댐).
+                    return new HabitDefinition(id,
+                        ctx => ctx.OwnEffectiveGrip >= 1,
+                        new HabitAction(
+                            new TurnChoice(HandTarget.None, CoreStance.Neutral, LegAction.Attack),
+                            new TechniqueSpec("발뒤축걸기", ActionCost.Poke, TechniqueClass.Sloppy)),
+                        0.60f,
+                        minTurnsBetweenFirings: 2);
+
+                // 4강 임준철 H2 — 지도 뒤 2턴 내 견제 발기술로 만회. 진도윤 H2 와 조건은
+                // 같지만 진짜 시도(BigThrow)가 아니라 견제기(Poke)다.
+                case HabitId.FeintAfterShido:
+                    return new HabitDefinition(id,
+                        ctx => ctx.TurnsSinceOwnShido.HasValue && ctx.TurnsSinceOwnShido.Value < 2,
+                        new HabitAction(
+                            new TurnChoice(HandTarget.None, CoreStance.Neutral, LegAction.Attack),
+                            new TechniqueSpec("나오는발차기", ActionCost.Poke, TechniqueClass.Sloppy)),
+                        fireProbability);
+
+                // 동메달전 오재훈 H — "특출난 축 없이 고루" = 큰기술 두 개를 같은
+                // 쿨다운 교대 기법으로 섞는다(임준철과 같은 근사, 위 주석 참조). 중간
+                // 신뢰도(⚙ 0.5) — ROSTER 가 숫자를 안 줘서 32강(0.9)과 8강(0.6~0.7)
+                // 사이 중간값으로 골랐다.
+                case HabitId.MixedBigThrowA:
+                    return new HabitDefinition(id,
+                        ctx => ctx.OwnEffectiveGrip >= 1,
+                        new HabitAction(
+                            new TurnChoice(HandTarget.None, CoreStance.Neutral, LegAction.Attack),
+                            new TechniqueSpec("허리후리기", ActionCost.BigThrow, TechniqueClass.Standard)),
+                        0.5f,
+                        minTurnsBetweenFirings: 2);
+                case HabitId.MixedBigThrowB:
+                    return new HabitDefinition(id,
+                        ctx => ctx.OwnEffectiveGrip >= 1,
+                        new HabitAction(
+                            new TurnChoice(HandTarget.None, CoreStance.Neutral, LegAction.Attack),
+                            new TechniqueSpec("밭다리걸기", ActionCost.BigThrow, TechniqueClass.Standard)),
+                        0.5f,
+                        minTurnsBetweenFirings: 2);
+
                 default:
                     return null;
             }

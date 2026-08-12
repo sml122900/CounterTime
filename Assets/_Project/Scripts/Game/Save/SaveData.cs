@@ -50,6 +50,10 @@ namespace CounterTime.Game.Save
     public sealed class CareerSaveData
     {
         public PracticeCupResult practiceCupResult = PracticeCupResult.None;
+        /// §H 3.5b — not in the original §M1 schema; added so a tournament run survives a
+        /// save/reload mid-bracket. Only meaningful while practiceCupResult == None (a
+        /// terminal result means the cup is over and this is stale until the next entry).
+        public TournamentRound practiceCupRound = TournamentRound.R32;
     }
 
     /// META_DESIGN §M1/§M3 — `None` doubles as the design doc's own "| null" case ("no
@@ -57,4 +61,10 @@ namespace CounterTime.Game.Save
     /// JsonUtility would round-trip awkwardly.
     [Serializable]
     public enum PracticeCupResult { None, Lost, Bronze, Silver, Gold }
+
+    /// §H 3.5b — ROSTER.md's fixed round schedule (32강→16강→8강→4강→결승, +동메달전 on a
+    /// semifinal loss). Not a generic bracket-tree position — see TournamentBracket.cs for
+    /// why the player's path is tracked as a linear schedule rather than tree indices.
+    [Serializable]
+    public enum TournamentRound { R32, R16, QuarterFinal, SemiFinal, Final, BronzeMatch }
 }

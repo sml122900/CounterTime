@@ -161,6 +161,20 @@ namespace CounterTime.Game.Match
             RefreshStatusHud();
         }
 
+        /// §H 3.5b — called by MetaFlowController right after <see cref="LiveMatchRunner.Rebuild"/>,
+        /// once per bracket match. Clears the previous match's log/result text and re-runs
+        /// the same refresh <see cref="Start"/> does — the panel itself is never destroyed
+        /// between matches, so nothing here resets on its own.
+        public void ResetForNewMatch()
+        {
+            _log.Clear();
+            _logText.text = "";
+            _resultText.text = "";
+            if (_osaekomiRoot.activeSelf) OnOsaekomiClosed();
+            RefreshStanding();
+            RefreshStatusHud();
+        }
+
         // ── 판정 서술 ────────────────────────────────────────────────────────────
 
         void OnPresented(MatchEvent e) => _pendingEvents.Add(e);

@@ -21,11 +21,17 @@ namespace CounterTime.Brain
         /// </summary>
         public readonly int ScoutingLevel;
 
-        public OpponentDefinition(string name, IReadOnlyList<HabitDefinition> habits, int scoutingLevel = 0)
+        /// §H 3.5b — 변칙기(하드 규칙, 습관 아님). <c>null</c> = 이 상대는 변칙기가 없다
+        /// (32강/16강/동메달전). <see cref="SurpriseTechnique"/> 자체의 문서 참조.
+        public readonly SurpriseTechnique Surprise;
+
+        public OpponentDefinition(string name, IReadOnlyList<HabitDefinition> habits, int scoutingLevel = 0,
+                                  SurpriseTechnique surprise = null)
         {
             Name = name;
             Habits = habits;
             ScoutingLevel = scoutingLevel;
+            Surprise = surprise;
         }
     }
 }

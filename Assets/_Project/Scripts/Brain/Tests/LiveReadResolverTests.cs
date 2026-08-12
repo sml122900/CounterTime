@@ -249,6 +249,13 @@ namespace CounterTime.Brain.Tests
         /// 타입으로 막혀 있다: 조건의 인자가 <see cref="IHabitContext"/> 이고, 그 인터페이스에
         /// 지도 개수·시계·게이트 멤버가 없다. 그래서 습관이 지도 <i>개수</i>로 분기하려면
         /// 누군가 면을 넓혀야 하고, 그건 diff 에 보인다.
+        ///
+        /// §H 3.5b — 넷에서 여섯으로 늘었다(보고 후 확장, IHabitContext.cs 의 XML 문서
+        /// 참조): <c>OpponentSetupActive</c>(8강 서도현 H1 — 상대 흔들기 상태, 인과상
+        /// 이미 지나간 사실이라 독심 아님)와 <c>OwnBalance</c>(서도현 H2 + 4강 임준철
+        /// 변칙기 — 이미 공개된 <c>MatchEngine.Balance.Get</c> 을 그대로 읽을 뿐).
+        /// 둘 다 지도 개수·시계·게이트 같은 <see cref="IBrainContext"/> 전용 개념이
+        /// 아니다.
         /// </summary>
         [Test]
         public void HabitConditionsNeverSeeTheBrainContext_OnlyIHabitContext()
@@ -259,8 +266,9 @@ namespace CounterTime.Brain.Tests
 
             var habitMembers = typeof(IHabitContext).GetProperties().Select(p => p.Name).ToArray();
             CollectionAssert.AreEquivalent(
-                new[] { "OwnEffectiveGrip", "TurnsSinceOwnShido", "OwnStamina", "OpponentStamina" },
-                habitMembers, "습관 면은 넷으로 고정이다 — 늘리려면 보고 후에 늘린다");
+                new[] { "OwnEffectiveGrip", "TurnsSinceOwnShido", "OwnStamina", "OpponentStamina",
+                        "OpponentSetupActive", "OwnBalance" },
+                habitMembers, "습관 면은 여섯으로 고정이다(§H 3.5b 확장) — 더 늘리려면 보고 후에 늘린다");
 
             foreach (var brainOnly in new[] { "OwnShidoCount", "SecondsRemaining",
                                               "OwnStaminaLockout", "OwnHasLockedHand" })
@@ -281,6 +289,8 @@ namespace CounterTime.Brain.Tests
             public int? TurnsSinceOwnShido => 0;
             public int OwnStamina => 40;
             public int OpponentStamina => 60;
+            public bool OpponentSetupActive => false;
+            public int OwnBalance => 100;
         }
     }
 }

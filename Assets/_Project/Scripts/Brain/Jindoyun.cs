@@ -35,14 +35,25 @@ namespace CounterTime.Brain
             HabitId.SeekGripLeftSleeve,
         };
 
+        /// §H 3.5b — 결승 상향(ROSTER.md §R5): "습관 신뢰도를 약간 낮춰 더 섞는다" ⚙.
+        /// 기본값(HabitCatalogue.DefaultFireProbability, 0.75)보다 낮다 — 예측하기
+        /// 살짝 어려워진 최종 보스 손잡이 하나.
+        const float FinalBossFireProbability = 0.65f;
+
         public static OpponentDefinition Create(MatchRulesConfig cfg)
         {
             var habits = new HabitDefinition[Habits.Length];
-            for (int i = 0; i < Habits.Length; i++) habits[i] = HabitCatalogue.Build(Habits[i], cfg);
+            for (int i = 0; i < Habits.Length; i++)
+                habits[i] = HabitCatalogue.Build(Habits[i], cfg, FinalBossFireProbability);
 
-            // §5 — 필드는 구현하되 0 으로 출하한다. 커리어 작업은 데이터를 바꾸지
-            // 코드를 바꾸지 않는다.
-            return new OpponentDefinition("진도윤", habits, scoutingLevel: 0);
+            // §H 3.5b — 결승 상향: "결승쯤 오면 내 앞선 경기를 봤다"는 서사로
+            // scoutingLevel 을 1 로 시드한다(ROSTER §R5, ⚙). §5 필드는 구현하되 지금은
+            // 아무 데도 안 읽혀 경기에 영향이 없다 — §5/6 이 §3 성향 창을 실제로
+            // 시딩할 때 점등된다(3.5a 세션의 "필드는 구현하되 값만 채운다" 관행과 같다).
+            // 말아업어치기(변칙기, 습관 아님) — 체력<30, 경기당 1회(§H 3.5b, 기존
+            // 설계 문서 그대로 실제 배선).
+            return new OpponentDefinition("진도윤", habits, scoutingLevel: 1,
+                surprise: new SurpriseTechnique("말아업어치기", ctx => ctx.OwnStamina < 30));
         }
     }
 }

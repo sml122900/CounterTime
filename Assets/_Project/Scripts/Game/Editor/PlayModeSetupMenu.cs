@@ -1,4 +1,5 @@
 using CounterTime.Game.Match;
+using CounterTime.Game.Meta;
 using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -9,10 +10,14 @@ using UnityEngine.InputSystem.UI;
 namespace CounterTime.Game.Editor
 {
     /// <summary>
-    /// Stage 6 Play 모드 확인 준비용 2클릭 메뉴. 새 빈 씬(저장 안 함, Main.unity 무수정)에
-    /// <see cref="LiveMatchRunner"/>+<see cref="LiveMatchPanel"/> 을 가진 GameObject 하나를
-    /// 만들고 흔들기 플래그를 켠다. B 브레인 연결은 두 컴포넌트의 Awake/Build 가 이미
-    /// 자동으로 하므로(<see cref="LiveMatchRunner.Build"/> 참조) 여기서 따로 배선할 것이 없다.
+    /// Play 모드 확인 준비용 2클릭 메뉴. 새 빈 씬(저장 안 함, Main.unity 무수정)에
+    /// <see cref="LiveMatchRunner"/>+<see cref="LiveMatchPanel"/> 을 가진 "LiveMatch"
+    /// GameObject 와, §H 3.5b 부터는 그 위에서 지도/대회 흐름을 관장하는
+    /// <see cref="MetaFlowController"/> 를 가진 "MetaFlow" GameObject 를 함께 만든다.
+    /// 진입점은 이제 지도다 — LiveMatch 는 <b>비활성 상태로</b> 만들어 대진표에서
+    /// "경기 시작"을 눌러야 켜진다(<see cref="MetaFlowController.StartMatch"/> 참조).
+    /// B 브레인 연결은 <see cref="LiveMatchRunner"/> 의 Awake/Build 가 이미 자동으로
+    /// 하므로 여기서 따로 배선할 것이 없다.
     /// </summary>
     static class PlayModeSetupMenu
     {
@@ -96,10 +101,27 @@ namespace CounterTime.Game.Editor
                 Debug.LogWarning($"[PlayModeSetupMenu] 한글 폰트를 못 찾음: {FontPath}");
             }
 
-            Selection.activeGameObject = go;
+            // §H 3.5b — 진입점이 지도로 바뀌었다. LiveMatch 는 대회에서 "경기 시작"을
+            // 누르기 전까지 비활성이어야 한다 — 활성 상태로 Play 를 시작하면 Awake 가
+            // MetaFlow 보다 먼저/나중 어느 순서로도 돌 수 있어(같은 프레임 안이라도
+            // 씬의 두 루트 오브젝트 사이 Awake 순서는 보장되지 않는다) 화면이 잠깐
+            // LiveMatch 로 나타날 위험이 있다. 편집 모드에서 미리 꺼두면 Unity 가
+            // Awake 자체를 MetaFlowController.StartMatch 가 SetActive(true) 할 때까지
+            // 아예 미룬다 — 순서 운에 기대지 않는 확정적인 방법.
+            go.SetActive(false);
 
-            Debug.Log("[PlayModeSetupMenu] LiveMatch 준비 완료 — 흔들기 on, 한글 폰트 연결. " +
-                      "Play 버튼만 누르면 된다.");
+            var metaGo = new GameObject("MetaFlow", typeof(MetaFlowController));
+            var metaSo = new SerializedObject(metaGo.GetComponent<MetaFlowController>());
+            if (font != null) metaSo.FindProperty("koreanFont").objectReferenceValue = font;
+            metaSo.FindProperty("liveMatchRunner").objectReferenceValue = go.GetComponent<LiveMatchRunner>();
+            metaSo.FindProperty("liveMatchPanel").objectReferenceValue = go.GetComponent<LiveMatchPanel>();
+            metaSo.FindProperty("liveMatchRoot").objectReferenceValue = go;
+            metaSo.ApplyModifiedPropertiesWithoutUndo();
+
+            Selection.activeGameObject = metaGo;
+
+            Debug.Log("[PlayModeSetupMenu] 지도/대회 흐름 준비 완료 — LiveMatch 는 비활성(경기 시작 시 켜짐), " +
+                      "흔들기 on, 한글 폰트 연결. Play 버튼만 누르면 된다.");
         }
 
         static void AssignAsset<T>(SerializedObject so, string propertyName, string path) where T : Object

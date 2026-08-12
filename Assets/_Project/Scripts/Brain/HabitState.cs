@@ -18,6 +18,10 @@ namespace CounterTime.Brain
         readonly Dictionary<HabitId, int> _lastFiredTurn = new Dictionary<HabitId, int>();
         readonly HashSet<HabitId> _retired = new HashSet<HabitId>();
         bool _reservesLit;
+        /// §H 3.5b — <see cref="OpponentDefinition.Surprise"/> 의 "경기당 1회" 플래그.
+        /// HabitId 로 세는 <see cref="_lastFiredTurn"/> 과 의도적으로 분리 — 변칙기는
+        /// HabitId 가 없어서(관측 대상이 아니라서) 저 딕셔너리에 넣을 자리 자체가 없다.
+        bool _surpriseUsed;
 
         public OpponentDefinition Opponent { get; }
 
@@ -75,6 +79,18 @@ namespace CounterTime.Brain
 
             _retired.Add(id);
             _reservesLit = true;
+        }
+
+        /// <summary>§H 3.5b — 변칙기 하드 규칙. 이 경기에서 아직 안 썼고 조건이 서면
+        /// 소비하고 true. 관측 원장에 절대 안 닿는다(호출자는 이 결과를 습관 사다리와
+        /// 별도로 다뤄야 한다) — 그게 "사전에 관측될 수 없다"의 전부다.</summary>
+        public bool TryFireSurprise(IHabitContext ctx)
+        {
+            if (_surpriseUsed) return false;
+            if (Opponent.Surprise == null) return false;
+            if (!Opponent.Surprise.Condition(ctx)) return false;
+            _surpriseUsed = true;
+            return true;
         }
     }
 }

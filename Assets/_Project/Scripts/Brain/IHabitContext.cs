@@ -37,5 +37,17 @@ namespace CounterTime.Brain
 
         /// H3 — 상대 체력. 열세 판정에만 쓴다.
         int OpponentStamina { get; }
+
+        /// §H 3.5b — 8강 서도현 H1("내가 큰 기술을 예고하면 카운터 준비"). "예고"는
+        /// 독심이 아니라 §4.4 흔들기(Setup)다 — 흔들기는 큰기술보다 한 교환 먼저
+        /// 해결되는 실제 게임 상태라, 그 다음 교환 시점엔 이미 지나간 사실이다(인과
+        /// 순서를 안 어긴다). <c>MatchEngine.IsSetupActive</c> 를 상대(=나를 상대하는
+        /// 선수) 기준으로 그대로 읽는다.
+        bool OpponentSetupActive { get; }
+
+        /// §H 3.5b — 8강 서도현 H2("밸런스 온전 시 방어")와 4강 임준철의 변칙기(안오금띄기,
+        /// "내 밸런스가 낮을 때") 둘 다 요구한다. <c>MatchEngine.Balance.Get</c> 을
+        /// 그대로 읽는다 — 파생 없음.
+        int OwnBalance { get; }
     }
 }

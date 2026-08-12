@@ -68,15 +68,18 @@ namespace CounterTime.Brain.Tests
             Assert.IsTrue(w.ConsecutiveMatches(Q), "앞머리 3개는 Q 다");
         }
 
+        /// §H 3.5b 결승 상향(ROSTER §R5) 이후 진도윤의 ScoutingLevel 은 1(예전엔 0)
+        /// 이지만, 그 값을 실제로 읽어 창을 시드하는 배선은 아직 없다(§5/6 이월) —
+        /// 그래서 이 창은 여전히 빈 채로 시작한다. 두 사실을 같이 고정해둔다.
         [Test]
-        public void ScoutingLevel0_StartsEmpty()
+        public void TendencyWindow_StartsEmpty_RegardlessOfShippedScoutingLevel()
         {
             var w = new TendencyWindow();
             Assert.AreEqual(0, w.Count);
             Assert.IsFalse(w.MajorityMatches(P), "빈 창은 아무것도 못 읽는다");
             Assert.IsFalse(w.ConsecutiveMatches(P));
-            Assert.AreEqual(0, Jindoyun.Create(new MatchRulesConfig()).ScoutingLevel,
-                "진도윤은 0 으로 출하한다 — 창 시드가 없다");
+            Assert.AreEqual(1, Jindoyun.Create(new MatchRulesConfig()).ScoutingLevel,
+                "진도윤은 1 로 출하한다(결승 상향) — 그런데도 창은 안 시드된다, 배선이 아직 없다");
         }
 
         /// 성향은 (코어, 하체) 쌍이다. 잡는 손은 국면이 정하지 성향이 정하지 않는다.

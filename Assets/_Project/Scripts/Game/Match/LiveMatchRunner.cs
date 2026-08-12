@@ -77,7 +77,29 @@ namespace CounterTime.Game.Match
         /// 공격은 이번 교환에 성립하지 않는다. 선제권 판정은 미결.
         public event Action APreempted;
 
+        /// §H 3.5b-로스터 — which opponent's <see cref="OpponentDefinition"/> the next
+        /// <see cref="Build"/> uses. Defaults to Jindoyun so every pre-existing call site
+        /// (scripted/smoke tests, first Awake before MetaFlowController ever calls
+        /// <see cref="SetOpponent"/>) keeps working unchanged.
+        Func<MatchRulesConfig, OpponentDefinition> _opponentFactory = Jindoyun.Create;
+
         void Awake() => Build();
+
+        /// §H 3.5b-뼈대 — MetaFlowController calls this before each bracket round to
+        /// pick that round's opponent (ROSTER.md schedule). Persists across
+        /// <see cref="Rebuild"/> calls until changed again.
+        public void SetOpponent(Func<MatchRulesConfig, OpponentDefinition> opponentFactory) =>
+            _opponentFactory = opponentFactory;
+
+        /// §H 3.5b — the tournament bracket runs several matches against the same
+        /// LiveMatch GameObject rather than recreating the 3D stage each time (see
+        /// MetaFlowController). <paramref name="seed"/> lets each bracket match get a
+        /// distinct random sequence instead of always replaying the same one.
+        public void Rebuild(int seed)
+        {
+            randomSeed = seed;
+            Build();
+        }
 
         public void Build()
         {
@@ -90,7 +112,7 @@ namespace CounterTime.Game.Match
             _window = new TendencyWindow();
             _resolver = new LiveReadResolver(_ledger, _window);
 
-            var opponent = Jindoyun.Create(_cfg);
+            var opponent = _opponentFactory(_cfg);
             _habitState = new HabitState(opponent);
             _bContext = new MatchBrainContext(Engine, FighterId.B);
             _bInner = new HabitBrainCommitSource(FighterId.B, _habitState, _bContext, _bContext, _rng);
