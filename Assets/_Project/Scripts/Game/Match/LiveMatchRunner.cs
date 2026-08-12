@@ -81,7 +81,7 @@ namespace CounterTime.Game.Match
 
         public void Build()
         {
-            _cfg = new MatchRulesConfig { SetupGateEnabled = setupEnabled };
+            _cfg = new MatchRulesConfig { BalanceGate = setupEnabled };
             _rng = new SystemRandomSource(randomSeed);
             Engine = new MatchEngine(_cfg, refereeProfile, _rng);
             A = new LiveAssembler(Engine, _cfg, FighterId.A);

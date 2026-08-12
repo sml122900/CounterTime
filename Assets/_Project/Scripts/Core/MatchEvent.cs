@@ -152,6 +152,19 @@ namespace CounterTime.Core
         public SetupDeclared(FighterId who) => Who = who;
     }
 
+    /// §S/§H step 3 — a fighter's Balance changed (drain or recovery). Balance is a
+    /// confirmed HUD number (§7, same tier as grip, not withheld like a tell), so this
+    /// carries the resulting value directly rather than a delta — a future HUD can
+    /// just read it, no polling needed. HUD wiring itself is out of scope for step 3
+    /// (STATUS.md tracks it as a remaining item); this event exists so that wiring
+    /// doesn't need to touch Core again when it lands.
+    public sealed class BalanceChanged : MatchEvent
+    {
+        public readonly FighterId Who;
+        public readonly int NewValue;
+        public BalanceChanged(FighterId who, int newValue) { Who = who; NewValue = newValue; }
+    }
+
     public sealed class MatchEnded : MatchEvent
     {
         public readonly FighterId? Winner;

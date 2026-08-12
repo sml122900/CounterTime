@@ -146,7 +146,68 @@ Full detail, including the exact 현실적 A osaekomi-entry-shortfall breakdown 
   Unity Editor + MCP 브리지가 밤새 연결 유지(사람 없음) — 매 작업 후 AssetDatabase.Refresh() + GetConsoleLogs 로 0 에러/0 경고 재확인, RunCommand 안에서 짧은 이름(CompilationPipeline 등)이 Unity.AI.Assistant.* 네임스페이스와 충돌하는 기존 함정 재확인(전체 경로로 우회)
 
 Next Up (in priority order)
-**가장 최근 — §H 2b 후속: Play 실측 3건 (레이아웃 버그 2건 수정 + 견제기 결과
+**가장 최근 — §H 3단계 완료: 밸런스 축 (Core 배관, 화면 무수정).** CORE_DESIGN
+v4.0 §3단계 근거. §H 2b ③에서 발견한 "포크가 이벤트 0" 공백이 여기서 정리됨.
+**작업0**: 스탬프 exit 0, 하니스 221/221·지문 IDENTICAL, Unity MCP 컴파일 0/0
+확인 후 진행.
+**작업1 — `BalanceSystem`(Core 순수, StaminaSystem 미러).** Get/Drain(하한 0)/
+RecoverDefenseSuccess/RecoverMattePartial/ResetBetweenMatches(유일한 완전
+리셋, 현재 호출부 없음 — §H 3.5 세이브 계층 몫). `MatchRulesConfig`에 전부
+⚙(제안 초기치, 튜닝 전) 추가 — `BalanceMax=100`·`BalanceOnsetThreshold=70`
+(문서에 이미 있던 값)·`BalanceDrainSetup=35`·`BalanceDrainFeintFootsweep=20`·
+`BalanceDrainThreatNoScore=15`·`BalanceRecoverDefense=10`·
+`BalanceRecoverMatte=3`(StaminaSystem.MatteRecovery와 동일 크기, "같은 방식"
+지시 그대로). 숫자는 서로 맞물리게 골랐다 — 흔들기 한 번(100−35=65)이 임계
+70을 한 번에 넘기고, 그쳐 한 번(+3=68)으론 못 넘지만 두 번(+3+3=71)이면
+다시 넘는다(아래 테스트가 이 계산을 직접 고정).
+**작업2 — `BalanceGate` 재배선.** `SetupGateEnabled`(불리언 단독)를
+`BalanceGate`로 개명 — 파일 이동은 없었다(필드지 타입명이 아니라 git mv
+대상이 없음, 확인 후 판단). 게이트 조건을 "공격자 판정에 들어가기 직전,
+**방어자**의 밸런스가 임계 이상이면 큰기술을 Sloppy로 강등"으로 교체 —
+옛 [초안]의 "이 공격자가 지난 교환에 흔들기를 선언했는가"(`_setupActive`,
+공격자별 1교환 플래그)에서 "방어자의 현재 밸런스 수치"(지속되는 자원, 누가
+깎았는지 안 따짐)로 일반화됐다. 순서는 `ClassFromMastery` 먼저, `BalanceGate`
+최후 강등, `SurpriseExempt`는 게이트 자체를 면제 — §F 문서 그대로.
+`_setupActive`/`_setupDeclaredThisExchange`는 **존치**(제거 아님) — 클로드
+코드 판단, 근거는 코드 주석: 게이트 판정에는 더 이상 안 쓰이지만
+`SetupDeclared` 이벤트·`IsSetupActive()` HUD 읽기(`LiveMatchPanel`이 여전히
+참조)가 걸려 있고, 이번 단계는 "화면 아님"이라 그쪽을 건드리려면 범위를
+넘는다 — 지우면 Game 쪽도 같이 고쳐야 했다.
+**작업3 — 드레인 5지점(+1 추가 발견).** 흔들기 declare(상대 드레인)·견제
+발기술 적중(§D.4 floor, 상대 드레인 — **여기서 §H 2b ③의 "포크가 이벤트 0"
+공백이 닫힌다**, v1엔 승격 굴림이 없어 "적중"은 곧 모든 포크)·판정 무득점
+(None, IsCounter 무관 — 되치기가 fizzle 해서 None 이 나온 경우도 "진짜
+시도, 무득점"의 정의를 똑같이 만족한다고 판단)·수비 성공(Clean, §5.2 정의
+재사용)·그쳐(양쪽 부분 회복). **작업 지시 5개 목록에 없던 +1**: 굳히기
+탈출(§9.4)도 그쳐와 같은 방식으로 부분 회복을 준다 — MATCH_RULES.md 가 이미
+v4.1로 확정해둔 문장("§9.4 밸런스는 여기서도 부분 회복 ⚙만 받는다")을 그대로
+따른 것이지 새 판단이 아니다(문서가 이긴다는 기존 원칙).
+**세션 중 실제로 잡은 버그 — 지문 위험을 실행 전에 발견.** 드레인 호출을
+전부 `_cfg.BalanceGate` 조건 없이 무조건 실행하도록 짰다면, 하니스를 돌리기
+전 `tools/dotnet-harness/Program.cs`의 `Describe(MatchEvent)`를 먼저 읽어보고
+알았다 — 이 함수는 인식 못 하는 이벤트 타입을 `default: e.GetType().Name`
+으로 그냥 찍어버린다. 42노드 스크립트 경로엔 포크(m14 발목받치기)와 무득점
+큰기술(m14 "판정 None" 3회)이 실제로 있어서, `BalanceGate` 기본값이 꺼져
+있어도 드레인 호출 자체가 무조건 실행되면 새 `BalanceChanged` 줄이 지문에
+그냥 끼어들 뻔했다. **하니스를 돌려서 깨진 걸 보고 고친 게 아니라, 실행 전에
+읽어서 미리 막았다** — 5지점(+1) 전부에 `if (_cfg.BalanceGate)` 가드를
+둘러 "꺼지면 완전 비활성"을 §4.4 흔들기 선언과 똑같은 계약으로 통일했다.
+**작업4 — `MatchEvent.BalanceChanged` + 관문 테스트.** HUD 배선은 이번에
+안 함(잔여 항목) — 이벤트만 낸다. 신규 테스트 3파일 22개(`BalanceSystemTests`
+7 — 순수 단위, `BalanceDrainTests` 6 — 포크/무득점/수비성공 통합,
+`SetupTests` 재작성 9 — 선언·게이트·그쳐 부분회복). 옛 `SetupTests`의
+"1교환만 지속" 테스트는 **삭제하지 않고 반대로 뒤집어 다시 썼다** —
+`SetupDrain_PersistsAcrossMultipleExchanges...`가 이제 "몇 교환이 지나도
+회복이 없으면 드레인이 안 풀린다"를 고정한다(밸런스가 지속 자원이 됐으니
+당연한 결과이지만, 옛 테스트를 그대로 뒀으면 거짓 초록이 아니라 실패로
+잡혔을 것 — 미리 재설계). "그쳐가 지운다"던 옛 테스트도 `OneMatte_.../
+TwoMattes_...`로 나눠 "부분 회복은 한 번으론 안 되고 쌓여야 한다"는 §S
+확정 사실을 직접 검증하도록 바꿨다.
+검증: Unity MCP 컴파일 0/0. 하니스 **235/235 그린 + 42노드 지문 IDENTICAL**
+(BalanceGate 스크립트 경로 기본 off 관행 그대로 유지). `git status --short`로
+의도한 파일만 바뀌었음을 확인(`Assets/_Recovery/`는 여전히 이전 세션부터
+있던 것, 무관).
+**가장 최근 (그 앞) — §H 2b 후속: Play 실측 3건 (레이아웃 버그 2건 수정 + 견제기 결과
 로직 조사·보고).**
 **1. 기술 휠 화면 왼쪽 잘림 — 진단 후 수정.** 추측 수정 금지 지시대로 실측부터.
 **트리거 버튼 자신이(휠 항목이 아니라) 이미 화면 밖이었다** — 트리거 X=25,
@@ -416,8 +477,10 @@ META_DESIGN §M6대로 재배치, 3.5단계 신설).** 판단 대기 2건은 앞
    R=120, 견제기/큰기술 그룹 분리 배치)에서 8기술 중 하나를 고르면 그 자체로
    공격이 성립한다 — 손·코어는 자동 잠금(§A.2). 하니스 221/221+지문 IDENTICAL,
    Play 모드 실클릭 확인 완료.
-3. 밸런스 축(§S, 구 "스탠스" — 코드 식별자 `Balance`, `CoreStance` 와 충돌 회피
-   목적. `SetupGateEnabled`→`BalanceGate` 개명 포함) + 흔들기 게이트 재배선(§4.4)
+3. 밸런스 축(§S) + 흔들기 게이트 재배선(§4.4) — **완료**(Core 배관: BalanceSystem·
+   `SetupGateEnabled`→`BalanceGate` 개명·5+1 드레인 지점·`BalanceChanged` 이벤트,
+   하니스 235/235+지문 IDENTICAL). **밸런스 HUD 노출은 잔여 항목**(이번엔
+   이벤트만 내고 화면은 안 건드림 — "화면 아님" 지시).
 3.5. **세이브 계층(META_DESIGN §M1) + 지도·대회 뼈대(§M2~M4).** 5·6·7단계가 결과를
    영구 저장할 자리(§C 적응·§F 숙련도의 "상대별 영구" 상태)가 이 단계 전에는
    존재하지 않는다 — 그래서 판정 승격(4단계) 다음, 인지/예측 되치기(5단계) 전에

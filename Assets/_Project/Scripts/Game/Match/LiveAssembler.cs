@@ -86,7 +86,7 @@ namespace CounterTime.Game.Match
             if (_engine.Grip.LockState(_me, ownHand) != GripLock.Free) options.Add(HandTarget.Tear);
             if (_engine.Grip.HasAnyGrip(_me)) options.Add(HandTarget.MaintainGrip);
 
-            if (_cfg.SetupGateEnabled && _engine.Grip.HasAnyGrip(_me))
+            if (_cfg.BalanceGate && _engine.Grip.HasAnyGrip(_me))
                 options.Add(HandTarget.Setup);
 
             return options;

@@ -634,7 +634,7 @@ namespace CounterTime.Game.Match
             int grip = eng.Grip.EffectiveGrip(who);
             string left = GripLockLabel(eng.Grip.LockState(who, Hand.Left));
             string right = GripLockLabel(eng.Grip.LockState(who, Hand.Right));
-            string setup = _runner.Config.SetupGateEnabled
+            string setup = _runner.Config.BalanceGate
                 ? $"  흔들기 {(eng.IsSetupActive(who) ? "유효" : "없음")}"
                 : "";
             return $"{FighterLabel(who)}  체력 {stamina}  그립 {grip:+0;-0;0}  " +
@@ -656,7 +656,7 @@ namespace CounterTime.Game.Match
                 advice = "잡기 열세 — 손 싸움부터 다시 잡아라";
             else if (eng.Stamina.Get(FighterId.B) < 40)
                 advice = "상대 체력이 떨어졌다 — 밀어붙일 타이밍";
-            else if (_runner.Config.SetupGateEnabled && eng.IsSetupActive(FighterId.B))
+            else if (_runner.Config.BalanceGate && eng.IsSetupActive(FighterId.B))
                 advice = "상대가 흔들기를 걸었다 — 큰 기술을 조심해라";
             else
                 advice = "그립을 먼저 잡고 흐름을 만들어라";

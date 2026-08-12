@@ -46,9 +46,33 @@ namespace CounterTime.Core
         // §9 osaekomi
         public int OsaekomiStayCost = 3;          // §9.3 맞물림 — defender pays per stay
         public int OsaekomiEscapeIntervalSec = 5; // §9.3 — one escape exchange per 5s of hold
-        // §4.4 흔들기(setup) [초안 — 사람 검토 전]. Default off — a default-constructed
-        // config reproduces v1 대조 모드 exactly, per this section's own "default off" clause.
-        public bool SetupGateEnabled = false;
+        // §4.4 흔들기(setup) — declare mechanics (cost, grip gate) are confirmed (v4.0),
+        // unaffected by the §H step 3 rename below. Default off — a default-constructed
+        // config reproduces v1 대조 모드 exactly.
         public int SetupCost = 1;
+        // §4.4/§S — renamed from SetupGateEnabled (§H step 3, was boolean-only: "did the
+        // attacker declare 흔들기 last exchange"). Same on/off master switch, same
+        // default-off semantics — only the CONDITION it gates changed (see
+        // MatchEngine.ResolveTechnique): from a per-attacker declared-flag check to a
+        // per-defender Balance-threshold check, generalizing what opens the gate from
+        // 흔들기 alone to any of the three Balance-draining threats below.
+        public bool BalanceGate = false;
+
+        // §S/§H step 3 — Balance, the third resource (§3 grip, §5 stamina, §S balance).
+        // All ⚙ — proposed initial values, not confirmed numbers, same convention as
+        // every other tunable in this file. BalanceMax/BalanceOnsetThreshold match the
+        // values already named in MATCH_RULES.md/CORE_DESIGN_MatchEngine.md's v4.0
+        // revision; the drain/recover magnitudes below are new picks for this step,
+        // sized so a single 흔들기 (100−35=65) clears the 70 threshold in one hit and a
+        // single 그쳐 (+3, same magnitude as StaminaSystem.MatteRecovery) does NOT
+        // undo it alone (65+3=68<70) — two mattes do (65+3+3=71≥70). Pure tuning
+        // knobs, not derived from anything — revisit after play.
+        public int BalanceMax = 100;
+        public int BalanceOnsetThreshold = 70;   // gate: defender's Balance ≥ this → attacker's BigThrow downgrades to Sloppy
+        public int BalanceDrainSetup = 35;       // one 흔들기 declare
+        public int BalanceDrainFeintFootsweep = 20; // a landed 견제 발기술 (§D.4 floor — v1 has no promotion roll yet, so "landed" = every poke)
+        public int BalanceDrainThreatNoScore = 15;  // a genuine BigThrow attempt (realAttempt) that scored None
+        public int BalanceRecoverDefense = 10;      // a Clean defense (§5.2 — won the read)
+        public int BalanceRecoverMatte = 3;         // 그쳐/굳히기 탈출 부분 회복 — same magnitude as MatteRecovery, same shape
     }
 }

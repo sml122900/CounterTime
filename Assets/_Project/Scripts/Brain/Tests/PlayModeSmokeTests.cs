@@ -98,14 +98,14 @@ namespace CounterTime.Brain.Tests
         }
 
         /// <summary>한 경기를 굴린다. <paramref name="aCommit"/> 이 A 의 성향을 정한다.
-        /// <paramref name="setupEnabled"/> (작업6, §4.4 [초안]) — true 면
-        /// <see cref="MatchRulesConfig.SetupGateEnabled"/> 를 켜고 B 의 커밋을
+        /// <paramref name="setupEnabled"/> (작업6, §4.4) — true 면
+        /// <see cref="MatchRulesConfig.BalanceGate"/> 를 켜고 B 의 커밋을
         /// <see cref="SetupPrecedingCommitSource"/> 로 감싼다. 습관 카탈로그·읽기
         /// 사다리·판정식은 이 매개변수로 아무것도 안 바뀐다 — 켜고 끄는 것은 §4.4 경로
         /// 하나뿐이다.</summary>
         static Metrics RunMatch(Func<int, TurnChoice> aCommit, int seed, bool setupEnabled = false)
         {
-            var cfg = new MatchRulesConfig { ThresholdJitter = 0, SetupGateEnabled = setupEnabled };
+            var cfg = new MatchRulesConfig { ThresholdJitter = 0, BalanceGate = setupEnabled };
             var rng = new SystemRandomSource(seed);
             var engine = new MatchEngine(cfg, RefereeProfile.Standard, rng);
 
@@ -362,8 +362,9 @@ namespace CounterTime.Brain.Tests
 
         /// <summary>
         /// 작업6 실측 — 3프로필(반복/변주/현실적) × 흔들기(off/on) = 6회. 튜닝 안 함,
-        /// 숫자를 판정하지 않는다. §4.4 는 아직 [초안]이고 <c>SetupGateEnabled</c>
-        /// 기본값은 off — 이 테스트가 켜는 건 이 6회 실측 안에서만이다.
+        /// 숫자를 판정하지 않는다. <c>BalanceGate</c>(§H 3단계 이전엔
+        /// <c>SetupGateEnabled</c>) 기본값은 off — 이 테스트가 켜는 건 이 6회 실측
+        /// 안에서만이다.
         ///
         /// <b>A 는 여전히 허수아비다.</b> B 가 공격 안 하는 턴에만 A 가 고정 밭다리를
         /// 던진다(§6.4 STATUS 원칙 그대로) — 세 프로필이 A 의 공격 성향을 실제로

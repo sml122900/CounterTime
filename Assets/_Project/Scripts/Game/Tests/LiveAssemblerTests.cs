@@ -14,7 +14,7 @@ namespace CounterTime.Game.Tests
     {
         static MatchEngine NewEngine(bool setupEnabled = false)
         {
-            var cfg = new MatchRulesConfig { ThresholdJitter = 0, SetupGateEnabled = setupEnabled };
+            var cfg = new MatchRulesConfig { ThresholdJitter = 0, BalanceGate = setupEnabled };
             return new MatchEngine(cfg, RefereeProfile.Standard, new SystemRandomSource(1));
         }
 
@@ -132,7 +132,7 @@ namespace CounterTime.Game.Tests
         public void HandOptions_WithGripAndFlagOn_OpensSetup()
         {
             var engine = NewEngine(setupEnabled: true);
-            var cfg = new MatchRulesConfig { SetupGateEnabled = true };
+            var cfg = new MatchRulesConfig { BalanceGate = true };
 
             engine.ResolveExchange(
                 new TurnChoice(HandTarget.RightSleeve, CoreStance.Neutral, LegAction.Neutral),

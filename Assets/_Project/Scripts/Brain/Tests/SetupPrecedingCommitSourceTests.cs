@@ -26,7 +26,7 @@ namespace CounterTime.Brain.Tests
         static (MatchEngine engine, MatchBrainContext ctx, SetupPrecedingCommitSource decorator)
             Build(bool enabled, bool grantGrip)
         {
-            var cfg = new MatchRulesConfig { ThresholdJitter = 0, SetupGateEnabled = true };
+            var cfg = new MatchRulesConfig { ThresholdJitter = 0, BalanceGate = true };
             var rng = new SystemRandomSource(1);
             var engine = new MatchEngine(cfg, RefereeProfile.Standard, rng);
             var opponent = new OpponentDefinition("test", new[] { AlwaysFiresBigThrow() });
@@ -158,7 +158,7 @@ namespace CounterTime.Brain.Tests
         [Test]
         public void IntegratesWithTheRealBigThrowOnGripEdgeCatalogueHabit()
         {
-            var cfg = new MatchRulesConfig { ThresholdJitter = 0, SetupGateEnabled = true };
+            var cfg = new MatchRulesConfig { ThresholdJitter = 0, BalanceGate = true };
             var rng = new SystemRandomSource(1);
             var engine = new MatchEngine(cfg, RefereeProfile.Standard, rng);
             var habit = HabitCatalogue.Build(HabitId.BigThrowOnGripEdge, cfg, fireProbability: 1f);

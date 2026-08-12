@@ -52,16 +52,26 @@ namespace CounterTime.Core
         /// that method's comment) reads it.
         int _scorerOpponentStaminaPrePayment;
 
-        /// §4.4 [초안] — 흔들기(setup) state carried INTO this exchange (set by 흔들기
-        /// declared in the PREVIOUS exchange). Indexed by (int)FighterId.
+        /// §4.4 — 흔들기(setup) state carried INTO this exchange (set by 흔들기 declared
+        /// in the PREVIOUS exchange). Indexed by (int)FighterId.
+        ///
+        /// §H step 3 — this no longer gates the §4.4 downgrade (that reads
+        /// <see cref="Balance"/> now, a persisting resource, not a 1-exchange flag).
+        /// Kept anyway, judgment call: it still drives <see cref="SetupDeclared"/> and
+        /// <see cref="IsSetupActive"/>, which Game code (LiveMatchPanel's status line)
+        /// still reads, and this step is Core-only ("화면 아님") — deleting these would
+        /// force a UI change out of scope. "선언한 바로 다음 교환만" is still an accurate
+        /// description of THIS field's own lifecycle; it just isn't what decides the
+        /// downgrade anymore.
         readonly bool[] _setupActive = new bool[2];
-        /// §4.4 [초안] — 흔들기 declared DURING the exchange currently resolving;
-        /// becomes next exchange's `_setupActive` unless 그쳐/굳히기 진입/경기 종료
-        /// wipes it first. Scratch state, valid only within one ResolveExchange call.
+        /// 흔들기 declared DURING the exchange currently resolving; becomes next
+        /// exchange's `_setupActive` unless 그쳐/굳히기 진입/경기 종료 wipes it first.
+        /// Scratch state, valid only within one ResolveExchange call.
         readonly bool[] _setupDeclaredThisExchange = new bool[2];
 
         public GripSystem Grip { get; }
         public StaminaSystem Stamina { get; }
+        public BalanceSystem Balance { get; }
         public RefereeSystem Referee { get; }
         public ScoreBoard Board { get; }
         public MatchClock Clock { get; }
@@ -78,14 +88,16 @@ namespace CounterTime.Core
             _masteryStore = masteryStore ?? ZeroMasteryStore.Instance;
             Grip = new GripSystem();
             Stamina = new StaminaSystem(cfg);
+            Balance = new BalanceSystem(cfg);
             Referee = new RefereeSystem(profile, cfg, rng);
             Board = new ScoreBoard(cfg);
             Clock = new MatchClock(cfg);
         }
 
-        /// §4.4 [초안] — presentation read of whether `who`'s 흔들기 carries into
-        /// the exchange about to resolve. ResolveTechnique reads `_setupActive`
-        /// directly for judgment purposes; this is the read-only mirror for HUDs.
+        /// §4.4 — presentation read of whether `who`'s 흔들기 carries into the exchange
+        /// about to resolve. §H step 3: this is now purely informational — the §4.4
+        /// downgrade itself reads <see cref="Balance"/>, not this flag (see
+        /// `_setupActive`'s own comment for why the flag still exists).
         public bool IsSetupActive(FighterId who) => _setupActive[(int)who];
 
         public IReadOnlyList<MatchEvent> ResolveExchange(TurnChoice a, TurnChoice b, ExchangeScript script)
@@ -187,9 +199,10 @@ namespace CounterTime.Core
                 }
             }
 
-            // §4.4 [초안] — 그쳐·굳히기 진입·경기 종료가 이 교환에서 일어났으면 흔들기
-            // 상태는 국면 리셋과 함께 소멸한다. 그 외에는 이번 교환에 새로 선언된 쪽만
-            // 다음 교환으로 넘어간다(누적이 아니라 교체 — 1교환만 지속).
+            // §4.4 — 그쳐·굳히기 진입·경기 종료가 이 교환에서 일어났으면 `_setupActive`
+            // 상태(선언 이벤트/HUD 용, §H 3단계부턴 게이트와 무관 — 위 필드 주석 참조)는
+            // 국면 리셋과 함께 소멸한다. 그 외에는 이번 교환에 새로 선언된 쪽만 다음
+            // 교환으로 넘어간다(누적이 아니라 교체 — 1교환만 지속).
             bool setupReset = MatteAlreadyCalled(ev) || Osaekomi.Active || Board.IsFinished;
             _setupActive[0] = !setupReset && _setupDeclaredThisExchange[0];
             _setupActive[1] = !setupReset && _setupDeclaredThisExchange[1];
@@ -326,6 +339,23 @@ namespace CounterTime.Core
                 // runner's job once stage 6 wires ResolveOsaekomiExchange in — scripted
                 // mode never reaches this method today.
                 Grip.OnMatte();
+                // §S (v4.1, RESOLVED §8) — unlike stamina, Balance gets ITS partial
+                // recovery here too ("§9.4 밸런스는 여기서도 부분 회복 ⚙만 받는다") — this
+                // is a deliberate asymmetry the confirmed rules text calls out
+                // explicitly, not an inconsistency. §H step 3 task's own 5-point list
+                // named only 그쳐(matte); this call site is added on top of it because
+                // MATCH_RULES.md (already v4.1-confirmed, wins on any conflict) says so.
+                // Gated on BalanceGate for the same fingerprint reason as CallMatte —
+                // scripted mode never reaches this method today (STATUS: "스크립트 모드는
+                // 이 메서드에 안 닿는다"), so the guard is defense-in-depth here, not a
+                // currently-observed risk.
+                if (_cfg.BalanceGate)
+                {
+                    Balance.RecoverMattePartial(FighterId.A);
+                    Balance.RecoverMattePartial(FighterId.B);
+                    ev.Add(new BalanceChanged(FighterId.A, Balance.Get(FighterId.A)));
+                    ev.Add(new BalanceChanged(FighterId.B, Balance.Get(FighterId.B)));
+                }
                 Osaekomi.Active = false;
                 Clock.Phase = MatchPhase.Standing;
                 ev.Add(new OsaekomiEnded(defender));
@@ -355,14 +385,22 @@ namespace CounterTime.Core
                     break;
 
                 case HandTarget.Setup:
-                    // §4.4 [초안] — inert unless the draft flag is on; when on, needs a
-                    // grip to lean on and is otherwise a no-op (mirrors the conversion
-                    // gate above: CanUseConversion/HasAnyGrip are the same predicate,
-                    // named for what each caller is asking).
-                    if (!_cfg.SetupGateEnabled || !Grip.HasAnyGrip(who)) break;
+                    // §4.4 — inert unless the flag is on; when on, needs a grip to lean
+                    // on and is otherwise a no-op (mirrors the conversion gate above:
+                    // CanUseConversion/HasAnyGrip are the same predicate, named for what
+                    // each caller is asking).
+                    if (!_cfg.BalanceGate || !Grip.HasAnyGrip(who)) break;
                     Stamina.PaySetup(who);
                     _setupDeclaredThisExchange[(int)who] = true;
                     ev.Add(new SetupDeclared(who));
+                    // §S/§H step 3 — 흔들기's entire job is draining the OPPONENT's
+                    // Balance (§S "drains on: landing a 흔들기"). This is drain point 1
+                    // of 3 (poke floor and no-score realAttempt are the other two, in
+                    // ResolveTechnique) — whichever one actually happened is what the
+                    // §4.4 gate reads now, not "did this specific attacker declare 흔들기
+                    // last exchange" (the old [초안] mechanic _setupActive tracked).
+                    Balance.Drain(Opp(who), _cfg.BalanceDrainSetup);
+                    ev.Add(new BalanceChanged(Opp(who), Balance.Get(Opp(who))));
                     break;
 
                 case HandTarget.Tear:
@@ -396,6 +434,29 @@ namespace CounterTime.Core
             if (script.Technique.Cost == ActionCost.Poke)
             {
                 Stamina.PayAttack(attacker, script.Technique, Grip.EffectiveGrip(attacker));
+                // §S/§D.4 — a 견제 발기술's floor (v1 has no promotion roll yet, §H step 5
+                // territory, so every poke lands at exactly its floor): drop the
+                // DEFENDER's Balance. Drain point 2 of 3 (흔들기 and no-score realAttempt
+                // are the other two). This is what closes the "포크가 이벤트 0" gap flagged
+                // in the §H 2b follow-up (STATUS 2026-08-12, item 3) — a poke now does
+                // something beyond costing the poker stamina.
+                //
+                // Gated on BalanceGate like everything else in this system (§4.4's own
+                // gate, the drain/recover points below) — off must mean fully inert, the
+                // same "off reproduces v1 대조 모드 exactly" contract the old
+                // SetupGateEnabled flag had. This matters concretely: the 42-node script
+                // path's fingerprint subscribes to EVERY emitted MatchEvent and falls
+                // through to the type name for anything it doesn't recognize
+                // (tools/dotnet-harness/Program.cs Describe()'s default case) — an
+                // unguarded BalanceChanged here would show up as new fingerprint lines
+                // the moment the script throws a poke (it does, m14), even though
+                // BalanceGate defaults off. Found by tracing this before running the
+                // harness, not by a broken CHECK.
+                if (_cfg.BalanceGate)
+                {
+                    Balance.Drain(defender, _cfg.BalanceDrainFeintFootsweep);
+                    ev.Add(new BalanceChanged(defender, Balance.Get(defender)));
+                }
                 return;
             }
 
@@ -430,15 +491,43 @@ namespace CounterTime.Core
             // downgrade immediately below.
             TechniqueClass techClass = script.Technique.AuthoredClass
                 ?? TechniqueRegistry.ClassFromMastery(_masteryStore.LevelOf(attacker, script.Technique.Id), _cfg);
-            // §4.4 [초안] — a BigThrow thrown without an active 흔들기(setup) enters the
-            // formula as Sloppy. JudgementCalculator itself is untouched; the downgrade
-            // is a context decision made here, same boundary as everything else that
-            // feeds JudgementContext.
-            if (_cfg.SetupGateEnabled && script.Technique.Cost == ActionCost.BigThrow
-                && !script.Technique.SurpriseExempt && !_setupActive[(int)attacker])
+            // §4.4/§S (v4.1) — a BigThrow thrown while the DEFENDER's Balance is still
+            // at or above the onset threshold enters the formula as Sloppy: the attacker
+            // never softened them up first. JudgementCalculator itself is untouched; the
+            // downgrade is a context decision made here, same boundary as everything
+            // else that feeds JudgementContext.
+            //
+            // Generalized (§H step 3) from the old [초안] "this attacker declared 흔들기
+            // last exchange" flag (_setupActive) to "is the defender's Balance still
+            // high" — any of the three Balance-draining threats (흔들기 · a landed 견제
+            // 발기술 · a genuine no-score attempt, all below) can open the gate now, not
+            // just 흔들기, and whoever caused the drain doesn't matter, only the
+            // defender's current number does. _setupActive is UNCHANGED and still
+            // computed (still gates whether declaring 흔들기 itself does anything, still
+            // feeds SetupDeclared/IsSetupActive for the HUD) — it is simply no longer
+            // what this specific check reads. Keeping it was a judgment call, not a rule:
+            // deleting it would force removing the SetupDeclared event and
+            // IsSetupActive() too, which Game code (LiveMatchPanel's status line) still
+            // reads, and this step is Core-only ("화면 아님").
+            if (_cfg.BalanceGate && script.Technique.Cost == ActionCost.BigThrow
+                && !script.Technique.SurpriseExempt && Balance.Get(defender) >= _cfg.BalanceOnsetThreshold)
                 techClass = TechniqueClass.Sloppy;
             var ctx = new JudgementContext(grip, read, defenderStamina, techClass, defensive);
             var result = JudgementCalculator.Evaluate(attacker, ctx, _cfg);
+
+            // §S drain point 3 of 3 — "any genuine attempt (realAttempt) that fires
+            // judgment but scores no point still drains the opponent's Balance — a real
+            // threat that did not convert to a score." A BigThrow always fires judgment
+            // (unlike a poke, handled above), so this is just "did nobody score" —
+            // covers both a plain unscored attempt AND a counter attempt that fizzled to
+            // None (|sum|≤1, "nobody scores and nobody pays") equally: either way the
+            // attacker made a real attempt and the defender wasn't thrown, which is the
+            // condition §S names, regardless of which side's technique it nominally was.
+            if (_cfg.BalanceGate && result.Judgement == Judgement.None)
+            {
+                Balance.Drain(defender, _cfg.BalanceDrainThreatNoScore);
+                ev.Add(new BalanceChanged(defender, Balance.Get(defender)));
+            }
 
             // §9.1 (v3.6) — same pre-payment snapshot §4 just used above, just
             // re-pointed at whichever fighter Opp(scorer) turns out to be (that's
@@ -447,11 +536,21 @@ namespace CounterTime.Core
             _scorerOpponentStaminaPrePayment = result.ScoredBy == attacker ? defenderStamina : attackerStamina;
 
             // 4. stamina — attacker pays for the commit …
+            var defenseQuality = StaminaSystem.DefenseQualityFor(read);
             Stamina.PayAttack(attacker, script.Technique, grip);
-            Stamina.PayDefense(defender, StaminaSystem.DefenseQualityFor(read));
+            Stamina.PayDefense(defender, defenseQuality);
             // … and the COUNTERING fighter pays the flat counter cost only once the
             // judgment is confirmed. The countered attacker gets no refund (§4).
             if (result.IsCounter) Stamina.PayCounter(result.ScoredBy);
+
+            // §S — "+⚙ on a successful defense." Clean is §5.2's own definition of a
+            // successful defense ("won the read") — the same DefenseQuality that just
+            // decided the defender's stamina cost, reused rather than re-derived.
+            if (_cfg.BalanceGate && defenseQuality == DefenseQuality.Clean)
+            {
+                Balance.RecoverDefenseSuccess(defender);
+                ev.Add(new BalanceChanged(defender, Balance.Get(defender)));
+            }
 
             int stamTerm = defenderStamina < _cfg.StaminaBonusExhaustedThreshold ? 3
                          : defenderStamina < _cfg.StaminaBonusTiredThreshold ? 2 : 0;
@@ -519,6 +618,18 @@ namespace CounterTime.Core
             Grip.OnMatte();
             Stamina.RecoverMatte(FighterId.A);
             Stamina.RecoverMatte(FighterId.B);
+            // §S drain point recovery — partial only (RecoverMattePartial), never a full
+            // reset. ResetBetweenMatches is the only full reset, and nothing calls it
+            // here — matte is a mid-match event. Gated on BalanceGate (see the poke
+            // branch above for why this matters for the 42-node fingerprint — CallMatte
+            // fires on the mainline script constantly, e.g. every score).
+            if (_cfg.BalanceGate)
+            {
+                Balance.RecoverMattePartial(FighterId.A);
+                Balance.RecoverMattePartial(FighterId.B);
+                ev.Add(new BalanceChanged(FighterId.A, Balance.Get(FighterId.A)));
+                ev.Add(new BalanceChanged(FighterId.B, Balance.Get(FighterId.B)));
+            }
             ev.Add(new MatteCalled());
         }
 
