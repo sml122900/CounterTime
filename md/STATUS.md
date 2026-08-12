@@ -3,11 +3,15 @@ STATUS
 Update this file every time a session resets. This is the ONLY copy — the root CLAUDE.md pulls it in with `@md/STATUS.md`, so it loads automatically at session start. Do not create a second copy anywhere. Check "Current State" and "Next Up" before starting work.
 
 Current State (last updated: 2026-08-12)
-**MATCH_RULES.md 는 v4.0** (구 v3.8). §S 스탠스(제3 자원) 신설, §4.4 흔들기가
-[초안]에서 스탠스 기반 확정판으로, §A~§G(입력 모델·기술 로스터·인지와 적응·
-예측 되치기·판정 승격·숙련도·이월 목록) 신설 — 서기 국면 대형 개정. 판단
-대기 2건(스탠스 이름 충돌 / TechniqueClass·흔들기 강등 우선순위)은 §8 과
-Next Up 에 등재돼 있다 — 3단계(스탠스 축 구현) 착수 전 사람 결정 필요.
+**MATCH_RULES.md 는 v4.1** (구 v3.8→v4.0→v4.1). §S 밸런스(제3 자원, 구 명칭
+"스탠스" — v4.1에서 개명, `CoreStance` enum 과의 충돌 회피) 신설, §4.4 흔들기가
+[초안]에서 밸런스 기반 확정판으로, §A~§G(입력 모델·기술 로스터·인지와 적응·
+예측 되치기·판정 승격·숙련도·이월 목록) 신설 — 서기 국면 대형 개정. v4.0 반영
+시 남았던 판단 대기 2건(자원 명칭 충돌 / TechniqueClass·흔들기 강등 우선순위)은
+**v4.1에서 해소 완료** — 밸런스는 그쳐/굳히기 탈출 시 부분 회복만(완전 리셋은
+경기 사이에만), 우선순위는 숙련도 결정 → 밸런스 게이트 최종 강등(게이트가
+이긴다). §8/§S/§4.4/§F 참조. 3단계(밸런스 축 구현) 착수 전 더 이상 사람 결정
+대기 없음.
 **§H 구현 0~1단계 완료** (다음 항목): `GripSystem.CanUseConversion` 반대 손
 버그 수정, 손 축 2단 선택 UI(손→타겟). 하니스 212/212, 지문 IDENTICAL, 7해상도
 0/0, Play 실클릭 전체 흐름 확인. 2~8단계는 아직 착수 전 — Next Up 참조.
@@ -204,10 +208,13 @@ NullReferenceException 을 냈다(코드 버그 아님 — Play 모드가 바뀐
 프로젝트 코드가 아니라 Unity AI Assistant 패키지 자체의 네트워크 폴링
 스레드 문제. 여러 클릭을 한 RunCommand 안에 묶어 왕복 횟수를 줄이는 방식으로
 우회해 끝까지 검증을 마쳤다.
-**다음 우선순위 — §H 2~8단계** (판단 대기 2건은 여전히 열려 있음, 3단계
-착수 전 결정 필요 — 아래 "가장 최근 (그 앞)" 블록 참조):
+**다음 우선순위 — §H 2~8단계** (판단 대기 2건은 2026-08-12 문서 세션에서 해소됨 —
+자원명 밸런스/Balance 확정 + §F↔§4.4 게이트 우선순위 확정, 아래 "해결됨 (2026-08-12)
+— v4.0 판단 대기 2건" 블록 및 MATCH_RULES §S/§4.4/§8 참조. 3단계 착수 전 더 이상
+사람 결정 대기 없음):
 2. 기술 레지스트리 + 기술 탭 + 공격자 통일(§A.2–A.3, §B)
-3. 스탠스 축(§S) + 흔들기 게이트 재배선(§4.4) — 판단 대기 1·2번 선결 필요
+3. 밸런스 축(§S, 구 "스탠스" — 코드 식별자 `Balance`, `CoreStance` 와 충돌 회피
+   목적. `SetupGateEnabled`→`BalanceGate` 개명 포함) + 흔들기 게이트 재배선(§4.4)
 4. 판정 승격(§E)
 5. 인지 목록 + 예측 되치기(§D — n30~n37 재현 테스트, 시나리오 보드 확장 필요)
 6. B 기술 빈도 관측 + 적응(§C.2)
@@ -263,6 +270,11 @@ MATCH_RULES.md 에는 정정된 이름(`SetupGateEnabled`→`StanceGate`)으로 
 위 판단 대기 2건은 0단계 착수 전 사람이 먼저 결정하거나, 최소한 3단계(스탠스
 축 구현) 전에는 결정이 필요하다(1번 항목이 3단계 구현 자체에 영향, 2번 항목은
 3+4단계 구현에 영향).
+**해소됨(2026-08-12, 같은 날 후속 문서 세션) — 아래 "해결됨 (2026-08-12) — v4.0
+판단 대기 2건" 블록 참조.** 자원명은 "스탠스"가 아니라 **밸런스/Balance**로
+확정(코드 식별자도 `Balance`, `CoreStance` 와 충돌 회피 목적), 3단계 구현 시
+`SetupGateEnabled`→`BalanceGate` 개명도 같이 한다. 우선순위는 숙련도 결정 →
+밸런스 게이트 최종 강등(게이트가 이긴다).
 
 **가장 최근 (그 앞) — 선택 UI를 방사형(휠) 메뉴로 전환 (위 드롭다운이 A 를 가리고 손
 목록이 화면 밖으로 잘린다는 Play 실측 신고 후속).** LoL 핑 휠/오버쿡드 감정표현/
@@ -520,6 +532,23 @@ Match length is still deliberately unresolved (see step 5 note above for the pos
 확정(해당 단계 완료로 일회성 지시서 폐기)해 커밋했다. `md/HANDOFF_session_2026-08-11.md` §0
 이 이 두 파일을 현존 문서로 전제하던 문장도 폐기 사실을 반영해 최소 수정.
 
+해결됨 (2026-08-12) — MATCH_RULES v4.0 §8 판단 대기 2건 (문서 전용 세션, 코드·테스트 무수정)
+사용자 확정 2건을 `md/MATCH_RULES.md` 에 반영, v4.0→v4.1. (1) **자원 명칭**: §S 자원을
+"Stance/스탠스"가 아니라 **밸런스/Balance**로 통일(HUD 표시명 포함) — §4.3/§9.4의 Core
+자세 선택 리셋은 **자세(Core)**로 구분 표기해 이름 충돌 해소. 코드 식별자도 `Balance`로
+잡는다 — 기존 `CoreStance` enum(Assets/_Project/Scripts/Core/Enums.cs)과의 충돌 회피가
+목적, 실제 코드 개명(`SetupGateEnabled`→`BalanceGate` 포함)은 §H 3단계에서. 그쳐/굳히기
+탈출 시 밸런스는 **부분 회복 ⚙**(체력 `MatteRecovery` 와 같은 방식) 만 받고, **완전
+리셋(100)은 경기 사이에만** — §S 에 명문화. (2) **게이트 우선순위**: §F 숙련도가
+`TechniqueClass` 를 먼저 정하고, §4 판정식 직전 최종 단계에서 §4.4 밸런스 게이트가
+검사되어 상대 밸런스가 온전 임계 이상이면 그 값을 다시 `Sloppy` 로 강등한다(게이트가
+이긴다) — 단 숙련의 연속 보정(`MasteryCostReduction`/`MasteryReadReduction`)은 강등과
+무관하게 항상 적용. §4.4 끝 및 §F 에 반영, §8 두 항목 모두 RESOLVED v4.1 로 마감.
+검증: `sh tools/stamp.sh md/MATCH_RULES.md` 로 해시 재계산(`dd48c35`) + `--check
+md/*.md` exit 0(3종), 하니스 `dotnet run -- --check` 212/212 그린 + 지문 IDENTICAL,
+`git status --short` 로 `md/MATCH_RULES.md` 외 무변경 확인(코드 세션이 아니라 Unity MCP
+컴파일 확인은 스킵 — CLAUDE.md 문서 전용 세션 원칙).
+
 결정 대기 (내가 판단 안 하고 남겨둔 취향 문제) — 선택지 버튼 높이가 111px → 82px 로 줄었다. 텍스트가 넘쳐서 TextPanel 을 키우느라 ChoiceRow 에서 떼어온 결과다. 라벨(26px)에는 충분하지만 버튼이 얇아 보이면 하단 패널을 1/3보다 키우거나 타이틀 34pt / 본문 24pt 를 줄이는 쪽으로 조정해야 한다
 카피 교체 목록 — `LiveMatchPanel` 의 "B 선행 — A 공격 불발" (동시 공격 시 표시, 2026-08-11 아침)은 v1 임시 시스템 문구다. `PlaceholderATechnique`("밭다리" 고정)와 같은 부류 — 진짜 카피/연출이 붙기 전까지 기계적 문구로 둔다. 2026-08-11 오후에 추가된 상태 HUD·교환 로그의 기계적 문구도 같은 부류다: "서기"/"굳히기 — {who} 누름 {n}초 (이탈 {a}/{b})", "변화 없음"(교환 로그 기본값), "{who} {부위} 확보"/"{who} 뜯기 — {결과}"/"{who} 쿠즈시 설치"/"{who} 카운터 준비 적중 — 상대 읽기 하락"(EventSummary 폴백 서술) — 전부 `LiveMatchPanel.EventSummary`/`FighterStatus` 에 있다.
 2026-08-11 오후(화면 재설계) 추가분, 전부 `LiveMatchPanel` — 경기 화면 자리: "경기 화면 — 연출 준비 전". 코치의 조언 5종(`RefreshCoachAdvice`): "굳히기 중 — 버티면 점수가 오르고, 빠져나가면 다시 선다" / "잡기 열세 — 손 싸움부터 다시 잡아라" / "상대 체력이 떨어졌다 — 밀어붙일 타이밍" / "상대가 흔들기를 걸었다 — 큰 기술을 조심해라" / "그립을 먼저 잡고 흐름을 만들어라"(기본값). 수 노트 습관 라벨 5종(`HabitLabel`): "업어치기 (그립 우세)" / "안뒤축감아치기 (지도 직후)" / "극단적 방어 (체력 열세)" / "오른소매 노림" / "왼소매 노림", 단계 문구 "심증 (N회)"/"확정 (N회)"/"폐기됨", 빈 상태 "아직 관측된 습관 없음". 내 성향 라벨: "경고선 — 최근 6수 중 4수 이상 같음" / "위험선 — 3연속 완전동일"
@@ -535,6 +564,46 @@ Why Assets/Editor/HubForceResolve.cs disappeared — nobody deleted it. It is Un
 Whether to keep the Unity Cloud link (cloudProjectId / organizationId in ProjectSettings.asset) — keep and commit. cloudEnabled is 0, it is a project GUID rather than a secret, ProjectSettings.asset is tracked anyway, and the editor rewrites it if removed.
 
 Session Log (newest first)
+2026-08-12 (문서 세션 — v4.0 §8 판단 대기 2건 확정 반영, v4.0→v4.1)
+사용자 지시: v4.0 반영 세션이 §8 에 남겨둔 판단 대기 2건을 사용자가 확정한 결정대로
+MATCH_RULES.md 에 반영(문서만, 코드 무수정).
+작업0 — 세션 시작 확인: `git status --short`(untracked `Assets/_Recovery/` 폴더 발견 —
+Unity 에디터 자동복구 스냅샷으로 추정, 이번 세션이 만든 게 아니고 작업 범위 밖이라
+손 안 댐, 아래 참조) + `git config core.hooksPath`=tools/githooks 확인 + 스탬프
+`sh tools/stamp.sh --check md/*.md` exit 0 확인.
+작업1 — 결정 1(자원 명칭): §S 헤더·본문·§2 표·§4.4·§6.3·§7·§A.4·§B·§D.4·§E.2 전체에서
+"Stance/스탠스" → **"Balance/밸런스"**로 통일(원문 인용구 `원문: "..."` 는 훼손하지 않고
+그대로 둠). §S 에 **명칭 (v4.1, 확정)** 문단 신설 — 코드 식별자도 `Balance`로 잡는
+이유(`CoreStance` enum 과의 충돌 회피, 실측: `Assets/_Project/Scripts/Core/Enums.cs:8`
+의 `public enum CoreStance { Aggressive, Neutral, Defensive }`)를 명문화, 실제 개명은
+§H 3단계로 위임. §4.3/§9.4의 "Core stance selection" 리셋 행은 **"자세(Core) 선택"**으로
+표기 변경해 §S 자원과 완전히 분리. **Recovers 문단 재작성**(판단 대기 #1 해소): 그쳐/
+굳히기 탈출 시 밸런스는 체력 `MatteRecovery`(§5.3, +3)와 같은 성격의 부분 회복 ⚙만
+받고, 완전 리셋(100)은 경기 사이에만 — 이걸 §4.3/§9.4 표·문단에도 각각 각주로 남겼다.
+작업2 — 결정 2(게이트 우선순위): §4.4 강등 게이트 불릿 뒤에 **"§F 숙련도와의 적용
+순서 (v4.1, 확정)"** 불릿 신설 — 숙련도가 `TechniqueClass` 를 먼저 정하고, §4 판정식
+직전 최종 단계에서 밸런스 게이트가 검사돼 상대 밸런스가 온전 임계 이상이면 그 값을
+다시 `Sloppy`로 강등(게이트가 이긴다). 숙련의 연속 보정(`MasteryCostReduction`/
+`MasteryReadReduction`)은 강등과 무관하게 항상 적용된다는 단서도 명기. §F "Judgment
+reflection" 불릿에 §4.4 참조 한 줄 추가(중복 서술 대신 교차 참조).
+작업3 — §8 두 판단 대기 항목을 RESOLVED v4.1 로 재작성(결정 내용 요약 포함), STATUS.md
+Next Up 최상단·§H 구현 순서 히스토리 블록·Current State 를 전부 갱신. 새 "해결됨
+(2026-08-12) — MATCH_RULES v4.0 §8 판단 대기 2건" 블록을 기존 HANDOFF 해결 블록
+바로 아래에 추가(같은 패턴).
+검증: 버전 태그 v4.0→v4.1 로 수동 변경 후 `sh tools/stamp.sh md/MATCH_RULES.md` 로
+해시 재계산(`dd48c35`), `--check md/*.md` exit 0(3종) 재확인. `tools/dotnet-harness`
+`dotnet run -- --check` **212/212 그린 + 지문 IDENTICAL**(문서만 바꿨으므로 당연한
+결과 — 재확인 목적). `git status --short` 로 `md/MATCH_RULES.md` 외 추적 대상 파일이
+안 바뀌었음을 확인(`Assets/_Recovery/` 는 이 세션 이전부터 있던 untracked 상태, 아래
+참조). Unity MCP 는 문서 전용 세션이라 컴파일 확인 스킵(CLAUDE.md "MCP 끊기면 파일
+편집만" 및 문서 세션 선례 그대로).
+**세션 중 발견해 보고만 하고 손 안 댄 것 — `Assets/_Recovery/` untracked 폴더.**
+`0.unity`/`0 (1).unity`/`0 (2).unity`/`0 (3).unity`(+ 각 .meta), 전부 2026-08-12
+13:17~15:28 사이 생성. 이름·타임스탬프 패턴이 Unity 에디터 크래시/비정상 종료 시
+자동 저장하는 복구 씬과 일치하는 것으로 보이나, 이번 세션은 문서만 다루고 Unity
+에디터를 실행하지 않아 직접 확인은 못 했다 — 사람이 Unity 를 열어 실제 원인(크래시
+여부)과 내용 확인 필요, 이 폴더가 필요 없으면 삭제도 사람 판단.
+커밋·푸시는 사용자 확인 후 진행.
 2026-08-12 (§H 구현 세션 — 0~1단계: CanUseConversion 버그 수정 + 손 분리 UI)
 작업0 — 세션 시작 확인: 문서 통독(이전 세션에서 이미 전체 통독한 문맥 유지) +
 `git status`/`core.hooksPath` 확인 + 스탬프 3종 exit 0 + 하니스 209/209 그린+

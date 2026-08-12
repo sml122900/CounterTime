@@ -1,5 +1,5 @@
-<!-- v4.0 | body:b3957a9 -->
-# MATCH_RULES.md — COUNTER TIME judo match system (v4.0)
+<!-- v4.1 | body:dd48c35 -->
+# MATCH_RULES.md — COUNTER TIME judo match system (v4.1)
 
 Single source of truth for match logic. `CounterTime.Core` implements THIS file;
 if code and this file disagree, this file wins. All numbers are v1 tunables unless
@@ -43,7 +43,7 @@ commit by both fighters. Per-turn choice =
 | Hand — unlocked conversions | 틀어잡기(back-collar twist), 등싸잡기 | Only available while the OTHER hand already holds a sleeve/lapel. |
 | Hand — 뜯기(tear) | resolves per §3.2's simultaneous mind-game | Gate: opponent holds at least one of your hands (`GripLock != Free`). |
 | Hand — 잡기 유지(maintain grip) | the defending side of §3.2's tear contest | Gate: you hold at least one grip (`HasAnyGrip`). |
-| Hand — 흔들기 (확정, v4.0 — §4.4) | 상대 스탠스(§S)를 깎아 다음 교환의 큰기술에 정당성을 준다 | `StanceGate` 플래그 뒤(구 `SetupGateEnabled` — 2026-08-11 오후 세션에서 `Kuzushi*`→`Setup*`로 이미 개명됐던 그 플래그. 구현 시 기본 **on**으로 승격 예정 — 이 문서 갱신 시점의 실제 코드는 여전히 off). 자기 그립이 하나라도 있어야 선언 가능. 판정 미발화(견제 발기술과 동급), 별도 상성표 rung 없음. |
+| Hand — 흔들기 (확정, v4.0 — §4.4) | 상대 밸런스(§S)를 깎아 다음 교환의 큰기술에 정당성을 준다 | `BalanceGate` 플래그 뒤(구 `SetupGateEnabled` — 2026-08-11 오후 세션에서 `Kuzushi*`→`Setup*`로 이미 개명됐던 그 플래그. `SetupGateEnabled`→`BalanceGate` 개명은 §H 3단계에서, §S 참조. 구현 시 기본 **on**으로 승격 예정 — 이 문서 갱신 시점의 실제 코드는 여전히 옛 이름·off). 자기 그립이 하나라도 있어야 선언 가능. 판정 미발화(견제 발기술과 동급), 별도 상성표 rung 없음. |
 | Core | 공격적 / 중립 / 수비적 | |
 | Legs (발기술) | 공격(= **technique selection**, confirmed v4.0 — §A.2/§B) / 중립 / 수비 / 카운터 준비(+ §D.1 예측 입력) | Legs act even while gripping. A technique-declare turn carries no Core/Hand input that turn and is treated as Aggressive posture (§A.2). |
 
@@ -103,35 +103,46 @@ Perspective flips sign for B.
 - Training can unlock special tear moves (higher tear success vs `잡기 유지`);
   hook exists, values TBD.
 
-## S. Stance (스탠스) — third resource axis (v4.0)
+## S. Balance (밸런스) — third resource axis (v4.0)
 
 A third fighter resource alongside grip (§3) and stamina (§5): **balance / center
 stability**. Range ⚙ (proposed 0–100, 100 = untouched). The axis itself is confirmed;
 the range and every rate below is a v1 tunable (`MatchRulesConfig` candidate), not a
 fixed number — marked ⚙ throughout.
 
+**명칭 (v4.1, 확정).** 최초 개정본은 이 자원을 "Stance / 스탠스"라 불렀으나, §4.3/§9.4에
+이미 있던 Core 축의 공격적/중립/수비적 *선택*(코드상 `CoreStance` enum)과 이름이 겹쳐
+혼동을 낳았다. v4.1부터 문서 전체에서 이 자원은 **밸런스 / Balance**로, Core의 그 선택은
+**자세(Core)**로 구분해 부른다 (§4.3/§9.4 참조). 코드 식별자도 `Stance`가 아니라
+**`Balance`**로 잡는다 — 기존 `CoreStance` enum과의 충돌을 피하는 게 목적이다. 실제 코드
+개명(`SetupGateEnabled`→`BalanceGate` 포함)은 §H 3단계(밸런스 축 구현)에서 이뤄진다 —
+이 문서 갱신 시점의 코드는 여전히 옛 이름 그대로다.
+
 **Drains on:**
-1. Landing a 흔들기 (§4.4) — draining the opponent's stance is 흔들기's entire job.
+1. Landing a 흔들기 (§4.4) — draining the opponent's balance is 흔들기's entire job.
 2. A 견제성 발기술 (poke-kick) that lands (§D.4's floor case).
 3. Any genuine attempt (realAttempt) that fires judgment but scores no point still
-   drains the opponent's stance by ⚙ — a real threat that did not convert to a score.
+   drains the opponent's balance by ⚙ — a real threat that did not convert to a score.
    (원문: "포인트는 못 냈지만 위협이 된 공격" — 판정이 발화한 진짜 시도가 무득점으로
-   끝나도 상대 스탠스를 깎는다.)
+   끝나도 상대 밸런스를 깎는다.)
 
-**Recovers:** +⚙ on a successful defense. On 그쳐 / any exchange-terminating event,
-recovery is a separate tunable amount ⚙, independent of the stamina recovery track
-(§5.3).
+**Recovers (v4.1, 확정 — §8 판단 대기 #1 해소).** +⚙ on a successful defense. **그쳐
+(matte, §4.3) / 굳히기 탈출(§9.4)에서는 체력과 같은 방식으로 부분 회복만 한다** — 체력의
+`MatteRecovery`(§5.3, +3)와 같은 성격의 별도 튜너블 ⚙이며, 스태미나 회복 트랙과는 독립이다.
+**완전 리셋(100)은 경기와 경기 사이에만 일어난다.** §4.3/§9.4의 "자세(Core) 리셋" 행은
+Core 축 선택을 Neutral로 완전히 되돌리지만, 그 옆에서 밸런스는 이 절의 부분 회복 ⚙만 받을
+뿐 값 자체가 100으로 리셋되지는 않는다 — 두 리셋은 별개의 트랙이다.
 
-**Principle — the §4 judgment formula is not touched.** Stance reaches judgment
+**Principle — the §4 judgment formula is not touched.** Balance reaches judgment
 through exactly three paths, never as a new term of its own: the big-throw gate
 (§4.4, via `TechniqueClass`), the feint criterion (§A.4), and the 견제성 발기술
 special case's floor/promotion scaling (§D.4). §4's sum, brackets, and `terms[]`
 are unchanged by this section.
 
-Stance changes are themselves deterministic — no dice roll (§E.2).
+Balance changes are themselves deterministic — no dice roll (§E.2).
 
 **HUD:** shown exactly, on the same tier as grip (§7). Unlike a tell (예비동작),
-stance is a confirmed number and is not information withheld from the player.
+balance is a confirmed number and is not information withheld from the player.
 
 ## 4. Judgment formula (판정식)
 
@@ -239,7 +250,7 @@ the osaekomi entry gate (§9.1) sends it to the ground instead.
 | | On a scoring matte |
 |---|---|
 | Grips | all reset to **Free** |
-| Core stance selection | both fighters reset to Neutral (this row predates §S — it is the Core Aggressive/Neutral/Defensive *choice*, not the §S numeric Stance resource; whether §S's Stance value also fully resets here is undecided, see §8) |
+| 자세(Core) 선택 | both fighters reset to Neutral — the Core Aggressive/Neutral/Defensive *choice* (renamed from "Core stance selection" in v4.1 to stop colliding with §S's Balance resource, see §S). §S 밸런스는 이 행과 별도로 §S의 부분 회복 ⚙만 받는다 — Neutral 리셋과 달리 100으로 완전히 되돌지 않는다 (RESOLVED v4.1, §8) |
 | Stamina | §5.3 unchanged — **+3 each**, once per matte |
 | Clock | stops (§1) |
 | Passivity accumulators | untouched |
@@ -268,26 +279,35 @@ It settles four things at once:
 4. **Presentation.** 대파열 already resolves into a pause (§8); matte is the
    landing that beat was written for.
 
-### 4.4 흔들기 — 확정 (v4.0, §S 스탠스 기반. 구 [초안] 대체)
+### 4.4 흔들기 — 확정 (v4.0, §S 밸런스 기반. 구 [초안] 대체)
 
-`StanceGate` 플래그 뒤(구 `SetupGateEnabled` — 2026-08-11 오후 `Kuzushi*`→`Setup*` 개명을
-거친 바로 그 플래그). 구현 시 기본 **on**으로 승격 예정 — 이 문서 갱신 시점의 실제 코드는
-여전히 그 이름으로 기본 **off** 다. 플래그가 꺼져 있으면 아래 규칙은 전부 적용되지 않고, v1
-대조 모드는 이 절 이전과 동일하게 동작한다.
+`BalanceGate` 플래그 뒤(구 `SetupGateEnabled` — 2026-08-11 오후 `Kuzushi*`→`Setup*` 개명을
+거친 바로 그 플래그; `SetupGateEnabled`→`BalanceGate` 개명은 §H 3단계에서, §S 참조). 구현 시
+기본 **on**으로 승격 예정 — 이 문서 갱신 시점의 실제 코드는 여전히 그 이름으로 기본 **off**
+다. 플래그가 꺼져 있으면 아래 규칙은 전부 적용되지 않고, v1 대조 모드는 이 절 이전과 동일하게
+동작한다.
 
 - **선언 게이트.** 흔들기는 §2의 손 슬롯을 쓴다. 자기 그립이 하나라도 있어야
   (`GripKind != None`) 선언할 수 있다 — 잡은 것도 없이 무너뜨릴 수는 없다.
 - **비용.** `SetupCost` ⚙(제안 1) — 견제 발기술과 같은 급의 가벼운 소모다.
-- **효과 — 스탠스를 깎는다.** 흔들기는 **상대 스탠스(§S)를 깎는 전용 행동**이다. 그 자체로는
+- **효과 — 밸런스를 깎는다.** 흔들기는 **상대 밸런스(§S)를 깎는 전용 행동**이다. 그 자체로는
   판정을 내지 않는다(포인트가 나지 않는다, 견제 발기술과 동급) — §6.1 소극 사다리에도 별도
   rung 을 두지 않는다(0).
-- **강등 게이트 — 일반화.** 구 초안의 "흔들기 없이 큰기술 = Sloppy 강등"을 **"상대 스탠스가
+- **강등 게이트 — 일반화.** 구 초안의 "흔들기 없이 큰기술 = Sloppy 강등"을 **"상대 밸런스가
   온전 임계 ⚙(제안 70) 이상일 때 큰기술 = Sloppy 강등"**으로 일반화한다. 즉 게이트를 여는
-  방법이 흔들기 하나가 아니라 **스탠스를 깎는 모든 선행 위협**(흔들기 · 견제 발기술 적중 ·
-  무득점 진짜 시도, 전부 §S)이 된다 — 공격자가 상대 스탠스를 온전 임계 밑으로 깎아두지 않은
+  방법이 흔들기 하나가 아니라 **밸런스를 깎는 모든 선행 위협**(흔들기 · 견제 발기술 적중 ·
+  무득점 진짜 시도, 전부 §S)이 된다 — 공격자가 상대 밸런스를 온전 임계 밑으로 깎아두지 않은
   채 큰기술(투기술, `ActionCost.BigThrow`)을 내면 그 기술의 기술급(`TechniqueClass`)이 §4
   판정식에는 `Sloppy`로 들어간다. (원문: "위장의 기준은 기술로 상대방의 중심이 흐트러졌는가"의
   역방향 적용.)
+- **§F 숙련도와의 적용 순서 (v4.1, 확정 — §8 판단 대기 #2 해소).** 이 게이트와 §F 숙련도의
+  `TechniqueClass` 결정은 같은 교환·같은 큰기술에 동시에 걸릴 수 있다. 순서는 **숙련도가
+  먼저 `TechniqueClass`(Sloppy/Standard/Signature)를 정하고, §4 판정식에 들어가기 직전
+  최종 단계에서 이 밸런스 게이트가 검사된다** — 상대 밸런스가 온전 임계 이상이면 §F가 무엇을
+  정했든 그 값을 다시 `Sloppy`로 강등한다(게이트가 이긴다). 단, 숙련의 **연속 보정**
+  (`MasteryCostReduction`/`MasteryReadReduction`, §5.4/§F)은 이 강등과 무관하게 항상 그대로
+  적용된다 — 강등당해도 숙련자는 여전히 싸게 던지고 덜 읽힌다. 강등이 깎는 것은 §4 판정식에
+  들어가는 `TechniqueClass` 값 하나뿐이다.
 - **변칙기 면제.** `TechniqueSpec.SurpriseExempt = true` 인 기술(예: 말아업어치기 — 정석
   업어치기와 초동이 같아 상대가 미리 대비할 수 없는 게 이 기술의 존재 이유다)은 이 강등을
   받지 않는다.
@@ -295,7 +315,7 @@ It settles four things at once:
   양쪽 다 소멸한다 — 국면이 리셋되는데 무너뜨린 상태만 남는 것은 앞뒤가 안 맞는다.
 - **판정식 자체는 바뀌지 않는다.** §4 공식은 그대로다 — 강등은 판정식에 들어가는 기술급
   값을 만드는 컨텍스트 단계(엔진)의 일이지, 공식 자체의 새 항이 아니다.
-- **B 브레인.** "큰기술 전 흔들기 선행" 데코레이터(`SetupPrecedingCommitSource`)는 "스탠스
+- **B 브레인.** "큰기술 전 흔들기 선행" 데코레이터(`SetupPrecedingCommitSource`)는 "밸런스
   깎기 선행"으로 일반화한다. 페이크 흔들기(설치만 하고 안 던지는 기만)는 여전히 후속 설계
   (§G 5항).
 
@@ -390,7 +410,7 @@ escape. This is the intended (only) way out of a Locked grip: risk a shido to
 force matte.
 
 **v4.0 addendum (§A.4, confirmed).** A technique thrown at own grip ≤ −1 AND
-opponent Stance (§S) ≥ the full-Stance threshold adds +⚙ to this same suspicion
+opponent Balance (§S) ≥ the full-Balance threshold adds +⚙ to this same suspicion
 accumulator — it does not add a second detection roll.
 
 ### 6.4 Player-facing tells (numbers stay hidden)
@@ -411,7 +431,7 @@ At 90 %: referee steps closer + crowd murmur SE. Coach panel drops hints
 | Opponent surprise tech | hidden until first use |
 | Own tendency exposure (내 성향) | **exact** — the bar the opponent reads is public (§4) |
 | Opponent's scouting level | pre-match notice, never a live number |
-| Own & opponent Stance (§S, v4.0) | **exact** — confirmed a HUD number, same tier as grip; unlike a tell, not withheld |
+| Own & opponent Balance (§S, v4.0) | **exact** — confirmed a HUD number, same tier as grip; unlike a tell, not withheld |
 
 **Grip HUD is a hard requirement, not a presentation preference.** Measured on
 `spike/lowres-render`: a hand is 5.8 px wide at 320×180, so the player can see *that*
@@ -437,16 +457,25 @@ it implicit in the animation.
 - Golden-score fatigue floor (v1: none — both <25 stamina makes any yuko end it).
 - **v4.0 revision (§S, §4.4, §A–§F below) is confirmed** — no [결정 대기] left in the
   source revision doc (`MATCH_RULES_revision-v4-final.md`). Two interaction
-  questions surfaced while merging it into this file and are genuinely open (not
-  decided here, not decided by the revision doc either):
-  1. §4.3/§9.4's pre-existing "Stance reset" row is the Core stance *selection*
-     resetting to Neutral, not the new §S numeric Stance resource — the two now
-     share a name. Whether §S Stance also fully resets (to 100) on matte/escape, or
-     only follows its own §S recovery amount (⚙), is undecided.
-  2. §F's mastery-driven `TechniqueClass` and §4.4's stance-gate downgrade-to-Sloppy
-     can both apply to the same big throw in the same exchange. Which wins (does
-     the gate override a mastery-earned Signature/Standard down to Sloppy, or does
-     mastery apply after the gate) is not specified by either document.
+  questions surfaced while merging it into this file; both were **RESOLVED v4.1**
+  (2026-08-12, user decision, documentation-only session — code and tests untouched):
+  1. **자원 명칭 충돌.** §4.3/§9.4's pre-existing "Stance reset" row was the Core
+     stance *selection* resetting to Neutral, not the new §S numeric resource — the
+     two shared a name. Resolved by renaming: §S's resource is now **밸런스/Balance**
+     (not Stance), and the Core selection is now **자세(Core)** (§S, §4.3, §9.4).
+     Code identifier follows suit — `Balance`, not `Stance`, to avoid colliding with
+     the existing `CoreStance` enum; the actual rename happens in §H step 3. And:
+     **§S Balance does NOT fully reset (to 100) on matte/escape** — it only receives
+     its own partial recovery amount (⚙), the same shape as stamina's `MatteRecovery`
+     (§5.3). A full reset to 100 happens only between matches.
+  2. **§F ↔ §4.4 gate priority.** §F's mastery-driven `TechniqueClass` and §4.4's
+     balance-gate downgrade-to-Sloppy can both apply to the same big throw in the
+     same exchange. Resolved: mastery decides `TechniqueClass` first; the balance
+     gate is checked last, immediately before the value enters §4's formula, and
+     wins — a gate-triggered downgrade to Sloppy overrides a mastery-earned
+     Signature/Standard. Mastery's continuous corrections
+     (`MasteryCostReduction`/`MasteryReadReduction`) are unaffected by the downgrade
+     and always apply. Full text: §4.4's closing bullet.
 - Carried-over scope for a later round: §G below.
 
 ## 9. Osaekomi — entry & escape (굳히기)
@@ -514,11 +543,12 @@ Simultaneous 2-choice commit, same shape as a standing exchange:
 ### 9.4 On escape
 
 Standing restart **without matte**: the clock does not stop and no matte recovery
-(§5.3) is granted. All grips reset to **Free** and both fighters' Core stance
+(§5.3) is granted. All grips reset to **Free** and both fighters' 자세(Core)
 selections reset to Neutral — a fighter who went to the mat cannot carry a grip
-back up. (As in §4.3, this is the Core selection, not the §S numeric Stance
-resource — whether §S Stance also resets here is undecided, see §8.) Passivity
-accumulators are untouched.
+back up. (As in §4.3, this is the Core selection, renamed from "Core stance
+selection" in v4.1 to stop colliding with §S's Balance resource — see §S. §S
+밸런스는 여기서도 부분 회복 ⚙만 받는다 — RESOLVED v4.1, §8.) Passivity accumulators
+are untouched.
 
 ---
 
@@ -563,9 +593,9 @@ keeps its existing tag-based determination, preserving the fingerprint.
 
 ### A.4 Feint (위장 공격) — confirmed criterion: "위장의 기준은 기술로 상대방의
 중심이 흐트러졌는가" ("does the technique disturb the opponent's center?")
-- **"불리" (disadvantaged) defined as: own grip ≤ −1 ⚙ AND opponent Stance (§S) ≥
-  the full-Stance threshold** — a technique thrown on a sloppy grip with no
-  preceding threat (no Stance drop) to back it.
+- **"불리" (disadvantaged) defined as: own grip ≤ −1 ⚙ AND opponent Balance (§S) ≥
+  the full-Balance threshold** — a technique thrown on a sloppy grip with no
+  preceding threat (no Balance drop) to back it.
 - Effect: the referee's feint-suspicion accumulator gains +⚙ (proposed +2). Adds
   to the existing realAttempt / FeintWindow machinery (§6.3) — not a new detection
   roll.
@@ -599,7 +629,7 @@ Two classification systems, kept separate:
 - Confirmed character of 견제성 발기술 (원문): "상황에 따라 100% 견제용(포인트가 날
   확률이 0에 수렴)이거나, 조건이 합쳐지면 유효에서 한판까지" — a family with a deep
   split between floor and ceiling. Stacking conditions = grip advantage · low
-  opponent Stance · opponent misreads (오독) · high mastery.
+  opponent Balance · opponent misreads (오독) · high mastery.
 - Whether B is given any 견제성 발기술 is the opponent-definition's (`OpponentAsset`)
   call — this rule defines only the technique family.
 - Implementation ask, delegated to `CORE_DESIGN_MatchEngine.md`: `TechniqueSpec`
@@ -654,13 +684,13 @@ technique held at FullRead (fully hidden) only drops it to Neutral (0) —
 rarity of a counter both fall out of the ladder's existing shape, no extra rule
 needed.
 
-### D.4 견제성 발기술 special case (confirmed — unified with Stance)
+### D.4 견제성 발기술 special case (confirmed — unified with Balance)
 Applies only to the four 견제성 발기술 (§B). 큰 기술 (밭다리 etc.) are exempt.
-- **Default (imperfect grip)**: floor = **drop the opponent's Stance** ⚙ (no point
+- **Default (imperfect grip)**: floor = **drop the opponent's Balance** ⚙ (no point
   — 원문: "보통은 상대 자세가 흐트러져서 잡기 싸움이 유리해지는 정도"), promotion
   tier 1 = Yuko ("가끔 유효"). Absent a counter use, poking defaults to this.
 - **Jackpot path**: the more stacking conditions (grip advantage · low opponent
-  Stance · opponent misread · high mastery) line up, the higher the floor and the
+  Balance · opponent misread · high mastery) line up, the higher the floor and the
   better the promotion odds ⚙: full grip advantage (+2) + 정독 = floor Yuko
   ("보통 유효") → half-chance promotion ("적은 확률") → chained promotion to Ippon
   ("희박한 확률" — "인생 하이라이트 매치기").
@@ -698,7 +728,7 @@ Applies only to the four 견제성 발기술 (§B). 큰 기술 (밭다리 etc.) 
    reinforce only if it proves insufficient.
 
 ### E.2 Where there is no dice roll (confirmed)
-Grip resolution · Stance changes (§S) · judgment floor — all deterministic.
+Grip resolution · Balance changes (§S) · judgment floor — all deterministic.
 Probability touches exactly three things: the promotion roll, referee detection,
 and habit firing.
 
@@ -715,7 +745,8 @@ panel can say "the judgment floor was yuko, and the referee saw it bigger."
 
 - **Judgment reflection**: per-technique mastery level decides `TechniqueClass` ⚙
   (levels 0–1 Sloppy / 2–3 Standard / 4–5 Signature). The §4 formula itself is
-  unchanged.
+  unchanged. **When §4.4's balance gate also applies to the same big throw, the
+  gate is checked last and wins** — see §4.4's closing bullet (RESOLVED v4.1, §8).
 - **Continuous reflection**: the level feeds straight into the existing
   `MasteryCostReduction` (stamina, §5.4) and `MasteryReadReduction` (how readable
   the technique is) hooks — a level-up that doesn't cross a class boundary still
