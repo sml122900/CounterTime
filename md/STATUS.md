@@ -146,7 +146,67 @@ Full detail, including the exact 현실적 A osaekomi-entry-shortfall breakdown 
   Unity Editor + MCP 브리지가 밤새 연결 유지(사람 없음) — 매 작업 후 AssetDatabase.Refresh() + GetConsoleLogs 로 0 에러/0 경고 재확인, RunCommand 안에서 짧은 이름(CompilationPipeline 등)이 Unity.AI.Assistant.* 네임스페이스와 충돌하는 기존 함정 재확인(전체 경로로 우회)
 
 Next Up (in priority order)
-**가장 최근 — CORE_DESIGN v4 + META_DESIGN 정본 편입 (문서 전용, 코드 무수정).**
+**가장 최근 — §H 2단계 완료: 기술 레지스트리 + 라이브 공격자 통일 (Core/Game
+배관, UI는 2b로 이월).** CORE_DESIGN v4.0 §2단계-A 근거. 세션 시작에 조사 지시
+세션이 이미 8개 판단 대기를 전부 종결(요지: 레지스트리는 라이브 경로 전용,
+스크립트 경로 무수정, OpponentAsset 무수정)했음을 확인하고 진행.
+**작업1 — 기술 레지스트리(Core 순수).** `TechniqueDef`(Id/DisplayName/Algo/
+Category/BaseCost/SurpriseExempt) 신설, `AlgoClass{FeintFootsweep,BigThrow}`·
+`JudoCategory{Hand,Foot,Hip,Sacrifice,Variant}` 를 `Enums.cs`에 추가(후자는
+교육 UI 전용 — 실측 근거 없는 최선 추정 분류, 경기 로직이 안 읽으니 엔진
+리스크 0). `TechniqueRegistry`(신규)가 §B 12기술(신규 8종 포함: 모두걸기·
+나오는발차기·발뒤축걸기·안오금띄기·어깨 매치기·업어치기·안뒤축감아치기·
+허리 감아치기 — 이전엔 4개만 코드에 존재) 을 하드코딩, `Get(id)` 조회 +
+`ClassFromMastery(level,cfg)`(0–1 Sloppy/2–3 Standard/4–5 Signature, 경계는
+`MatchRulesConfig.MasteryStandardLevel`/`MasterySignatureLevel` ⚙). `IMasteryStore`
+인터페이스(`LevelOf`/`Set`) + `ZeroMasteryStore`(항상 0 반환) stub 신설 —
+CORE_DESIGN 영구 저장 절과 같은 시그니처. `TechniqueSpec`에서 `MasteryLevel`
+필드 삭제, `Class`→`AuthoredClass`(nullable `TechniqueClass?`)로 개명: 스크립트/
+습관 경로는 여전히 리터럴을 실어 보내(암묵적 `TechniqueClass→TechniqueClass?`
+변환이라 15곳 넘는 기존 생성 호출부 전부 무수정 컴파일), 라이브 경로만 null 을
+남겨 `MatchEngine.ResolveTechnique`가 `AuthoredClass ?? ClassFromMastery(...)`
+로 파생한다(§4.4 밸런스 게이트 강등과 같은 자리 — "한 곳에서만 파생" 원칙,
+`IsDefensivePosture` 교훈과 같은 이유). `MatchEngine` 생성자에 `IMasteryStore
+masteryStore = null`(기본 `ZeroMasteryStore`) 추가 — 기존 17개 호출부 전부
+무수정. `StaminaSystem.PayAttack`도 `spec.MasteryLevel` 대신 명시적
+`int masteryLevel = 0` 인자로 바꿔(§5.4 비용 절감 공식은 그대로, 소비처만 이동)
+`StaminaSystemTests.Mastery_ReducesCost`를 고쳐 살렸다. SO 약속 주석 제거.
+**작업2 — 공격자 통일 + 하드코딩 제거(라이브 경로만).** `LiveMatchRunner`의
+`PlaceholderATechnique`("밭다리" 고정, `TechniqueClass.Standard`) 하드코딩을
+제거 — `SubmitA(TurnChoice a, string techniqueId = null)`로 시그니처 확장(기존
+유일 호출부 `LiveMatchPanel.cs:302`는 무수정 컴파일, 기본값 null). 공격자 판정을
+"기술을 명시적으로 지정한 커밋만 공격"으로 통일 — B 쪽은 이미 이 기준이었다
+(`LastTechnique != null`만 봄), A 쪽만 `Legs==공격`에 `techniqueId≠null`(레지스트리
+조회 성공까지) 조건을 더해 맞췄다. **기술 탭 UI(§H 2b)가 아직 없어 `LiveMatchPanel`
+은 이 인자를 아무도 채우지 않는다** — 그래서 이 커밋 이후 실전 Play 화면에서
+손 축=공격을 골라도 기술 미지정으로 공격 커밋이 안 열리는 게 지금의 실제
+동작이다(알고 있는 전환기적 공백, §H 2b 가 UI 를 붙이면 해소됨 — 데이터·엔진
+배선은 이미 끝나 있다). 스크립트 경로(`ScriptedAssembler`)는 정말로 무수정 —
+grep 으로 재확인. §A.2 확정대로 기술 턴을 `TendencyWindow`(Core,Legs) 채널에서
+제외(중립 placeholder로 안 채우고 그냥 기록 안 함) — 실제 공격 성립(`aAttacks`)
+을 기준으로 삼아 "attacker 판정"과 "성향 창 제외" 가 같은 불리언 하나를
+공유하게 했다(따로 재유도하면 또 하나의 `IsDefensivePosture` 류 버그가 될 수
+있어서). `APreempted`(B 선행 알림) 발화 조건은 이번에 안 건드렸다 — 여전히
+`a.Legs==공격`만 보고 `techniqueId` 유무는 안 본다, 의미상 재검토 여지가 있지만
+2b 몫으로 남겨뒀다(판단 대기는 아니고, 그냥 이번 범위 밖으로 명시).
+**작업3 — 검증.** Unity MCP 컴파일 0/0(과정에서 발견해 고친 것 2개 —
+`Brain/Tests/HabitBrainTests.cs:158`가 `tech.Class`를 직접 읽고 있어서
+`tech.AuthoredClass`로 교체, `CounterTime.Game.Tests.asmdef`가 `CounterTime.Brain`
+을 참조 안 해서 새 테스트의 `TendencyWindow` 접근이 CS0012로 막혀 있던 것을
+참조 추가로 해결). 하니스 209→**221/221 그린 + 42노드 지문 IDENTICAL**(신규
+`TechniqueRegistryTests`/`MatchEngineMasteryDerivationTests` 는 Core 순수라
+하니스에서 돈다). 신규 `Game/Tests/LiveMatchRunnerAttackerTests.cs`(4개)는
+`LiveMatchRunner`가 MonoBehaviour라 `MatchRunnerHandActionTests`와 같은 사유로
+하니스 불가 — **Unity 전용**(228 = 하니스 221 + Unity 전용 7[기존 3+신규 4],
+사람이 Test Runner로 재확인 필요). Unity MCP RunCommand로 같은 로직을 직접
+재현해 실측 확인은 이미 했다 — 기술 미지정 시 A 스태미나 불변, 유효 기술
+지정 시 선점 안 당하면 스태미나 감소(첫 시도 100→92, 예상 5가 아니라 8인 이유를
+추적해 확인: B 가 같은 교환에 H4로 A 소매를 잡아 A 의 유효그립이 −1 로 떨어져
+그립 배율 1.5×가 적용된 것 — 내 변경과 무관한 기존 엔진 순서(A 그립→B 그립→
+기술판정) 때문, 버그 아님), 기술 턴은 성향 창에 안 남고 보통 턴은 정상 기록.
+`git status --short`로 `Assets/_Recovery/`(이전 세션부터 있던 untracked, 이번
+세션과 무관, 손 안 댐) 외 전부 의도한 변경 파일임을 확인.
+**가장 최근 (그 앞) — CORE_DESIGN v4 + META_DESIGN 정본 편입 (문서 전용, 코드 무수정).**
 사용자가 md/에 넣어둔 초안 2종(`CORE_DESIGN_v4-draft.md`, `META_DESIGN-draft.md`)을
 검토·편입. `CORE_DESIGN_MatchEngine.md`에 새 최상위 절 "v4.0 revision — technique
 registry, Balance axis, persistence seam (§H steps 2–3)"을 추가 — §2단계-A(TechniqueDef/
@@ -242,9 +302,13 @@ META_DESIGN §M6대로 재배치, 3.5단계 신설).** 판단 대기 2건은 앞
 더 이상 사람 결정 대기 없음:
 0. `CanUseConversion` 버그 수정 — **완료**
 1. 손 분리 UI(§A.1) — **완료**
-2. 기술 레지스트리 + 기술 탭 + 공격자 통일(§A.2–A.3, §B) — 탭 UI·공격자 통일 절반은
-   CORE_DESIGN v4 편입에서 의도적으로 제외됐다(덤프의 8개 판단 대기와 대조 필요,
-   위 블록 참조) — 이 단계 착수 전에 그 대조부터.
+2. 기술 레지스트리 + 공격자 통일(§A.2–A.3, §B) — **데이터·엔진 완료**(레지스트리·
+   ClassFromMastery·IMasteryStore stub·라이브 공격자 판정 통일, 하니스 221/221+
+   지문 IDENTICAL). **2b — 기술 탭 UI 만 남음**: `LiveMatchPanel`이 아직
+   `SubmitA`의 `techniqueId`를 안 채워서, 지금 Play 화면에서 손 축=공격을 골라도
+   기술 미지정으로 공격 커밋이 안 열린다(알려진 전환기적 공백, 배선은 끝났으니
+   2b는 UI만 붙이면 된다). 8개 판단 대기 대조는 이번 세션에서 이미 끝남(전부
+   종결 — "라이브 경로 전용"으로 좁혀졌을 뿐 새 판단 대기는 없음).
 3. 밸런스 축(§S, 구 "스탠스" — 코드 식별자 `Balance`, `CoreStance` 와 충돌 회피
    목적. `SetupGateEnabled`→`BalanceGate` 개명 포함) + 흔들기 게이트 재배선(§4.4)
 3.5. **세이브 계층(META_DESIGN §M1) + 지도·대회 뼈대(§M2~M4).** 5·6·7단계가 결과를

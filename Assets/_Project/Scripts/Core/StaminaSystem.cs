@@ -14,12 +14,16 @@ namespace CounterTime.Core
 
         /// §5.1. The grip multiplier applies to big throws ONLY — counters ride the
         /// opponent's force, pokes and tears are too cheap to scale.
-        public void PayAttack(FighterId who, TechniqueSpec spec, int effectiveGrip)
+        /// §5.4 — masteryLevel is the caller's job to look up (IMasteryStore, §F); it no
+        /// longer rides on TechniqueSpec (§H step 2 split — mastery is a (fighter,
+        /// technique) pair's state, not the technique's own property). Defaults to 0,
+        /// same as every current caller feeds it today.
+        public void PayAttack(FighterId who, TechniqueSpec spec, int effectiveGrip, int masteryLevel = 0)
         {
             float cost = BaseCost(spec.Cost);
             if (spec.Cost == ActionCost.BigThrow)
                 cost *= _cfg.GripMultiplier[effectiveGrip + 2];
-            cost *= 1f - _cfg.MasteryCostReductionPerLevel * spec.MasteryLevel;
+            cost *= 1f - _cfg.MasteryCostReductionPerLevel * masteryLevel;
             Spend(who, Round(cost));
         }
 

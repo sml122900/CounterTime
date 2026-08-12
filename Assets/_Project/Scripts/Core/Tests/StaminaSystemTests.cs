@@ -15,8 +15,8 @@ namespace CounterTime.Core.Tests
             _s = new StaminaSystem(_cfg);
         }
 
-        static TechniqueSpec BigThrow(int mastery = 0) =>
-            new TechniqueSpec("batadari", ActionCost.BigThrow, TechniqueClass.Standard, mastery);
+        static TechniqueSpec BigThrow() =>
+            new TechniqueSpec("batadari", ActionCost.BigThrow, TechniqueClass.Standard);
         static TechniqueSpec Poke() =>
             new TechniqueSpec("balmok", ActionCost.Poke, TechniqueClass.Sloppy);
         static TechniqueSpec Counter() =>
@@ -159,7 +159,7 @@ namespace CounterTime.Core.Tests
         public void Mastery_ReducesCost()
         {
             // 5 × 1.0 × (1 − 0.08×5) = 3.0
-            _s.PayAttack(FighterId.A, BigThrow(5), 0);
+            _s.PayAttack(FighterId.A, BigThrow(), 0, masteryLevel: 5);
             Assert.AreEqual(97, _s.Get(FighterId.A));
         }
 

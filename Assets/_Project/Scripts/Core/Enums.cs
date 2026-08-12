@@ -22,4 +22,11 @@ namespace CounterTime.Core
     // §9.3 — the defender's two escape attempts and the holder's two responses.
     public enum OsaekomiDefenderChoice { Reversal /*뒤집기*/, Escape /*빠져나가기*/ }
     public enum OsaekomiHolderChoice   { Follow /*따라가기*/, PressIn /*눌러붙기*/ }
+
+    // §B — match-algorithm split. The only technique classification match logic reads.
+    public enum AlgoClass { FeintFootsweep /*견제성 발기술*/, BigThrow /*큰 기술*/ }
+    // §B — the five standard judo categories. Teaching/acquisition-screen display only;
+    // match logic never reads this (§B, confirmed).
+    public enum JudoCategory { Hand /*손기술*/, Foot /*발기술*/, Hip /*허리기술*/,
+                               Sacrifice /*누우며 메치기*/, Variant /*변칙*/ }
 }

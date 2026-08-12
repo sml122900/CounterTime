@@ -24,6 +24,9 @@ namespace CounterTime.Core
         public int MatteRecovery = 3; public int StallRecoveryPer10s = 2;
         public float MasteryCostReductionPerLevel = 0.08f;
         public float MasteryReadReductionPerLevel = 0.05f;
+        // §F — mastery level → TechniqueClass boundaries (⚙ proposed initial values).
+        // 0..MasteryStandardLevel-1 Sloppy, ..MasterySignatureLevel-1 Standard, rest Signature.
+        public int MasteryStandardLevel = 2, MasterySignatureLevel = 4;
         // §6 referee — categories are EXCLUSIVE (highest match only), NEVER summed
         public int PassExtremeDefense = 3, PassDoubleDefensive = 2, PassHandEvade = 2,
                    PassCounterReady = 2, PassAllNeutral = 1,

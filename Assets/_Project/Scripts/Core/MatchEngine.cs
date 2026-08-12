@@ -41,6 +41,7 @@ namespace CounterTime.Core
     {
         readonly MatchRulesConfig _cfg;
         readonly IRandomSource _rng;
+        readonly IMasteryStore _masteryStore;
         readonly RefereeTell[] _lastTell = new RefereeTell[2];
         /// §9.1 (v3.6) — the osaekomi gate's "체력 <50" reads the SAME snapshot as
         /// §4's stamina bonus term: pre-payment, captured once in ResolveTechnique
@@ -66,10 +67,15 @@ namespace CounterTime.Core
         public MatchClock Clock { get; }
         public OsaekomiState Osaekomi { get; } = new OsaekomiState();
 
-        public MatchEngine(MatchRulesConfig cfg, RefereeProfile profile, IRandomSource rng)
+        /// §F persistence seam — masteryStore defaults to a stub that always reports 0
+        /// (§H step 2; the real backend lands with the save layer, §H step 3.5). This
+        /// keeps every existing call site source-compatible.
+        public MatchEngine(MatchRulesConfig cfg, RefereeProfile profile, IRandomSource rng,
+                           IMasteryStore masteryStore = null)
         {
             _cfg = cfg;
             _rng = rng;
+            _masteryStore = masteryStore ?? ZeroMasteryStore.Instance;
             Grip = new GripSystem();
             Stamina = new StaminaSystem(cfg);
             Referee = new RefereeSystem(profile, cfg, rng);
@@ -416,11 +422,18 @@ namespace CounterTime.Core
             // §4 — derived in exactly one place. Do NOT re-derive inline here; an
             // inline `Core == Defensive` is what produced the v3.1 counter-ready bug.
             bool defensive = JudgementCalculator.IsDefensivePosture(defenderChoice);
+            // §F/§H step 2 — the ONE place TechniqueClass is resolved for judgment. The
+            // scripted/habit paths supply an explicit AuthoredClass (unchanged literal
+            // values, preserves the 42-node fingerprint); the live path leaves it null
+            // and gets it from mastery instead. Do NOT re-derive this inline elsewhere —
+            // same "one place" rule as IsDefensivePosture (§4) and the setup/balance
+            // downgrade immediately below.
+            TechniqueClass techClass = script.Technique.AuthoredClass
+                ?? TechniqueRegistry.ClassFromMastery(_masteryStore.LevelOf(attacker, script.Technique.Id), _cfg);
             // §4.4 [초안] — a BigThrow thrown without an active 흔들기(setup) enters the
             // formula as Sloppy. JudgementCalculator itself is untouched; the downgrade
             // is a context decision made here, same boundary as everything else that
             // feeds JudgementContext.
-            TechniqueClass techClass = script.Technique.Class;
             if (_cfg.SetupGateEnabled && script.Technique.Cost == ActionCost.BigThrow
                 && !script.Technique.SurpriseExempt && !_setupActive[(int)attacker])
                 techClass = TechniqueClass.Sloppy;

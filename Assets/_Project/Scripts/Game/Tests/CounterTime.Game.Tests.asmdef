@@ -4,6 +4,7 @@
     "references": [
         "CounterTime.Game",
         "CounterTime.Core",
+        "CounterTime.Brain",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

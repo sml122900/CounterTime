@@ -15,9 +15,18 @@ namespace CounterTime.Game.Match
     /// (<see cref="HabitBrainCommitSource"/>, §4.4 [초안] 플래그가 켜져 있으면
     /// <see cref="SetupPrecedingCommitSource"/> 로 감싼다)이 스스로 정한다.
     ///
-    /// A 의 기술 선택 UI는 아직 없다 — <see cref="PlaceholderATechnique"/> 는
-    /// <c>PlayModeSmokeTests</c> 가 이미 쓰던 자리표시자를 그대로 옮긴 것이고, A 의
-    /// 진짜 기술 카탈로그는 이 세션 범위 밖이다(STATUS: "Smoke A 는 허수아비").
+    /// §H 2단계 — A 의 기술 지정은 <see cref="TechniqueRegistry"/> 기반이다
+    /// (<see cref="SubmitA"/> 의 <c>techniqueId</c> 인자). 다만 <b>기술 탭 UI 자체는
+    /// 이 단계 범위 밖</b>(§H 2b) — <c>LiveMatchPanel</c> 은 아직 그 인자를 채워 주지
+    /// 않으므로, 실제 Play 화면에서 손 축=공격을 골라도 기술 미지정으로 공격 커밋이
+    /// 안 열린다(아래 §A.2 참조). 데이터·엔진 배선은 여기서 끝나 있으니 2b 는 UI만
+    /// 붙이면 된다.
+    ///
+    /// §A.2 확정 — "Legs 공격 = 기술 선택", 기술을 명시적으로 지정한 커밋만 공격으로
+    /// 친다("공격자 판정 통일"). 그 전엔 하드코딩된 자리표시자(옛
+    /// <c>PlaceholderATechnique</c>, <c>PlayModeSmokeTests</c> 가 쓰던 것과 같은
+    /// "밭다리" 고정값)로 Legs=공격을 낸 턴마다 무조건 공격이 성립했다 — 그 하드코딩은
+    /// 이 단계에서 제거됐다.
     ///
     /// <b>동시 공격 충돌.</b> <c>ExchangeScript.Attacker</c> 는 한 교환에 한 명뿐이다 —
     /// A 가 Legs=공격을 선언한 같은 교환에 B 의 브레인도 기술을 냈다면 Core 데이터
@@ -31,9 +40,6 @@ namespace CounterTime.Game.Match
         [SerializeField] RefereeProfile refereeProfile = RefereeProfile.Standard;
         [SerializeField] int randomSeed = 12345;
         [SerializeField] bool setupEnabled = false;
-
-        static readonly TechniqueSpec PlaceholderATechnique =
-            new TechniqueSpec("밭다리", ActionCost.BigThrow, TechniqueClass.Standard);
 
         MatchRulesConfig _cfg;
         SystemRandomSource _rng;
@@ -91,10 +97,24 @@ namespace CounterTime.Game.Match
             _bSource = new SetupPrecedingCommitSource(_bInner, _bContext, setupEnabled);
         }
 
+        /// §H 2단계 — 레지스트리 조회로 A 의 기술을 조립한다. AuthoredClass 는
+        /// null 로 남겨 MatchEngine 이 숙련도로 파생하게 한다(§F, 지금은 IMasteryStore
+        /// stub 이 항상 0 이라 Sloppy 로 나온다 — 하드코딩 "Standard" 자리표시자와 다른
+        /// 값이지만, 미숙련 기술이 어설프게 나가는 게 숙련도 시스템의 의도된 동작이다).
+        /// id 가 레지스트리에 없으면 null — 잘못된 지정도 "공격 커밋 없음"으로 접힌다.
+        static TechniqueSpec BuildLiveTechnique(string techniqueId)
+        {
+            var def = TechniqueRegistry.Get(techniqueId);
+            return def == null ? null : new TechniqueSpec(def.Id, def.BaseCost, null, def.SurpriseExempt);
+        }
+
         /// <summary>A 가 이번 교환의 커밋을 확정했다 — 굳히기가 열려 있는 동안은
         /// no-op(§9 가드가 <c>ResolveExchange</c> 를 그 상태로 부르면 던진다;
-        /// <see cref="SubmitOsaekomi"/> 를 대신 쓸 것).</summary>
-        public void SubmitA(TurnChoice a)
+        /// <see cref="SubmitOsaekomi"/> 를 대신 쓸 것). <paramref name="techniqueId"/>
+        /// 는 <see cref="LegAction.Attack"/> 을 실제 공격으로 성립시키는 유일한 방법이다
+        /// (§A.2 "공격자 판정 통일") — 기술 탭 UI(§H 2b)가 아직 없어 지금은 아무도 이
+        /// 인자를 채우지 않는다.</summary>
+        public void SubmitA(TurnChoice a, string techniqueId = null)
         {
             if (Engine.Osaekomi.Active || Engine.Board.IsFinished) return;
 
@@ -106,12 +126,18 @@ namespace CounterTime.Game.Match
             _resolver.NoteOpponentHabit(_bSource.LastDecision);
 
             bool bAttacks = _bSource.LastTechnique != null;
-            bool aAttacks = !bAttacks && a.Legs == LegAction.Attack;
+            // §A.2/§H 2단계 — "기술을 명시적으로 지정한 커밋만 공격"으로 통일. B 쪽은
+            // 이미 이 기준이었다(LastTechnique 는 습관/폴백이 실제로 기술을 낼 때만
+            // non-null) — A 쪽도 같은 기준으로 맞춘다: Legs=공격을 골랐어도 기술
+            // 지정이 없으면 공격 커밋이 아니다.
+            TechniqueSpec liveTechnique = !bAttacks && a.Legs == LegAction.Attack
+                ? BuildLiveTechnique(techniqueId) : null;
+            bool aAttacks = liveTechnique != null;
             // [v1 임시 규칙] 동시 공격 — A 도 공격을 선언했는데 B 가 먼저 낸 경우.
             if (bAttacks && a.Legs == LegAction.Attack) APreempted?.Invoke();
             FighterId? attacker = bAttacks ? FighterId.B : aAttacks ? FighterId.A : (FighterId?)null;
             TechniqueSpec technique = bAttacks ? _bSource.LastTechnique
-                                    : aAttacks ? PlaceholderATechnique : null;
+                                    : aAttacks ? liveTechnique : null;
 
             ReadLevel read = attacker.HasValue ? _resolver.For(attacker.Value, a, b) : ReadLevel.Neutral;
 
@@ -134,7 +160,9 @@ namespace CounterTime.Game.Match
 
             _ledger.Record(_bSource.LastDecision);
             _bContext.ObserveExchange(events);
-            _window.Record(a);
+            // §A.2 확정 — 기술 턴은 (Core,Legs) 성향 채널에 안 남는다(중립 placeholder로
+            // 대체하지도 않는다 — 그냥 기록 안 함). 기술 빈도 채널은 §C.2(6단계)에서.
+            if (!aAttacks) _window.Record(a);
 
             if (Engine.Osaekomi.Active) OsaekomiOpened?.Invoke();
         }

@@ -155,7 +155,7 @@ namespace CounterTime.Brain.Tests
             Assert.IsNotNull(tech, "기술이 없으면 판정 자체가 안 난다");
             Assert.AreEqual(ActionCost.BigThrow, tech.Cost, "견제기(Poke)면 판정이 안 뜨고 공략 불가가 된다");
             Assert.AreNotEqual(ActionCost.Poke, tech.Cost);
-            Assert.AreEqual(TechniqueClass.Standard, tech.Class, "어설픈(0) 급이면 만회가 안 된다");
+            Assert.AreEqual(TechniqueClass.Standard, tech.AuthoredClass, "어설픈(0) 급이면 만회가 안 된다");
             Assert.AreEqual("안뒤축감아치기", tech.Id, "m0 이 B 에게 준 2지선다 짝이다");
         }
 
