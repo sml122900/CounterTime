@@ -146,7 +146,55 @@ Full detail, including the exact 현실적 A osaekomi-entry-shortfall breakdown 
   Unity Editor + MCP 브리지가 밤새 연결 유지(사람 없음) — 매 작업 후 AssetDatabase.Refresh() + GetConsoleLogs 로 0 에러/0 경고 재확인, RunCommand 안에서 짧은 이름(CompilationPipeline 등)이 Unity.AI.Assistant.* 네임스페이스와 충돌하는 기존 함정 재확인(전체 경로로 우회)
 
 Next Up (in priority order)
-**가장 최근 — §H 3.5a: 세이브 계층 (데이터 기반, 스펙 구현. Core/Brain·판정 무수정).**
+**가장 최근 — ROSTER + DESIGN_future-mechanics 정본화 (문서 전용, 코드 무수정).**
+사용자가 md/에 넣어둔 초안 2종(`ROSTER_DESIGN-draft.md`, `DESIGN_future-mechanics-
+draft.md`)을 검토·편입. 내용은 초안 그대로(지어넣기 없음) — 헤더만 "초안, 검토용"
+지위에서 정본 지위로 교체하고 1행 스탬프를 붙였다.
+**`md/ROSTER.md` 신규 정본(v1.0, body:f8c24e5).** 연습 대회 6상대(32강 황도철~
+결승 진도윤+동메달전 오재훈, 전부 placeholder 이름) — §R0 설계 원리(습관+주력기+
+난이도 손잡이 3개), §R1~§R6 라운드별 상대, §R7 난이도 커브 표, §R8/§R8b 저작
+메모+콤보·변칙기술 접점, §R9 확인 필요 4건. 단계 점등 표기([now]/[step5]/[step6]/
+[step7]) 그대로 보존 — 진도윤=결승 최종보스/변칙기는 4강·결승만/초반 2명
+튜토리얼/4강=어깨매치기·발뒤축걸기(안뒤축은 진도윤 콤보로 제외) 확정 전제 유지.
+**정정 1건**: 초안 본문은 [step7] 마킹을 실제로 쓰면서도(§R4/§R5 시그니처 콤보)
+맨 위 표기 범례엔 [now]/[step5]/[step6]까지만 정의돼 있었다 — 범례에 [step7]
+(콤보·변칙기술 성장, `DESIGN_future-mechanics.md` 붙은 뒤)을 추가해 본문과
+맞췄다. 내용 재해석이 아니라 이미 쓰이던 마킹을 범례에 반영한 것으로 판단해
+진행.
+**`md/DESIGN_future-mechanics.md` 신규 정본(v1.0, body:4112f17).** §1 계단형
+시그니처 성장, §2 변칙기술(노출 전 파괴적, 관측되면 감쇠), §3 콤보(연계 숙련도,
+즉각 창만, §E 승격 위력+체력 할인), §4 체력 격화(경합 누적+저체력 배율), §5
+구현 순서·의존, §6 확인 필요 5건. **[편집 판단]** 문서 첫머리의 "전부 §H
+7단계·훈련 시스템 이월" 명시에 더해, §1~§4 네 절 각각에도 `**[§H 7단계 이월 —
+지금 구현 대상 아님.]**` 한 줄을 넣었다 — 지시가 "문서 첫머리와 각 절에 명시"를
+요구했는데 초안엔 §5에만 있었다. 내용을 새로 지어낸 게 아니라 이미 문서
+전체를 지배하는 전제를 각 절 서두에도 반복한 것. 판정식 무수정·게이트 우회
+없음(§1)·지문 주의(§4, StaminaSystem 변경은 규칙 변경이라 42노드 지문 확인
+필수)는 원문 그대로 보존.
+**초안 삭제**: `md/ROSTER_DESIGN-draft.md`/`md/DESIGN_future-mechanics-draft.md`
+삭제 — `git log`로 확인한 결과 애초에 커밋된 적 없는 파일이라(사용자가 이번
+세션에 직접 넣어둔 미추적 파일) git 상 "삭제"로 안 잡히고 그냥 없어짐, 내용은
+전부 정본 2개로 이동 완료.
+**Next Up 3.5 항목을 3.5a(완료)/3.5b(다음)로 분리**하고, 3.5b에 "지도·대회
+뼈대 + `ROSTER.md` 6상대 습관 저작"을 명기. §H 7단계 항목에 "숙련도 + 콤보 +
+계단형 시그니처 + 변칙기술 + 체력 격화(`DESIGN_future-mechanics.md`)"를 묶어
+재작성. 세이브 `linkages` 필드 예약은 [선택]으로 3.5a 항목 안에 후속 메모로
+남김(지금 정하지 않음).
+**검증**: `sh tools/stamp.sh --check md/*.md` exit 0(이제 5종: MATCH_RULES·
+CORE_DESIGN·META_DESIGN·ROSTER·DESIGN_future-mechanics). 하니스
+`dotnet run -- --check` 253/253 그린 + 지문 IDENTICAL(문서만 바꿨으므로 당연한
+결과 — 재확인 목적). Unity MCP 컴파일 0/0(세션 시작 확인, 문서 전용이라
+이후 재확인 불필요). `git status --short`로 의도한 파일(신규 정본 2개, 삭제된
+초안 2개는 미추적이라 표시 자체가 없음, STATUS.md)만 바뀌었음을 확인.
+**판단 필요 지점 (정하지 않고 목록으로)**:
+- `ROSTER.md` §R9: (1) placeholder 이름 6개 교체 여부 (2) 동메달전을 3.5b에서
+  스텁으로 둘지 실저작할지 (3) ⚙ 초기치(신뢰도·적응·scouting) 방향만 제안,
+  실플레이 튜닝 필요.
+- `DESIGN_future-mechanics.md` §6: (1) 계단 도약 지점이 급 경계(4~5)와 같은지
+  (2) 변칙기술 감쇠 폭·회복 정도 (3) 콤보 위력 보정 함수 형태(로그/캡/체감)
+  (4) 체력 격화 증가폭·저체력 배율 곡선 (5) `linkages` 필드를 지금 예약할지
+  (위 3.5a 후속 메모와 동일 항목).
+**가장 최근 (그 앞) — §H 3.5a: 세이브 계층 (데이터 기반, 스펙 구현. Core/Brain·판정 무수정).**
 Core 순수성 유지 — 새 영속 시임 3개를 CORE_DESIGN "Persistence seam" 절 원안 그대로
 Core 에 추가: `IMasteryStore`(기존 stub 인터페이스에 실구현 `MasteryStore` 신설, `Set`
 자체는 §H 2단계부터 이미 있었음), `IAdaptationLedger`(신규, §C.2용), `IRecognitionSet`
@@ -606,15 +654,33 @@ META_DESIGN §M6대로 재배치, 3.5단계 신설).** 판단 대기 2건은 앞
    HUD). 하니스 235/235+지문 IDENTICAL. **⚙ 7개 중 흔들기 드레인(40)은
    위협-횟수 경제로 엄밀 도출해 확정, 나머지 6개는 여전히 튜닝 전 제안값**
    — 실제 게임감 판단은 사람이 몇 판 더 돌려보고 할 몫.
-3.5. **세이브 계층(META_DESIGN §M1) + 지도·대회 뼈대(§M2~M4).** 5·6·7단계가 결과를
-   영구 저장할 자리(§C 적응·§F 숙련도의 "상대별 영구" 상태)가 이 단계 전에는
-   존재하지 않는다 — 그래서 판정 승격(4단계) 다음, 인지/예측 되치기(5단계) 전에
-   끼워 넣는다.
+3.5a. **세이브 계층(META_DESIGN §M1)** — **완료**. `IMasteryStore`/`IAdaptationLedger`/
+   `IRecognitionSet`(Core, 실동작이나 아직 아무 데도 안 물림) + `SaveData`/`SaveSystem`
+   (Game, 원자적 쓰기). 하니스 253/253+지문 IDENTICAL. [선택, 후속] `DESIGN_future-
+   mechanics.md` §3의 `linkages{"a→b"→레벨}` 필드를 지금 스키마에 값 없이 미리
+   예약해둘지는 아직 안 정함 — 나중에 채워도 마이그레이션 없이 되는 이점 vs 지금은
+   안 쓰는 필드를 미리 넣는 부담, 사람 판단.
+3.5b. **지도·대회 뼈대(META_DESIGN §M2~M4) + 로스터 6상대 습관 저작(`ROSTER.md`).**
+   32강 대진표·매치 실행·지도 3곳 뼈대와 함께, `ROSTER.md`가 정의한 6상대(32강
+   황도철~결승 진도윤+동메달전 오재훈, 이름 전부 placeholder)를 [now] 마킹된 습관·
+   주력기·변칙기·신뢰도로 실제 저작(코드 팩토리, OpponentAsset 안 씀 — 진도윤
+   `Jindoyun.Create()` 패턴 확장). 예측 되치기[step5]·적응[step6]·콤보/변칙기술
+   성장[step7]은 이 단계에서 안 붙는다 — 로스터 문서의 단계 마킹 그대로.
 4. 판정 승격(§E)
 5. 인지 목록 + 예측 되치기(§D — n30~n37 재현 테스트, 시나리오 보드 확장 필요) →
-   3.5단계의 `knownByMe` 영구화와 연결
-6. B 기술 빈도 관측 + 적응(§C.2) → 3.5단계의 `adaptation` 영구화와 연결
-7. 숙련도(§F) → 3.5단계의 `mastery` 영구화와 연결
+   3.5a단계의 `knownByMe` 영구화와 연결, `ROSTER.md` 4강/결승 상대의 [step5] 점등
+6. B 기술 빈도 관측 + 적응(§C.2) → 3.5a단계의 `adaptation` 영구화와 연결, `ROSTER.md`
+   8강~결승 상대의 [step6] 점등
+7. **숙련도(§F) + 콤보·계단형 시그니처·변칙기술·체력 격화(`DESIGN_future-mechanics.md`)
+   + 훈련 시스템.** §F 개별 숙련도(3.5a단계의 `mastery` 영구화와 연결)에 더해
+   `DESIGN_future-mechanics.md`의 4개 축을 같이 구현: §1 계단형 성장(급 경계에서
+   도약, 게이트 우회 없음 확정), §2 변칙기술(노출 전 파괴적 → `knownByMe` 등록되면
+   감쇠, §C.1/§C.3과 연결), §3 콤보(연계 숙련도, 즉각 창만, §E 승격에 위력 태움
+   + 체력 할인, `linkages` 신규 저장), §4 체력 격화(경합 누적 + 저체력 배율,
+   StaminaSystem 변경 = 규칙 변경이라 42노드 지문 영향 반드시 확인). 판정식 자체는
+   전면 무수정이 전제 — 위력은 전부 §E 승격 롤·체력 비용에 태운다. `ROSTER.md`
+   §R8b가 정의한 상대별 시그니처 콤보(진도윤 업어치기→안뒤축 / 임세라 어깨매치기→
+   발뒤축걸기)도 이 단계에서 점등.
 8. 위장 가중(§A.4)
 
 **가장 최근 (그 앞) — MATCH_RULES v4.0 반영 완료 (문서 전용 세션, 코드 무수정).**
@@ -960,6 +1026,27 @@ Why Assets/Editor/HubForceResolve.cs disappeared — nobody deleted it. It is Un
 Whether to keep the Unity Cloud link (cloudProjectId / organizationId in ProjectSettings.asset) — keep and commit. cloudEnabled is 0, it is a project GUID rather than a secret, ProjectSettings.asset is tracked anyway, and the editor rewrites it if removed.
 
 Session Log (newest first)
+2026-08-13 (문서 세션 — ROSTER + DESIGN_future-mechanics 정본화)
+작업 지시: 사용자가 md/에 넣어둔 초안 2종을 정본화(문서 전용, 코드 무수정).
+작업0 — 스탬프 --check exit 0(5종 당시 3종, ROSTER/DESIGN_future-mechanics는
+아직 미등록이라 정상 스킵), 하니스 253/253+지문 IDENTICAL, Unity MCP 컴파일
+0/0(GetConsoleLogs 로 확인) — 전부 통과해 진행.
+작업1 — `md/ROSTER_DESIGN-draft.md`/`md/DESIGN_future-mechanics-draft.md` 통독.
+작업2 — `md/ROSTER.md` 신규 정본. 초안 내용을 그대로 옮기고 헤더(초안 지위 →
+Purpose 문단)만 정본 스타일로 교체, 1행 스탬프 추가. 범례에 없던 [step7] 표기를
+추가한 정정 1건 — 상세는 위 Next Up 항목 참조.
+작업3 — `md/DESIGN_future-mechanics.md` 신규 정본. 마찬가지로 헤더만 교체, §1~§4
+각 절 서두에 "§H 7단계 이월" 한 줄씩 추가(지시가 요구한 "각 절에 명시"를
+문서 전체 전제 반복으로 구현) — 상세는 위 Next Up 항목 참조.
+작업4 — 이 STATUS 갱신. Next Up 3.5 항목을 3.5a(완료)/3.5b(다음, 지도·대회
+뼈대+로스터 저작)로 분리, §H 7단계 항목에 숙련도+콤보+계단형 시그니처+변칙기술
++체력 격화 묶어 재작성, `linkages` 필드 예약을 [선택]으로 3.5a 후속 메모에.
+작업5 — 초안 2개 삭제(둘 다 git 미추적 상태였던 걸 `git log` 로 확인 — 삭제가
+git diff 에 안 잡히는 게 정상, 내용은 정본 2개로 이동 완료). 스탬프 재확인
+(`sh tools/stamp.sh md/ROSTER.md md/DESIGN_future-mechanics.md` 로 실해시 계산 →
+f8c24e5/4112f17, `--check md/*.md` exit 0, 이제 5종). 하니스 재확인 253/253+
+지문 IDENTICAL(문서만 바꿨으므로 당연한 결과 — 재확인 목적). `git status --short`
+로 의도한 파일만 바뀌었음을 확인. 커밋·푸시는 사용자 확인 후 진행.
 2026-08-12 (§H 구현 세션 — 3.5a: 세이브 계층)
 작업 지시: §H 3.5a — 세이브 계층(데이터 기반, META_DESIGN §M1 스펙 구현). 세션이
 컨텍스트 압축으로 이어졌다 — 파일 작성(Core 시임 3개, Game 세이브 계층, 테스트
