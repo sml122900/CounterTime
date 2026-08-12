@@ -18,6 +18,18 @@ namespace CounterTime.Game.Match
         static readonly LegAction[] AllLegOptions =
             { LegAction.Attack, LegAction.Neutral, LegAction.Defend, LegAction.CounterReady };
 
+        /// §H 2b — A's own technique roster (§B "Owner: A", all 8: the 4 견제성 발기술
+        /// plus the 4 큰 기술 A can throw). `TechniqueDef` deliberately has no Owner
+        /// field (CORE_DESIGN_MatchEngine.md's v4.0 revision left it out) — ownership is
+        /// a Game-side authoring fact, not match-engine data, so it lives here instead.
+        /// Grouped by AlgoClass (견제성 발기술 first, 큰 기술 second) so a UI that lays
+        /// these out in order gets the split for free.
+        static readonly string[] ATechniqueIds =
+        {
+            "모두걸기", "발목받치기", "나오는발차기", "발뒤축걸기",
+            "밭다리걸기", "허리후리기", "안오금띄기", "어깨 매치기",
+        };
+
         readonly MatchEngine _engine;
         readonly MatchRulesConfig _cfg;
         readonly FighterId _me;
@@ -31,6 +43,15 @@ namespace CounterTime.Game.Match
 
         public IReadOnlyList<CoreStance> CoreOptions() => AllCoreOptions;
         public IReadOnlyList<LegAction> LegOptions() => AllLegOptions;
+
+        /// §A.2/§H 2b — always all 8, no in-match gating (none was asked for; stamina
+        /// lockout etc. are enforced downstream by Core, same as every other axis here).
+        public IReadOnlyList<TechniqueDef> TechniqueOptions()
+        {
+            var list = new List<TechniqueDef>(ATechniqueIds.Length);
+            foreach (var id in ATechniqueIds) list.Add(TechniqueRegistry.Get(id));
+            return list;
+        }
 
         /// <summary>
         /// §2 — 상대 지정 넷 + 회피는 언제나 열려 있다. 틀어잡기/등싸잡기는 <paramref

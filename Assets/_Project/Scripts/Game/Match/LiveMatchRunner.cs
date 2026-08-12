@@ -133,8 +133,12 @@ namespace CounterTime.Game.Match
             TechniqueSpec liveTechnique = !bAttacks && a.Legs == LegAction.Attack
                 ? BuildLiveTechnique(techniqueId) : null;
             bool aAttacks = liveTechnique != null;
-            // [v1 임시 규칙] 동시 공격 — A 도 공격을 선언했는데 B 가 먼저 낸 경우.
-            if (bAttacks && a.Legs == LegAction.Attack) APreempted?.Invoke();
+            // [v1 임시 규칙] 동시 공격 — A 도 실제로 기술을 지정했는데 B 가 먼저 낸 경우.
+            // §H 2b — 예전엔 `a.Legs == LegAction.Attack`만 봤다(기술 지정 요구가 생기기
+            // 전 기준 그대로). 기술 미지정이면 애초에 "불발될 A 의 공격"이 없으므로
+            // (§H 2단계 "공격자 판정 통일") 조건도 같은 기준(liveTechnique != null)으로
+            // 좁혔다 — aAttacks 를 만드는 바로 그 조건 재사용, 새 파생 아님.
+            if (bAttacks && liveTechnique != null) APreempted?.Invoke();
             FighterId? attacker = bAttacks ? FighterId.B : aAttacks ? FighterId.A : (FighterId?)null;
             TechniqueSpec technique = bAttacks ? _bSource.LastTechnique
                                     : aAttacks ? liveTechnique : null;

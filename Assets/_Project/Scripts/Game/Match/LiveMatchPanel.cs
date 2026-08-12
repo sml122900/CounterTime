@@ -70,12 +70,17 @@ namespace CounterTime.Game.Match
         // 트리거+드롭다운(주체 기준=전부 A 옆, 화면 고정 위치=본 추적 안 함) →
         // 같은 날 후속: 위로 펼치는 드롭다운이 A 모델을 가리고 손 목록이 화면 밖으로
         // 잘린다는 Play 실측 신고로 방사형(휠) 메뉴로 재전환. 상세 근거는 STATUS.md.
-        Button _handTrigger, _coreTrigger, _legsTrigger, _confirmButton;
+        Button _handTrigger, _coreTrigger, _legsTrigger, _techniqueTrigger, _confirmButton;
         // 트리거 자체는 축 이름만 표시하는 작은 버튼(휠 반지름 여유 확보용, 아래
         // BuildAxisControl 참조) — 현재 선택은 트리거 바로 아래 별도 텍스트로 낸다.
-        TMP_Text _handSummary, _coreSummary, _legsSummary;
-        Transform _handDropdown, _coreDropdown, _legsDropdown;
+        TMP_Text _handSummary, _coreSummary, _legsSummary, _techniqueSummary;
+        Transform _handDropdown, _coreDropdown, _legsDropdown, _techniqueDropdown;
         GameObject _floatingControlsRoot;
+        // §H 2b — 기술 지정. null = 미지정(§H 2단계 "공격자 판정 통일" 그대로: 하체=공격을
+        // 골라도 기술을 안 골랐으면 공격 커밋 없음). 기술을 고르면 그 턴은 손·코어 입력이
+        // 없다(§A.2) — 손·코어를 강제로 None/중립으로 접고 손·코어 트리거를 잠근다.
+        string _techniqueId;
+        bool _techniqueChosen;
         // 2026-08-12 방사형 메뉴 실측 후속 — 부채꼴이 오른쪽으로 펼쳐지는 이상 A 의
         // 실측 화면 폭(x 47~806, 1920 폭의 약 40%)과 트리거 위치(x=25) 특성상(±90도
         // 지점조차 반지름과 무관하게 x≈25 부근이라 A 의 왼쪽 끝과 항상 겹친다) 겹침 자체를
@@ -243,9 +248,12 @@ namespace CounterTime.Game.Match
             _pendingOwnHand = Hand.Right;
             _handStageTarget = false;
             _handChosen = _coreChosen = _legsChosen = false;
+            _techniqueId = null;
+            _techniqueChosen = false;
             RebuildStandingColumns();
             RefreshExposure();
             RefreshConfirmButton();
+            RefreshHandCoreLock();
         }
 
         // 손 축 반지름 130 은 A(캔버스 x=179 실측)와 24px 여유를 두도록 확정된 값
@@ -258,6 +266,11 @@ namespace CounterTime.Game.Match
         // — cos(90°)=0 이라 반지름을 얼마로 잡든 A 쪽(x축)으로는 전혀 안 뻗는다.
         // 70 은 두 버튼(세로 36) 사이에 여유를 두기 위한 값일 뿐 A 와의 겹침과 무관하다.
         const float HandRadius = 130f, HandSideRadius = 70f, CoreRadius = 90f, LegsRadius = 100f;
+        // §H 2b — 기술 트리거(별도 4번째 트리거, 사용자 확정). 8개(모두걸기·발목받치기·
+        // 나오는발차기·발뒤축걸기·밭다리걸기·허리후리기·안오금띄기·어깨 매치기)에
+        // "곡률 완만함 vs 세로 안전구간 여유" 트레이드오프를 실측·보고 후 R=120 확정
+        // (인접 버튼 겹침 22px, 세로 여유 12px — 기존 손 축의 인접 겹침 28px보다 작다).
+        const float TechniqueRadius = 120f;
 
         static readonly Hand[] HandSideOptions = { Hand.Left, Hand.Right };
         static string HandSideLabel(Hand h) => h == Hand.Left ? "왼손" : "오른손";
@@ -283,23 +296,69 @@ namespace CounterTime.Game.Match
             RebuildAxisOptions(_coreDropdown, CoreRadius, _runner.A.CoreOptions(), CoreLabel, o => _core.Equals(o),
                 o => { _core = (CoreStance)o; _coreChosen = true; RebuildStandingColumns(); RefreshExposure(); RefreshConfirmButton(); });
             RebuildAxisOptions(_legsDropdown, LegsRadius, _runner.A.LegOptions(), LegsLabel, o => _legs.Equals(o),
-                o => { _legs = (LegAction)o; _legsChosen = true; RebuildStandingColumns(); RefreshExposure(); RefreshConfirmButton(); });
+                o =>
+                {
+                    _legs = (LegAction)o;
+                    _legsChosen = true;
+                    // §H 2b — 하체 휠에서 직접 다른 값(중립/수비/카운터 준비)을 고르면
+                    // 그건 더 이상 기술 턴이 아니다. 남아있던 기술 지정을 지우고 손·코어
+                    // 잠금도 풀어야 한다 — 안 지우면 "수비를 골랐는데 화면엔 여전히
+                    // 기술이 지정돼 있다"는 앞뒤 안 맞는 상태가 남는다. 다시 "공격"을
+                    // 고르는 것만으로는(기술 트리거를 거치지 않았으면) 지워질 게 없다.
+                    if (_legs != LegAction.Attack) { _techniqueId = null; _techniqueChosen = false; }
+                    RebuildStandingColumns(); RefreshExposure(); RefreshConfirmButton(); RefreshHandCoreLock();
+                });
+            // §H 2b — 별도 4번째 트리거(사용자 확정, §H 2단계-A 안②). A 의 8기술
+            // (LiveAssembler.TechniqueOptions, §B Owner=A 전부) 중 하나를 고르면 그 자체로
+            // "공격을 선언하고 그 기술을 지정한다"는 뜻이다(§A.2) — 하체 축을 따로 다시
+            // 방문해 "공격"을 고를 필요가 없다. 손·코어는 §A.2("기술 턴은 손·코어 입력이
+            // 없다")대로 None/중립으로 접고 잠근다(RefreshHandCoreLock). 확정 게이트 3개를
+            // 전부 true 로 만들어 "확정 즉시 가능"을 만족시킨다(2026-08-12 §H 2b 사용자 확정).
+            RebuildAxisOptions(_techniqueDropdown, TechniqueRadius, _runner.A.TechniqueOptions(),
+                (TechniqueDef d) => d.DisplayName, o => ((TechniqueDef)o).Id == _techniqueId,
+                o =>
+                {
+                    var def = (TechniqueDef)o;
+                    _techniqueId = def.Id;
+                    _techniqueChosen = true;
+                    _legs = LegAction.Attack; _legsChosen = true;
+                    _hand = HandTarget.None; _handChosen = true;
+                    _core = CoreStance.Neutral; _coreChosen = true;
+                    RebuildStandingColumns(); RefreshExposure(); RefreshConfirmButton(); RefreshHandCoreLock();
+                });
 
-            // 휠이 닫혀 있어도 3축 상태가 한눈에 보이도록 트리거 아래 요약 텍스트에
+            // 휠이 닫혀 있어도 축 상태가 한눈에 보이도록 트리거 아래 요약 텍스트에
             // 반영한다(2026-08-12 방사형 개편 — 트리거 자체는 축 이름만 표시하는
             // 작은 버튼이라 선택 내용은 별도 줄로 뺐다. 여전히 "닫힌 상태에서도
-            // 트리거 쪽만 보면 3축이 다 읽힌다"는 요구는 만족한다).
+            // 트리거 쪽만 보면 축이 다 읽힌다"는 요구는 만족한다).
             _handSummary.text = _handChosen ? $"{HandSideLabel(_ownHand)} · {HandLabel(_hand)}" : "—";
             _coreSummary.text = CoreLabel(_core);
             _legsSummary.text = LegsLabel(_legs);
+            _techniqueSummary.text = _techniqueChosen ? TechniqueRegistry.Get(_techniqueId).DisplayName : "—";
+        }
+
+        /// §H 2b — 기술을 지정한 턴은 손·코어 입력이 없다(§A.2). 손·코어 트리거를
+        /// 잠가(interactable=false) 열 수 없게 하고 색을 죽여 "지금은 못 만진다"를
+        /// 표시한다. 잠금은 트리거의 <c>interactable</c>/색만 건드린다 — 휠 열림/닫힘
+        /// (<see cref="OpenWheel"/>/<see cref="CloseAllWheels"/>) 이 쓰는
+        /// <c>SetActive</c> 와 다른 속성이라 서로 안 부딪힌다.
+        void RefreshHandCoreLock()
+        {
+            _handTrigger.interactable = !_techniqueChosen;
+            _coreTrigger.interactable = !_techniqueChosen;
+            var lockedColor = _techniqueChosen ? Dim : Idle;
+            _handTrigger.GetComponent<Image>().color = lockedColor;
+            _coreTrigger.GetComponent<Image>().color = lockedColor;
         }
 
         void Confirm()
         {
-            string myChoiceLabel = $"{HandSideLabel(_ownHand)} · {HandLabel(_hand)} · {CoreLabel(_core)} · {LegsLabel(_legs)}";
+            string myChoiceLabel = _techniqueChosen
+                ? $"기술: {TechniqueRegistry.Get(_techniqueId).DisplayName}"
+                : $"{HandSideLabel(_ownHand)} · {HandLabel(_hand)} · {CoreLabel(_core)} · {LegsLabel(_legs)}";
             BeginPending();
             var choice = _runner.A.Build(_hand, _core, _legs, _ownHand);
-            _runner.SubmitA(choice);
+            _runner.SubmitA(choice, _techniqueId);
             string outcome = BuildOutcome();
             bool matte = _pendingEvents.Exists(e => e is MatteCalled);
             _resultText.text = outcome;
@@ -865,32 +924,44 @@ namespace CounterTime.Game.Match
         /// 확장)보다 훨씬 작고, 트리거가 화면 왼쪽 끝에 있어 반지름을 A 실측 위치
         /// (캔버스 x=179)보다 작게 잡으면 A 와도 안 겹친다.
         ///
-        /// 사용자 확정 사항(임의 변경 금지): 트리거 3개는 화면 왼쪽 끝에 세로로,
-        /// 선택지는 오른쪽으로 펼침, 완전한 원 아닌 적당한 호, 손처럼 항목 많은
-        /// 축은 곡률을 완만하게(=반지름을 키워 항목 간격을 넉넉히).
+        /// 사용자 확정 사항(임의 변경 금지): 트리거는 화면 왼쪽 끝에 세로로(§H 2b —
+        /// 기술 트리거 추가로 4개가 됐다), 선택지는 오른쪽으로 펼침, 완전한 원 아닌
+        /// 적당한 호, 손·기술처럼 항목 많은 축은 곡률을 완만하게(=반지름을 키워
+        /// 항목 간격을 넉넉히).
         /// 반지름은 2026-08-12 실측·보고 후 사용자 확정: 손(최대 10개) 130 —
         /// A 캔버스 x=179 대비 24px 여유. 코어(3개) 90(64px 여유), 하체(4개) 100
         /// (54px 여유) — 항목이 적어 더 좁혀도 간격이 넉넉해 같은 여유 원칙으로
         /// 판단해 정함(사용자가 직접 지정한 값은 손뿐, 코어·하체는 이 판단에 포함).
-        /// B(캔버스 x=974~)와는 어떤 반지름에서도 안 겹친다(최대 반지름 130 이어도
-        /// 500px 이상 여유).
+        /// §H 2b 에서 기술(8개) 120 을 같은 원칙으로 추가 확정(실측·보고 후 사용자
+        /// 확정 — 곡률 vs 세로 안전구간 여유 트레이드오프, 손보다 인접 항목 겹침이
+        /// 작다). B(캔버스 x=974~)와는 어떤 반지름에서도 안 겹친다(최대 반지름 130
+        /// 이어도 500px 이상 여유).
         ///
         /// 트리거 자체는 축 이름만 표시하는 작은 버튼(74x36)이다 — 트리거가 넓으면
         /// 그 중심(=휠 원점)이 A 쪽으로 밀려 위 여유가 줄어든다(예: 트리거가 130px
         /// 넓으면 중심이 65px 밀려 손 축 여유가 24px→−41px, 즉 겹침으로 뒤집힌다 —
         /// 실측 중 발견해 트리거를 축 이름만 표시하도록 좁힌 이유). 현재 선택은
         /// 트리거 바로 아래 별도 텍스트(<see cref="_handSummary"/> 등)로 낸다 —
-        /// "닫힌 상태에서도 3축이 트리거 쪽만 보면 다 읽힌다"는 요구는 그대로 만족.
+        /// "닫힌 상태에서도 축이 트리거 쪽만 보면 다 읽힌다"는 요구는 그대로 만족.
         ///
-        /// 세로 배치: 하체(440) 아래 · 손(550) 가운데 · 코어(660) 위, 110px 간격 —
-        /// 반지름이 가장 큰 손을 가운데 둬 위아래 모두에 여유를 준다. 이 순서와
-        /// 정확한 y 값은 사람이 지정한 게 아니라 실측한 안전 구간 안에서 고른
-        /// 판단이다: 위쪽 경계는 NarrationLog 상단(캔버스 y=792, 2026-08-12
-        /// 오후 세션 실측), 아래쪽 경계는 ConfirmRow 상단(y=308) — 각 축이 자기
-        /// 반지름만큼 열렸을 때(하체 340~540, 손 420~680, 코어 570~750) 이 두
-        /// 경계를 안 넘는지 먼저 계산으로 확인한 뒤 정했다(첫 시도였던 코어=741 은
-        /// 반지름 90 을 더하면 831 이 되어 NarrationLog 를 39px 침범해 660 으로
-        /// 낮췄다 — 이 재조정 과정 자체를 기록해둔다).
+        /// 세로 배치 — §H 2b 에서 4트리거로 재배치(사용자 확정, "4개 전체 재배치").
+        /// 기술(8개, R=120)을 별도 트리거로 넣기로 하면서, 기존 3트리거(110px 간격,
+        /// 440/550/660)로는 새 트리거가 들어갈 자리가 없었다(위/아래 어느 쪽에 붙여도
+        /// 남는 반지름이 22px 안팎뿐 — R=120 은커녕 R=100 도 못 들어간다, 실측·보고).
+        /// 그래서 4개를 안전 구간 안에서 다시 4등분했다: 아래쪽 경계 ConfirmRow 상단
+        /// (y=308), 위쪽 경계 NarrationLog 상단(y=792, 둘 다 2026-08-12 세션 실측
+        /// 확정값 — 이번에 바뀐 적 없음) 사이 484px 를 81px 간격으로 나눈다
+        /// (244/3 — 각 축이 자기 반지름만큼 열렸을 때 그 두 경계를 안 넘는 축만
+        /// 이 폭 안에 놓일 수 있다는 계산 결과, 사람이 지정한 정확한 값은 아니다).
+        /// 반지름이 큰 축일수록 중앙에 가깝게: 손(130)·기술(120) 이 가운데 두 자리,
+        /// 코어(90)·하체(100) 이 바깥 두 자리 — 기존 "반지름 큰 축을 가운데" 원칙
+        /// 그대로. 상대적 순서(하체 아래·손 그다음·코어 맨 위)도 기존과 같게 유지하고
+        /// 기술만 손과 코어 사이에 끼워 넣었다.
+        ///
+        /// **주의 — 반지름 130/90/100(손/코어/하체) 은 "임의 변경 금지"로 확정된 값
+        /// 이라 이번에도 안 건드렸다.** 바뀐 건 Y 좌표뿐이다(애초에 "사람이 지정한 게
+        /// 아니라 실측한 안전 구간 안에서 고른 판단"이라고 명시돼 있던 값 — 그 판단을
+        /// 4트리거 조건으로 다시 계산했을 뿐).
         void BuildFloatingControls(Transform canvasRoot)
         {
             var go = new GameObject("FloatingControls", typeof(RectTransform));
@@ -901,14 +972,16 @@ namespace CounterTime.Game.Match
             rt.offsetMin = rt.offsetMax = Vector2.zero;
             _floatingControlsRoot = go;
 
-            (_legsTrigger, _legsDropdown, _legsSummary) = BuildAxisControl(go.transform, "하체", new Vector2(25, 440));
+            (_legsTrigger, _legsDropdown, _legsSummary) = BuildAxisControl(go.transform, "하체", new Vector2(25, 428));
             // 손 트리거를 열 때마다 스테이지1(손 고르기)로 되돌린다 — 지난번에 스테이지2
             // (타겟 고르기)까지 갔다가 확정 없이 닫았어도, 다시 열면 항상 손부터 다시
             // 고른다(§A.1, v4.0. 안 하면 닫혀 있던 동안 유지된 드롭다운 내용이 그대로
             // 남아 스테이지2가 먼저 뜬다).
-            (_handTrigger, _handDropdown, _handSummary) = BuildAxisControl(go.transform, "손", new Vector2(25, 550),
+            (_handTrigger, _handDropdown, _handSummary) = BuildAxisControl(go.transform, "손", new Vector2(25, 509),
                 onOpening: () => { _handStageTarget = false; RebuildStandingColumns(); });
-            (_coreTrigger, _coreDropdown, _coreSummary) = BuildAxisControl(go.transform, "코어", new Vector2(25, 660));
+            (_techniqueTrigger, _techniqueDropdown, _techniqueSummary) =
+                BuildAxisControl(go.transform, "기술", new Vector2(25, 591));
+            (_coreTrigger, _coreDropdown, _coreSummary) = BuildAxisControl(go.transform, "코어", new Vector2(25, 672));
         }
 
         /// 트리거 버튼 하나 + 그 아래 선택 요약 텍스트 + 오른쪽으로 펼치는 휠(방사형
@@ -981,12 +1054,15 @@ namespace CounterTime.Game.Match
             _handDropdown.gameObject.SetActive(false);
             _coreDropdown.gameObject.SetActive(false);
             _legsDropdown.gameObject.SetActive(false);
+            _techniqueDropdown.gameObject.SetActive(false);
             _handTrigger.gameObject.SetActive(true);
             _coreTrigger.gameObject.SetActive(true);
             _legsTrigger.gameObject.SetActive(true);
+            _techniqueTrigger.gameObject.SetActive(true);
             _handSummary.gameObject.SetActive(true);
             _coreSummary.gameObject.SetActive(true);
             _legsSummary.gameObject.SetActive(true);
+            _techniqueSummary.gameObject.SetActive(true);
             _arenaBackground.color = ArenaBright;
         }
 
@@ -1015,6 +1091,11 @@ namespace CounterTime.Game.Match
             {
                 _legsTrigger.gameObject.SetActive(false);
                 _legsSummary.gameObject.SetActive(false);
+            }
+            if (dropdown != _techniqueDropdown.gameObject)
+            {
+                _techniqueTrigger.gameObject.SetActive(false);
+                _techniqueSummary.gameObject.SetActive(false);
             }
         }
 
