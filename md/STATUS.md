@@ -146,7 +146,34 @@ Full detail, including the exact 현실적 A osaekomi-entry-shortfall breakdown 
   Unity Editor + MCP 브리지가 밤새 연결 유지(사람 없음) — 매 작업 후 AssetDatabase.Refresh() + GetConsoleLogs 로 0 에러/0 경고 재확인, RunCommand 안에서 짧은 이름(CompilationPipeline 등)이 Unity.AI.Assistant.* 네임스페이스와 충돌하는 기존 함정 재확인(전체 경로로 우회)
 
 Next Up (in priority order)
-**가장 최근 — §H 3단계 후속: 밸런스 HUD 노출 (Game, Core·판정 무수정).**
+**가장 최근 — 밸런스 ⚙ 확정값 적용: `BalanceDrainSetup` 35→40.** 밸런스 경제를
+엄밀히 도출한 결과 흔들기 드레인만 조정, 나머지 6개(견제 −20/무득점 −15/
+그쳐 +3/수비 +10/임계 70/최대 100)는 무수정.
+**작업0**: 스탬프 exit 0, 하니스 235/235·지문 IDENTICAL, Unity MCP 컴파일
+0/0 확인 후 진행.
+**작업1 — 값 적용 + 도출 근거 주석.** `MatchRulesConfig.BalanceDrainSetup`
+35→40. 도출 근거(지시받은 문구 그대로, `MatchRulesConfig`의 밸런스 상수
+정의부에): 게이트 개방 위협 횟수 = 흔들기 1 / 견제 2 / 무득점 3(흔들기
+40=2×견제20, 무득점15×3=45로 비슷한 폭에 닿음 — §4.4가 흔들기를 "밸런스를
+깎는 전용 행동"이라 부르는 것과 맞는 위계). 수비 성공(+10)이 흔들기 1회를
+정확히 상쇄(60+10=70). 그쳐(+3)는 그 절반도 안 돼 패시브 회복이 거의 없다
+— 끈적함 의도. 이 7개 전부 대회 실플레이 재튜닝 대상이라는 문구도 그대로
+남김.
+**영향받은 테스트 갱신.** `_cfg.BalanceDrainSetup`을 상수로 참조하던 곳(예:
+`FlagOn_WithGrip_SetupSucceeds_...`)은 무수정으로 자동 반영됨. 하드코딩된
+계산값(주석·assert 메시지)이 있던 4개 테스트를 60 기준으로 갱신
+(`BigThrow_AgainstDrainedOpponent_...`/`SetupDrain_Persists...`/
+`OneMatte_...`) — 결론(강등 회피 유지)은 안 바뀜, 숫자만. **`TwoMattes_
+RecoverEnoughToReopenTheGate`는 결론이 실제로 뒤집혔다** — 60+3+3=66 은
+이제 임계(70) 밑이라 그쳐 두 번으론 게이트가 안 열린다. 네 번(60+3×4=72)으로
+필요 횟수를 맞춰 `FourMattes_RecoverEnoughToReopenTheGate`로 개명 —
+"패시브 회복만으론 잘 안 풀린다"는 이번 도출 의도를 오히려 더 분명히
+보여주는 방향이라 판단해 삭제 대신 횟수만 재조정. 테스트 주석에 "실제
+정석은 수비 성공(한 번으로 정확히 상쇄)이지 그쳐 반복이 아니다"도 남겨둠.
+**작업2 — 검증.** Unity MCP 컴파일 0/0. 하니스 235/235 그린(테스트 개수
+무변화 — TwoMattes→FourMattes 1:1 치환) + 42노드 지문 IDENTICAL(스크립트
+경로는 `BalanceGate` off 로 이 값 변경과 무관하게 동작).
+**가장 최근 (그 앞) — §H 3단계 후속: 밸런스 HUD 노출 (Game, Core·판정 무수정).**
 **작업0**: 스탬프 exit 0, 하니스 235/235·지문 IDENTICAL, Unity MCP 컴파일 0/0
 확인 후 진행.
 **작업1 — 표시 배선.** `LiveMatchPanel.FighterStatus`(체력·그립을 이미 순수
@@ -536,10 +563,9 @@ META_DESIGN §M6대로 재배치, 3.5단계 신설).** 판단 대기 2건은 앞
 3. 밸런스 축(§S) + 흔들기 게이트 재배선(§4.4) — **완료**(Core 배관 + HUD
    노출까지). BalanceSystem·`SetupGateEnabled`→`BalanceGate` 개명·5+1 드레인
    지점·`BalanceChanged` 이벤트(Core), 상태줄 밸런스 표시+임계 강조색(Game
-   HUD). 하니스 235/235+지문 IDENTICAL. **⚙ 7개 수치는 Play 실측으로
-   4/5(드레인·회복)가 정확히 확인됐지만 여전히 튜닝 전 제안값** — 실제
-   게임감 판단은 사람이 몇 판 더 돌려보고 할 몫(위 세션 로그 "남은 판단
-   대기" 참조).
+   HUD). 하니스 235/235+지문 IDENTICAL. **⚙ 7개 중 흔들기 드레인(40)은
+   위협-횟수 경제로 엄밀 도출해 확정, 나머지 6개는 여전히 튜닝 전 제안값**
+   — 실제 게임감 판단은 사람이 몇 판 더 돌려보고 할 몫.
 3.5. **세이브 계층(META_DESIGN §M1) + 지도·대회 뼈대(§M2~M4).** 5·6·7단계가 결과를
    영구 저장할 자리(§C 적응·§F 숙련도의 "상대별 영구" 상태)가 이 단계 전에는
    존재하지 않는다 — 그래서 판정 승격(4단계) 다음, 인지/예측 되치기(5단계) 전에

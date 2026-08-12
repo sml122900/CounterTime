@@ -118,7 +118,7 @@ namespace CounterTime.Core.Tests
         public void BigThrow_AgainstDrainedOpponent_KeepsOriginalTechniqueClass()
         {
             GripUp(_e);
-            _e.ResolveExchange(SetupHand, Idle, new ExchangeScript());   // B: 100 -> 65 (< 70 임계)
+            _e.ResolveExchange(SetupHand, Idle, new ExchangeScript());   // B: 100 -> 60 (< 70 임계, BalanceDrainSetup=40)
 
             var ev = _e.ResolveExchange(Idle, Idle, Throw(TechniqueClass.Standard));
 
@@ -136,7 +136,7 @@ namespace CounterTime.Core.Tests
         public void SetupDrain_PersistsAcrossMultipleExchanges_UnlikeTheOldOneExchangeFlag()
         {
             GripUp(_e);
-            _e.ResolveExchange(SetupHand, Idle, new ExchangeScript());   // B: 100 -> 65
+            _e.ResolveExchange(SetupHand, Idle, new ExchangeScript());   // B: 100 -> 60
             _e.ResolveExchange(Idle, Idle, new ExchangeScript());        // 아무 일도 없다 — 회복 없음
             _e.ResolveExchange(Idle, Idle, new ExchangeScript());        // 마찬가지
 
@@ -159,35 +159,44 @@ namespace CounterTime.Core.Tests
         }
 
         /// §S(v4.1, RESOLVED §8) — 그쳐는 완전 리셋이 아니라 부분 회복(RecoverMattePartial)
-        /// 만 준다. 한 번(+3)으로는 흔들기 드레인(35)을 못 넘어선다(65+3=68<70) — "그쳐가
-        /// 흔들기를 지운다"던 옛 [초안] 동작과 다르다.
+        /// 만 준다. 한 번(+3)으로는 흔들기 드레인(40)을 못 넘어선다(60+3=63<70) — "그쳐가
+        /// 흔들기를 지운다"던 옛 [초안] 동작과 다르다. BalanceDrainSetup 을 40으로 올린
+        /// 근거(MatchRulesConfig 주석 참조) 자체가 "패시브 회복(그쳐)만으론 안 풀린다"는
+        /// 끈적함 의도라, 이 격차는 우연이 아니라 설계 의도다.
         [Test]
         public void OneMatte_DoesNotFullyUndoTheSetupDrain_KeepsOriginalTechniqueClass()
         {
             GripUp(_e);
-            _e.ResolveExchange(SetupHand, Idle, new ExchangeScript());              // B: 100 -> 65
-            _e.ResolveExchange(Idle, Idle, new ExchangeScript { CallMatte = true }); // B: 65 -> 68 (부분 회복)
+            _e.ResolveExchange(SetupHand, Idle, new ExchangeScript());              // B: 100 -> 60
+            _e.ResolveExchange(Idle, Idle, new ExchangeScript { CallMatte = true }); // B: 60 -> 63 (부분 회복)
 
             GripUp(_e);   // 그쳐가 잡기를 지웠으니 다시 잡아야 큰기술의 그립항을 맞출 수 있다
             var ev = _e.ResolveExchange(Idle, Idle, Throw(TechniqueClass.Standard));
 
             Assert.AreEqual((int)TechniqueClass.Standard, ev.OfType<JudgementScored>().Single().Terms[3],
-                "한 번의 그쳐(+3)로는 흔들기 드레인(35)을 다 못 되돌린다 — 65+3=68 은 여전히 임계(70) 밑");
+                "한 번의 그쳐(+3)로는 흔들기 드레인(40)을 다 못 되돌린다 — 60+3=63 은 여전히 임계(70) 밑");
         }
 
+        /// §H 3단계 후속 — BalanceDrainSetup 이 35→40 으로 오르면서 예전엔 그쳐 두 번
+        /// (65+3+3=71≥70)으로 충분했던 것이 이제 네 번(60+3+3+3+3=72≥70)이 필요해졌다.
+        /// "패시브 회복만으론 잘 안 풀린다"는 끈적함 의도를 오히려 더 분명히 보여주는
+        /// 방향이라 그대로 두되 횟수만 맞췄다 — 실제 설계 의도상 이 경로(그쳐 반복)로
+        /// 다시 여는 것보다 수비 성공(+10, 한 번으로 60+10=70 정확히 상쇄) 쪽이 정석이다.
         [Test]
-        public void TwoMattes_RecoverEnoughToReopenTheGate()
+        public void FourMattes_RecoverEnoughToReopenTheGate()
         {
             GripUp(_e);
-            _e.ResolveExchange(SetupHand, Idle, new ExchangeScript());              // B: 100 -> 65
-            _e.ResolveExchange(Idle, Idle, new ExchangeScript { CallMatte = true }); // B: 65 -> 68
-            _e.ResolveExchange(Idle, Idle, new ExchangeScript { CallMatte = true }); // B: 68 -> 71
+            _e.ResolveExchange(SetupHand, Idle, new ExchangeScript());              // B: 100 -> 60
+            _e.ResolveExchange(Idle, Idle, new ExchangeScript { CallMatte = true }); // B: 60 -> 63
+            _e.ResolveExchange(Idle, Idle, new ExchangeScript { CallMatte = true }); // B: 63 -> 66
+            _e.ResolveExchange(Idle, Idle, new ExchangeScript { CallMatte = true }); // B: 66 -> 69
+            _e.ResolveExchange(Idle, Idle, new ExchangeScript { CallMatte = true }); // B: 69 -> 72
 
             GripUp(_e);
             var ev = _e.ResolveExchange(Idle, Idle, Throw(TechniqueClass.Standard));
 
             Assert.AreEqual((int)TechniqueClass.Sloppy, ev.OfType<JudgementScored>().Single().Terms[3],
-                "두 번째 그쳐로 68+3=71 이 임계(70)를 다시 넘으면 강등이 돌아온다 — 완전 리셋이 아니라 부분 회복의 누적");
+                "네 번째 그쳐로 69+3=72 가 임계(70)를 다시 넘으면 강등이 돌아온다 — 완전 리셋이 아니라 부분 회복의 누적");
         }
     }
 }

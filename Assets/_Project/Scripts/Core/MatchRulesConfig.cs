@@ -62,14 +62,22 @@ namespace CounterTime.Core
         // All ⚙ — proposed initial values, not confirmed numbers, same convention as
         // every other tunable in this file. BalanceMax/BalanceOnsetThreshold match the
         // values already named in MATCH_RULES.md/CORE_DESIGN_MatchEngine.md's v4.0
-        // revision; the drain/recover magnitudes below are new picks for this step,
-        // sized so a single 흔들기 (100−35=65) clears the 70 threshold in one hit and a
-        // single 그쳐 (+3, same magnitude as StaminaSystem.MatteRecovery) does NOT
-        // undo it alone (65+3=68<70) — two mattes do (65+3+3=71≥70). Pure tuning
-        // knobs, not derived from anything — revisit after play.
+        // revision.
+        //
+        // BalanceDrainSetup rederived (§H 3단계 후속, "밸런스 ⚙ 확정값 적용"
+        // 세션) from a threat-count economy: 게이트 개방 위협 횟수 = 흔들기 1 /
+        // 견제 발기술 2 / 무득점 진짜 시도 3 — 흔들기(40) = 2×견제(20), 하나만
+        // 맞아도(100−40=60) 임계(70)를 한 번에 뚫는다. 견제·무득점은 2~3번 쌓여야
+        // 같은 폭(≈40~45)에 닿는다 — §4.4가 흔들기를 "밸런스를 깎는 전용 행동"
+        // 이라 부르는 것과 일치하는 위계(전용 행동 하나가 부수 효과 여러 번보다
+        // 세다). 수비 성공(+10)이 흔들기 1회 드레인을 정확히 상쇄한다(60+10=70,
+        // BalanceRecoverDefense 참조) — 그쳐(+3)는 그 절반도 안 돼 패시브 회복이
+        // 없다시피 하다(끈적함 의도: 한 번 깎이면 시간이 아니라 실제 방어로만
+        // 제대로 풀린다). 나머지 6개(견제·무득점·수비·그쳐·임계·최대)는 이번엔
+        // 무수정 — 이 값들 전부는 대회 실플레이 재튜닝 대상이지 확정 수치가 아니다.
         public int BalanceMax = 100;
         public int BalanceOnsetThreshold = 70;   // gate: defender's Balance ≥ this → attacker's BigThrow downgrades to Sloppy
-        public int BalanceDrainSetup = 35;       // one 흔들기 declare
+        public int BalanceDrainSetup = 40;       // one 흔들기 declare
         public int BalanceDrainFeintFootsweep = 20; // a landed 견제 발기술 (§D.4 floor — v1 has no promotion roll yet, so "landed" = every poke)
         public int BalanceDrainThreatNoScore = 15;  // a genuine BigThrow attempt (realAttempt) that scored None
         public int BalanceRecoverDefense = 10;      // a Clean defense (§5.2 — won the read)
