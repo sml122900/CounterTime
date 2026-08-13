@@ -44,6 +44,15 @@ class Program
             return 0;
         }
 
+        // 2026-08-13 v3 (docs/overnight-2026-08-13-v3.md) — separate entry point, does
+        // not touch or replace the --overnight/--check paths above. See
+        // Overnight/OvernightV3Runner.cs.
+        if (args.Contains("--overnight-v3"))
+        {
+            CounterTime.Harness.Overnight.OvernightV3Runner.Run();
+            return 0;
+        }
+
         bool check = args.Contains("--check");
 
         var asm = Assembly.GetExecutingAssembly();

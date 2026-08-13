@@ -2,7 +2,60 @@ STATUS
 
 Update this file every time a session resets. This is the ONLY copy — the root CLAUDE.md pulls it in with `@md/STATUS.md`, so it loads automatically at session start. Do not create a second copy anywhere. Check "Current State" and "Next Up" before starting work.
 
-Current State (last updated: 2026-08-13 밤, 후속)
+Current State (last updated: 2026-08-13 밤, v3 후속 측정)
+**v3 후속 측정 완료 — 승률 붕괴 원인 분리 + 로스터 차별성 재측정(B 행동 기준) +
+그립 파리티 동역학.** 브랜치 `feat/match-engine`, HEAD `a3fb534`(무수정, 그대로).
+`docs/overnight-2026-08-13-v3.md` 신규. 앞선 두 야간 수집(원본/재수집)이 남긴 두
+미해결 질문에 대한 측정 전용 후속 — 이번에도 설계·⚙·Core/Brain/Game 무수정,
+`tools/dotnet-harness/Overnight/AutoAPlayer.cs`도 한 글자도 안 건드렸다(git diff
+로 확인). **작업1(로스터 차별성, A 승패와 무관하게 B 자신의 행동만으로 재측정)**:
+`MatchResult.cs`에 습관별 발화 카운트·흔들기/견제/큰기술 선언 분포·그립 표적
+분포·카운터준비 선언 카운트 신규 필드 추가(전부 순수 추가, 기존 필드·로직
+무변경) + `MatchSimulator.cs`에 그 필드들을 채우는 계측 라인만 삽입(기존 로직
+비변경, 지문 IDENTICAL 로 확인). 6상대×500경기 각각의 행동 벡터(교환당 비율)를
+만들어 15쌍 유클리드 거리 행렬 산출 — **원본이 "실제로 구별 안 됨"이라 지목한
+문준배-오재훈 쌍**은 이번 측정에서 수치 자체는 달라졌지만(더 이상 소수점까지
+동일하지 않음) 15쌍 중 여전히 가장 가까운 축(거리 0.2388, 15쌍 평균 0.6731,
+최단쌍은 서도현-문준배 0.2194)에 남아 있다 — "완전 미구별"에서는 벗어났으나
+"가장 덜 구별됨"이라는 상대적 지위는 유지, 판단 없이 사실만.
+**작업2(승률 붕괴 원인 분리)**: 재수집이 분리 못 했던 두 동시 변경(B 브레인
+버그 3건 수정 `611e1e2` / AutoAPlayer 3중 안전장치 `a3fb534`)을 실제 커밋
+3개(원본이 실행한 ec1cd8e 계열/이 세션이 새로 실행한 611e1e2/재수집이 실행한
+a3fb534)로 갈라 비교. **611e1e2 실행은 이 세션이 `git worktree add`로 읽기전용
+체크아웃해 그 커밋에 이미 있던(무수정) `dotnet run -- --overnight`를 그대로
+돌려 얻은 신규 데이터**(nunit.framework.dll 빌드 종속성만 메인 트리에서 복사,
+git 추적 파일은 워크트리 안에서 전혀 편집 안 함, 실행 후 `git worktree remove`
+로 정리) — 콤보1/콤보3은 기존 발행 문서 수치 재사용(재실행 없음). **4번째
+조합(new AutoA × old B)은 실제 존재한 적 없는 조합이라 격리 불가로 명시하고
+구성하지 않음**(작업 지시가 명시적으로 허용한 경로 — 워크트리를 읽기전용으로
+쓰라는 제약과 상충해서). 6상대 평균 A 승률: 콤보1(구B×구AutoA) 99.1% →
+콤보2(신B×구AutoA) 77.7% → 콤보3(신B×신AutoA, 현재 HEAD) 4.3%. **콤보2 가
+새로 밝힌 것**: B 그립 수정 단독으로도(AutoA 안전장치 없이) 서도현전 평균
+1615.5교환(최대 3000, 안전상한 도달 205/500=41%)까지 치솟는 그립 교착이
+실제로 재현된다(6상대 평균 안전상한 도달 11.8%) — STATUS 가 서술해온 "서도현전
+seed=5, 2994/3000턴 그립다지기" 현상의 재현. 낙폭 분해: 콤보1→2(B 수정)
+21.4%p, 콤보2→3(AutoA 수정) 73.4%p — 총 낙폭(94.7%p) 중 약 77%가 AutoA 개편
+구간에서 나왔다. **다만 이게 "B가 강해졌다"인지 "AutoA가 원래 갖고 있던
+인위적 그립 우위를 안전장치가 걷어냈을 뿐"인지는 Auto-A가 처음부터 최적이
+아니라는 전제 때문에 이 데이터만으로 더 못 쪼갠다** — 판단 없이 숫자만.
+**작업3(그립 파리티 동역학, 판단 없이 계측만)**: 양쪽 `EffectiveGrip==0`
+스트릭 33174개 실측(현재 HEAD, 6×500) — 평균 길이 **1.47교환**(장기 정체가
+아니라 대부분 한두 교환 안에 끝남), 종료 사유는 그립 액션(14.4%)보다
+흔들기/기술 선언(85.3%: A선언 51.3%+B선언 33.7%+양쪽동시 0.3%)이 압도적으로
+많음(즉 파리티는 대개 저절로 안 풀려서가 아니라 누군가 다지기를 그만두고
+다음 단계로 넘어가서 끝난다). 선언 직후 3교환 창 안에 실제 득점까지 이어지는
+비율은 28.5%(나머지 70.8%는 창 만료까지 무득점) — 흔들기→밸런스드레인→득점
+경로가 파리티에서 완전히 죽은 경로는 아니지만 자주 완결되지도 않는다는
+직접 증거.
+**검증**: `dotnet run -- --check` 257/257 그린 + 42노드 지문 IDENTICAL(새
+계측 필드·라인은 전부 순수 추가라 기존 값 무변화 재확인). `AutoAPlayer.cs`
+git diff 로 무변경 확인. `sh tools/stamp.sh --check md/*.md` exit 0(이 세션은
+스탬프 대상 문서 무수정 — `docs/*.md`는 애초에 스탬프 대상 아님). 새 코드는
+전부 `tools/dotnet-harness/Overnight/OvernightV3Runner.cs`(신규, `--overnight-v3`
+진입점) + `MatchResult.cs`/`MatchSimulator.cs`/`Program.cs`/`Harness.csproj`
+추가 라인뿐 — 기존 `OvernightRunner.cs`(원본/재수집 리포트 생성기)는 무수정.
+상세 표·전문은 `docs/overnight-2026-08-13-v3.md` 참조.
+
 **야간 수집이 찾은 버그 3건 수정 + AutoAPlayer 그립 교착 해소 + 재수집 완료.** 브랜치
 `feat/match-engine`, 커밋 `611e1e2`(버그 3건, 이미 푸시) + 이 세션의 체크포인트(아래).
 **작업1(버그 3건, Brain 프로덕션 코드, 커밋·푸시 완료)**: (①` HabitBrainCommitSource.
@@ -1298,6 +1351,81 @@ Why Assets/Editor/HubForceResolve.cs disappeared — nobody deleted it. It is Un
 Whether to keep the Unity Cloud link (cloudProjectId / organizationId in ProjectSettings.asset) — keep and commit. cloudEnabled is 0, it is a project GUID rather than a secret, ProjectSettings.asset is tracked anyway, and the editor rewrites it if removed.
 
 Session Log (newest first)
+2026-08-13 (밤, v3 후속 측정 — 승률 붕괴 원인 분리 + 로스터 차별성 재측정 + 그립 파리티 동역학)
+작업 지시: 이날 앞선 두 야간 수집이 남긴 두 미해결 질문을 후속 측정. (1) 재수집
+headline("A 승률 붕괴")이 같은 커밋에서 동시에 일어난 B 브레인 버그 수정과
+AutoAPlayer 안전장치 추가가 뒤섞인 결과라 원인 분리가 안 됐던 것을 실제 커밋
+3개(ec1cd8e 계열/611e1e2/a3fb534)로 갈라 분리. (2) 로스터 6명 차별성을
+지금까지 전부 A 승률(Auto-A 휴리스틱 품질에 오염된 지표)로만 봤던 것을 B
+자신의 행동 분포로 재측정. (3, 덤) 그립 파리티(양쪽 EffectiveGrip==0)가 실제
+정체 구간인지 정상 결정 지점인지 직접 계측. 세 작업 모두 측정 전용 — 튜닝·
+설계 변경 금지, `AutoAPlayer.cs`도 이번엔 바이트 단위로 무수정 유지(지난 두
+세션과 달리 이번엔 크래시가 나도 그 파일은 못 고치는 제약).
+세션 시작 확인: `git status --short`(untracked `Assets/_Recovery/`만, 이전
+세션부터 있던 것 무관), `git log --oneline -5`로 HEAD `a3fb534` 확인, STATUS.md
+최신 항목을 디스크에서 직접 재확인(시스템 프롬프트 요약이 아니라).
+작업1 — 기존 하니스 구조 조사(`MatchResult.cs`/`MatchSimulator.cs`/
+`AutoAPlayer.cs`/`OvernightRunner.cs`/`Program.cs` 통독) + Brain 쪽
+`HabitDecision`/`HabitId`/`IBrainContext`/`SetupPrecedingCommitSource`/
+`HabitBrainCommitSource` 통독해 습관 발화·선언 유형·그립 표적을 어디서 읽을
+수 있는지 확인. `MatchResult.cs`에 신규 필드(습관별 발화 카운트 dict, 흔들기/
+견제/큰기술/기타 선언 카운트, 카운터준비 카운트, 그립 표적 카운트 dict,
+그립 파리티 스트릭 통계 필드 일습) 추가 — 작업 지시가 "MatchResult 확장을
+허용"이라고 명시해서 이 경로를 택함(완전히 별도 시뮬레이터를 새로 짜는 대신
+검증된 기존 배선을 재사용 — 중복·불일치 위험 최소화 판단). `MatchSimulator.cs`
+에는 그 필드들을 채우는 순수 추가 라인만 삽입(기존 로직·순서·값 무변경) —
+습관 발화(`brainDecision.Fired`)/선언 유형(B 커밋의 `Hand`/기술 `Cost`)/
+그립 표적(`IsGripTarget` 신규 헬퍼)/그립 파리티 스트릭(교환 진입 전 양쪽
+`EffectiveGrip` 읽어 스트릭 갱신, 종료 사유를 A선언/B선언/양쪽동시/그립액션/
+경기끝 5가지로 분류, 흔들기·기술 선언 직후 3교환 창 안 득점 여부를 대기
+큐(`pendingParityWindows`)로 추적). 빌드 확인 후 `dotnet run -- --check` 로
+257/257 그린 + 지문 IDENTICAL 즉시 재확인(순수 추가라는 주장을 실행으로
+검증).
+작업2 — `OvernightV3Runner.cs` 신규(`--overnight-v3` 진입점, 기존
+`OvernightRunner.cs`/`--overnight`는 무수정) — 작업1·작업3(로스터 차별성 +
+그립 파리티)을 현재 HEAD 로 6×500 실행하고 §1/§3 절 본문을 만든다. 6×500=3000
+경기가 0.2~0.3초에 끝나(하니스가 순수 C# 이라 매우 빠름) N=500 을 낮출 필요가
+전혀 없었다. 행동 벡터(교환당 비율로 정규화 — 상대마다 평균 경기 길이가 달라
+원시 카운트 비교는 부적절 판단)를 만들어 15쌍 유클리드 거리 산출, 메트릭
+선택 근거(대칭·소수축 큰 차이 반영, "정답"이라 주장 안 함)를 문서에 명기.
+작업3 — Task2(승률 붕괴 원인 분리)는 git worktree 오케스트레이션이 필요해
+C# 서브프로세스 스폰보다 셸에서 직접 하는 게 안전·투명하다고 판단해 범위
+밖으로 분리. `git worktree add <scratch>/wt-611e1e2 611e1e2` 로 읽기전용
+체크아웃 → `Library/PackageCache`(git 미추적 Unity 빌드 산출물, nunit.framework.dll
+필요) 를 메인 트리에서 파일 복사만(워크트리 안 git 추적 파일은 전혀 편집 안
+함) → 그 커밋에 이미 있던 `dotnet run -- --overnight` 그대로 실행(무수정
+재현) → 결과 문서(워크트리 안의 `docs/overnight-2026-08-13-recollect.md`,
+611e1e2 시점엔 그 경로가 이미 그 이름이었다 — 최종 확정은 아님, 6-08-13 세션의
+중간 산출물) 를 읽어 필요한 수치(승률/평균교환수/종료사유/안전상한 도달)만
+추출 → `git worktree remove` 로 정리. **이 실행에서 실제로 서도현전 평균
+1615.5교환(최대 3000, 안전상한 도달 205/500)이라는 심각한 그립 교착이
+나왔다** — STATUS 가 서술해온 "서도현전 seed=5, 2994/3000턴" 현상이 이
+커밋(브레인 버그 수정 직후, AutoA 안전장치 적용 전) 시점에 로스터 전체
+규모로 재현됨을 처음으로 실측 확인.
+작업4 — 콤보1(원본 문서)/콤보2(위 워크트리 실행)/콤보3(재수집 문서) 3콤보
+비교. 4번째 조합(new AutoA×old B)은 실제 커밋으로 존재한 적 없어 워크트리로
+만들려면 611e1e2 의 Brain/Core 를 체크아웃한 채 harness 파일만 손으로
+바꿔치기해야 하는데, 그건 "워크트리는 읽기전용" 제약을 어기는 편집이라
+판단해 구성하지 않고 "격리 불가" 로 명시(작업 지시가 명시적으로 허용한 경로).
+평균 승률 계산에서 최초 산술 실수(콤보1 평균을 95.7%로 잘못 계산)를 `awk`
+직접 재계산으로 발견·수정(99.1%가 맞음) — 이후 관련 낙폭·비율 문장 전체를
+재계산값으로 다시 맞춤. 종료사유 표에서도 "3rd shido"와 "golden score 계"
+두 열이 겹친다(golden score 3rd shido 131건이 양쪽에 들어감)는 걸 발견해
+표 아래에 명시.
+작업5 — `docs/overnight-2026-08-13-v3.md` 작성(§1 로스터 차별성/§2 승률 붕괴
+원인 분리/§3 그립 파리티 동역학/§4 관찰·튜닝 후보/§5 검증). C# 이 만든 §1/§3
+본문(`docs/overnight-2026-08-13-v3-body.md`, 중간 산출물)을 손으로 §2(워크트리
+실행 결과)와 합쳐 최종본으로 완성 후 중간 산출물 파일은 삭제.
+검증: `dotnet run -- --check` 257/257 그린 + 42노드 지문 IDENTICAL(최종
+재확인). `git diff a3fb534 -- tools/dotnet-harness/Overnight/AutoAPlayer.cs`
+빈 출력으로 무변경 확인. `sh tools/stamp.sh --check md/*.md` exit 0(스탬프
+대상 5종 문서는 이 세션이 하나도 안 건드림 — `docs/*.md`는 스탬프 대상 아님).
+`git worktree list` 로 워크트리가 깨끗이 정리됐음을 확인(메인 트리만 남음).
+`git status --short` 로 이 세션이 `tools/dotnet-harness/Overnight/`(신규
+`OvernightV3Runner.cs` + 기존 3파일 추가 라인만)·`Program.cs`·`Harness.csproj`·
+`docs/overnight-2026-08-13-v3.md`·`md/STATUS.md` 외에 아무것도 안 건드렸음을
+확인 — Core/Brain/Game/`MatchRulesConfig` ⚙ 무수정.
+커밋·푸시는 작업 지시가 "완료 시 커밋·푸시"를 사전 승인.
 2026-08-13 (밤, 후속 — 버그 3건 수정 + AutoAPlayer 그립 교착 해소 + 재수집)
 전날 밤 데이터 수집 세션이 §6에 남긴 관찰 3건(②B 폴백 그립 한손 고정/④B 게이트 무시
 /⑤변칙기 흔들기 예고)을 사용자가 검토 후 지시. ②의 이력(git blame)과 ④의 방향("B도

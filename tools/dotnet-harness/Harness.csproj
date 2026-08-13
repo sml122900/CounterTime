@@ -67,6 +67,10 @@
     <Compile Include="Overnight\MatchResult.cs" />
     <Compile Include="Overnight\MatchSimulator.cs" />
     <Compile Include="Overnight\OvernightRunner.cs" />
+    <!-- 2026-08-13 v3: roster distinctiveness (task 1) + grip parity dynamics
+         (task 3), separate entry point (see Program.cs' args check). See
+         OvernightV3Runner.cs. -->
+    <Compile Include="Overnight\OvernightV3Runner.cs" />
   </ItemGroup>
 
 </Project>

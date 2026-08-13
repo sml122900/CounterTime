@@ -73,6 +73,13 @@ namespace CounterTime.Harness.Overnight
             int brokenStreakA = 0, brokenStreakB = 0;
             int iterations = 0;
 
+            // 2026-08-13 v3 (docs/overnight-2026-08-13-v3.md) 작업3 — 그립 파리티
+            // 동역학 상태. MatchResult.cs 의 Parity* 필드 주석 참조.
+            int currentParityStreak = 0;
+            bool parityBreakPendingThisExchange = false;
+            var pendingParityWindows = new List<int>();
+            const int ParityWindowExchanges = 3;
+
             while (!engine.Board.IsFinished && iterations < SafetyCap)
             {
                 iterations++;
@@ -97,6 +104,11 @@ namespace CounterTime.Harness.Overnight
                 }
 
                 var aDecision = autoA.Decide(engine, cfg);
+                // 2026-08-13 v3 작업3 — 이번 교환에 들어가기 전 그립 상태(양쪽 다
+                // EffectiveGrip==0 인지). ResolveExchange 가 아래에서 그립을 바꾸므로
+                // 반드시 그 전에 읽어야 "들어갈 때" 값이다.
+                bool bothZeroEnteringExchange =
+                    engine.Grip.EffectiveGrip(FighterId.A) == 0 && engine.Grip.EffectiveGrip(FighterId.B) == 0;
                 if (engine.Grip.EffectiveGrip(FighterId.B) >= 1) r.BTurnsWithGripEdge++;
                 brain.TryNext(out _, out var b);
                 var brainTechnique = brain.LastTechnique;
@@ -117,6 +129,36 @@ namespace CounterTime.Harness.Overnight
                 TechniqueSpec aTechnique = !bAttacks && aDecision.TechniqueId != null
                     ? BuildATechnique(aDecision.TechniqueId) : null;
                 bool aAttacks = aTechnique != null;
+
+                // 2026-08-13 v3 작업3 — 파리티 스트릭 갱신. "선언"은 흔들기(Setup
+                // 표적) 또는 실제 기술(공격) 중 하나 — §4.4 흔들기는 그립을 안 바꾸므로
+                // 그립 수치와 별개로 "그립 다지기를 그만두고 다음 단계로 넘어갔다"의
+                // 신호로 쓴다.
+                if (bothZeroEnteringExchange)
+                {
+                    currentParityStreak++;
+                    bool aBreaks = aAttacks || aDecision.Commit.Hand == HandTarget.Setup;
+                    bool bBreaks = bAttacks || b.Hand == HandTarget.Setup;
+                    if (aBreaks || bBreaks)
+                    {
+                        r.ParityStreakCount++;
+                        r.ParityStreakTotalLength += currentParityStreak;
+                        if (aBreaks && bBreaks) r.ParityStreakEndedByBothDeclare++;
+                        else if (aBreaks) r.ParityStreakEndedByADeclare++;
+                        else r.ParityStreakEndedByBDeclare++;
+                        parityBreakPendingThisExchange = true;
+                        currentParityStreak = 0;
+                    }
+                }
+                else if (currentParityStreak > 0)
+                {
+                    // 그립이 이전 교환의 결과로 이미 0-0 을 벗어났다(이번 교환에 선언은
+                    // 없었다) — "그립 액션으로 파리티가 풀렸다"로 집계.
+                    r.ParityStreakCount++;
+                    r.ParityStreakTotalLength += currentParityStreak;
+                    r.ParityStreakEndedByGripResolved++;
+                    currentParityStreak = 0;
+                }
 
                 FighterId? attacker = bAttacks ? FighterId.B : aAttacks ? FighterId.A : (FighterId?)null;
                 TechniqueSpec technique = bAttacks ? brainTechnique : aAttacks ? aTechnique : null;
@@ -144,6 +186,7 @@ namespace CounterTime.Harness.Overnight
                 var events = engine.ResolveExchange(aDecision.Commit, b, script);
                 r.ExchangesResolved++;
 
+                bool hasScoreThisExchange = false;
                 foreach (var e in events)
                 {
                     if (e is JudgementScored js)
@@ -151,9 +194,42 @@ namespace CounterTime.Harness.Overnight
                         r.Judgements[js.Judgement] = (r.Judgements.TryGetValue(js.Judgement, out int c) ? c : 0) + 1;
                         r.ScoredBy[js.ScoredBy] = (r.ScoredBy.TryGetValue(js.ScoredBy, out int sc) ? sc : 0) + 1;
                         if (js.IsCounter) r.Counters++;
+                        if (js.Judgement != Judgement.None) hasScoreThisExchange = true;
                     }
                     if (e is OsaekomiEntered) r.OsaekomiEntries++;
                 }
+
+                // 2026-08-13 v3 작업3 — 대기 중인 파리티-선언 창(과거 교환에서 열린 것)
+                // 부터 먼저 이번 교환의 점수 유무로 정산하고, 그 다음 이번 교환 자체가
+                // 새로 연 창을 등록한다(즉시 득점이면 그 자리에서 바로 성공 처리).
+                for (int wi = pendingParityWindows.Count - 1; wi >= 0; wi--)
+                {
+                    if (hasScoreThisExchange) { r.ParityBreakScoreWithinWindow++; pendingParityWindows.RemoveAt(wi); continue; }
+                    pendingParityWindows[wi]--;
+                    if (pendingParityWindows[wi] <= 0) { r.ParityBreakScoreMissed++; pendingParityWindows.RemoveAt(wi); }
+                }
+                if (parityBreakPendingThisExchange)
+                {
+                    r.ParityBreakDeclareTotal++;
+                    if (hasScoreThisExchange) r.ParityBreakScoreWithinWindow++;
+                    else pendingParityWindows.Add(ParityWindowExchanges - 1);
+                    parityBreakPendingThisExchange = false;
+                }
+
+                // 2026-08-13 v3 작업1 — 로스터 차별성을 B 자신의 행동으로 재는 지표
+                // (승패와 무관). brainDecision/brainTechnique/b 는 위에서 이미 계산됨.
+                if (brainDecision.Fired)
+                {
+                    var hid = brainDecision.Habit.Id;
+                    r.BHabitFirings[hid] = (r.BHabitFirings.TryGetValue(hid, out int hc2) ? hc2 : 0) + 1;
+                }
+                if (b.Legs == LegAction.CounterReady) r.BCounterReadyDeclares++;
+                if (IsGripTarget(b.Hand))
+                    r.BGripTargetCounts[b.Hand] = (r.BGripTargetCounts.TryGetValue(b.Hand, out int gc) ? gc : 0) + 1;
+                if (b.Hand == HandTarget.Setup) r.BSetupDeclareCount++;
+                else if (brainTechnique != null && brainTechnique.Cost == ActionCost.Poke) r.BPokeDeclareCount++;
+                else if (brainTechnique != null && brainTechnique.Cost == ActionCost.BigThrow) r.BBigThrowDeclareCount++;
+                else r.BOtherDeclareCount++;
 
                 // technique usage tallies — only the fighter who actually got to act
                 // this exchange (attacker priority: B wins simultaneous attacks, the
@@ -190,6 +266,15 @@ namespace CounterTime.Harness.Overnight
 
                 if (engine.Board.IsFinished)
                     r.TerminationReason = ClassifyTermination(events, engine, wasGoldenBefore);
+            }
+
+            // 2026-08-13 v3 작업3 — 경기가 끝날 때 아직 진행 중이던 파리티 스트릭을
+            // 마감(match-end 로 집계, 다른 이유로 끝난 것과 섞이지 않게 분리).
+            if (currentParityStreak > 0)
+            {
+                r.ParityStreakCount++;
+                r.ParityStreakTotalLength += currentParityStreak;
+                r.ParityStreakEndedByMatchEnd++;
             }
 
             r.HitSafetyCap = iterations >= SafetyCap && !engine.Board.IsFinished;
@@ -271,5 +356,11 @@ namespace CounterTime.Harness.Overnight
         }
 
         static FighterId Opp(FighterId f) => f == FighterId.A ? FighterId.B : FighterId.A;
+
+        /// 2026-08-13 v3 작업1 — "그립을 노리는" 손 표적만(뜯기/흔들기/유지/없음/회피는
+        /// 제외 — 이건 "새 홀드를 노린다"의 실측이지 손 축 전체 사용량이 아니다).
+        static bool IsGripTarget(HandTarget t) => t == HandTarget.RightSleeve || t == HandTarget.LeftSleeve
+            || t == HandTarget.LeftLapel || t == HandTarget.RightLapel
+            || t == HandTarget.TwistGrip || t == HandTarget.BackGrab;
     }
 }
