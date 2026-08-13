@@ -1086,7 +1086,15 @@ META_DESIGN §M6대로 재배치, 3.5단계 신설).** 판단 대기 2건은 앞
    StaminaSystem 변경 = 규칙 변경이라 42노드 지문 영향 반드시 확인). 판정식 자체는
    전면 무수정이 전제 — 위력은 전부 §E 승격 롤·체력 비용에 태운다. `ROSTER.md`
    §R8b가 정의한 상대별 시그니처 콤보(진도윤 업어치기→안뒤축 / 임세라 어깨매치기→
-   발뒤축걸기)도 이 단계에서 점등.
+   발뒤축걸기)도 이 단계에서 점등. **여기에 `DESIGN_training.md` §7(확장 아이디어,
+   2026-08-14 정본화)도 같이 묶인다** — 훈련 종목에 인터벌·산악 러닝(카디오 축) 추가,
+   훈련 렙 메커니즘을 "방전까지 단순 소모"에서 코치 압박 축(훈련체력 소모+코치 눈치
+   압박, 방전 회피와 코치 눈치 사이 줄타기)으로 확장. 그리고
+   `DESIGN_future-mechanics.md` §7(실행 입력 층, 같은 날 정본화)도 이 단계 몫 —
+   기술 습득을 구분동작 리듬게임으로(경기 부위지정 입력과 통일), 대련 중 예측
+   성공/기술 조건 충족 시 신체부위 순서·타이밍 입력으로 발동을 관문화. 둘 다
+   ★열린 질문 있음(§D 예측 되치기와의 결합 방식/밸런스가 손입력에 밀릴 위험/구현
+   순서) — 착수 전 사람 결정 필요, 문서에 목록으로만 남겨둠.
 8. 위장 가중(§A.4)
 
 **가장 최근 (그 앞) — MATCH_RULES v4.0 반영 완료 (문서 전용 세션, 코드 무수정).**
@@ -1432,6 +1440,31 @@ Why Assets/Editor/HubForceResolve.cs disappeared — nobody deleted it. It is Un
 Whether to keep the Unity Cloud link (cloudProjectId / organizationId in ProjectSettings.asset) — keep and commit. cloudEnabled is 0, it is a project GUID rather than a secret, ProjectSettings.asset is tracked anyway, and the editor rewrites it if removed.
 
 Session Log (newest first)
+2026-08-14 (문서 세션 — 확장 아이디어 4건 정본화)
+작업 지시: 사용자 착상 4건(인터벌·산악 러닝 종목/코치 압박 축/기술 습득 리듬게임/대련
+실행 입력 층)을 리포에 남긴다 — 전부 §H 7 이월 설계, 지금 구현 아님. 코드·테스트 무수정.
+작업0 — 스탬프 --check exit 0, 하니스 257/257·지문 IDENTICAL 확인 후 진행.
+작업1 — `md/DESIGN_training-draft.md`(여전히 초안 상태였음, 08-13 세션이 §5(A) 구현은
+끝냈지만 문서 자체를 정본화하진 않았었다)를 `md/DESIGN_training.md`로 승격(1행 스탬프,
+헤더를 다른 정본 문서 스타일로 교체, §5(A) 구현 완료 사실을 헤더·§6에 반영) + §7 "확장
+아이디어(이월)" 신설: 인터벌·산악 러닝(카디오 축, §4 종목 목록에 없던 결) / 코치 압박
+축(현 §2 "방전까지 단순 소모" 렙 메커니즘 위에 얹는 다음 층 — 훈련체력 소모+코치 눈치
+지수형 압박, 방전 회피와 코치 눈치 사이를 타며 완주). 둘 다 §H 7(스탯 연결)과 함께.
+작업2 — `md/DESIGN_future-mechanics.md`에 §7 "실행 입력 층(이월)" 신설(v1.0→v1.1):
+기술 습득=구분동작 리듬게임(경기 부위지정 입력[철권식 끊기]과 통일, 구분동작=모캡 클립
+단위) / 대련 실행 입력 층(예측 성공·기술 조건 충족 시 신체부위 순서·타이밍 입력으로
+발동, 손 실력이 캐릭터 스탯과 별개로 성장). ★열린 설계 질문 3개 명기(§D 예측 되치기와의
+결합 방식/밸런스가 손입력에 밀릴 위험/구현 순서=기술습득 리듬게임이 먼저, 그 방식을
+경기로 이식) — 지시 그대로 방향을 정하지 않고 질문으로만 남김.
+작업3 — 초안 삭제(`md/DESIGN_training-draft.md`, 내용 전부 정본으로 이동 완료). STATUS
+§H 7 항목에 두 확장 언급 추가. 스탬프 재계산(`sh tools/stamp.sh md/DESIGN_training.md
+md/DESIGN_future-mechanics.md`) + `--check md/*.md` exit 0(6종) 재확인. 하니스
+`dotnet run -- --check` 257/257 그린 + 지문 IDENTICAL(문서만 바꿨으므로 당연한 결과 —
+재확인 목적). 코드 세션이 아니라 Unity MCP 컴파일 확인은 스킵(CLAUDE.md 문서 전용 세션
+원칙). `git status --short`로 의도한 파일(정본 2개 신규/수정, 초안 1개 삭제, STATUS.md)만
+바뀌었음을 확인(`Assets/_Recovery/`는 이전 세션부터 있던 untracked, 무관).
+판단 필요 지점은 정하지 않고 각 문서 §7 안에 목록으로 남김(구체 수치·구현 순서·범위 전부
+사람 판단 대기). 커밋·푸시는 작업 지시가 완료 시 사전 승인.
 2026-08-13 (훈련 클립 스캐폴드 — DESIGN_training §5(A))
 작업 지시: `md/DESIGN_training-draft.md` §5의 "지금 빌드(A)"만 — 훈련 화면 + 종목
 선택 + 능동 렙 입력 + 방전 + 종목별 모캡 클립 슬롯. 스탯/숙련 진행 연결(B)은 §H 7
