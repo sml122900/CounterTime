@@ -25,6 +25,12 @@ namespace CounterTime.Brain
         readonly IBrainContext _brainContext;
         readonly IRandomSource _rng;
 
+        /// §H 3.5b 후속 (2026-08-13 밤 데이터 수집 §1 실측) — 폴백 잡기싸움이 항상
+        /// 오른소매만 노렸더니 GripSystem.GripScore(min(2,보유)−min(2,상대보유)) 상,
+        /// 양손을 다 노리는 상대에게 구조적으로 영구 열세가 됐다(3000교환 표본 중
+        /// B 의 OwnEffectiveGrip>=1 이 2.12% 뿐). 좌우를 번갈아 두 손 다 노린다.
+        HandTarget _nextGripHand = HandTarget.RightSleeve;
+
         /// 이번 턴 사다리 2단의 결론. 관측 원장이 이걸 받는다.
         ///
         /// <b>이 결정 시점 ≠ 교환 제출 시점.</b> 흔들기 데코레이터(<see cref="SetupPrecedingCommitSource"/>)가
@@ -183,13 +189,21 @@ namespace CounterTime.Brain
             return new HabitAction(TurnChoice.Neutral);
         }
 
-        static HabitAction ActionFor(Move m)
+        HabitAction ActionFor(Move m)
         {
             switch (m)
             {
                 case Move.GripFight:
+                    var hand = _nextGripHand;
+                    // §3 — GripSystem.Grab 은 TurnChoice.OwnHand(내 손) 슬롯에 값을 쓴다
+                    // (TurnChoice.Hand 는 상대 소매 쪽 표적일 뿐). 표적만 번갈고 OwnHand 를
+                    // 기본값(Right)에 맡기면 매번 같은 내 손 슬롯을 덮어써 Value()가 절대
+                    // 2를 못 넘는다 — 표적과 내 손을 같이 번갈아야 두 손 다 실제로 쌓인다.
+                    var ownHand = hand == HandTarget.RightSleeve ? Hand.Right : Hand.Left;
+                    _nextGripHand = hand == HandTarget.RightSleeve
+                        ? HandTarget.LeftSleeve : HandTarget.RightSleeve;
                     return new HabitAction(
-                        new TurnChoice(HandTarget.RightSleeve, CoreStance.Neutral, LegAction.Neutral));
+                        new TurnChoice(hand, CoreStance.Neutral, LegAction.Neutral, ownHand));
                 case Move.Tear:
                     return new HabitAction(
                         new TurnChoice(HandTarget.Tear, CoreStance.Neutral, LegAction.Neutral));

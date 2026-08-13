@@ -26,6 +26,11 @@ namespace CounterTime.Brain
         int OwnStamina { get; }
         /// 폴백 가중.
         int OpponentStamina { get; }
+        /// §H 3.5b 후속(밸런스 게이트 존중, 2026-08-13 밤 데이터 수집 §6 항목1) —
+        /// <see cref="SetupPrecedingCommitSource"/> 가 큰기술을 실제로 내보내도 되는지
+        /// 판단할 때만 쓴다. §4.4 그대로 <c>MatchEngine.Balance.Get</c> 을 상대(방어자)
+        /// 기준으로 읽는다 — 파생 없음.
+        int OpponentBalance { get; }
         /// 폴백 가중 — 받은 지도 <b>개수</b>. 습관(H2)이 보는 것은 개수가 아니라 최근성이다.
         int OwnShidoCount { get; }
         /// 폴백 가중 — 남은 정규 시간(초).

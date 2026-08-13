@@ -116,7 +116,8 @@ namespace CounterTime.Game.Match
             _habitState = new HabitState(opponent);
             _bContext = new MatchBrainContext(Engine, FighterId.B);
             _bInner = new HabitBrainCommitSource(FighterId.B, _habitState, _bContext, _bContext, _rng);
-            _bSource = new SetupPrecedingCommitSource(_bInner, _bContext, setupEnabled);
+            _bSource = new SetupPrecedingCommitSource(_bInner, _bContext, setupEnabled,
+                _cfg.BalanceOnsetThreshold);
         }
 
         /// §H 2단계 — 레지스트리 조회로 A 의 기술을 조립한다. AuthoredClass 는

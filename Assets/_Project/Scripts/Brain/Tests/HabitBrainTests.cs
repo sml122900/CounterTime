@@ -528,6 +528,7 @@ namespace CounterTime.Brain.Tests
             public int OpponentStamina { get; set; } = 100;
             public bool OpponentSetupActive { get; set; }
             public int OwnBalance { get; set; } = 100;
+            public int OpponentBalance { get; set; } = 100;
             public int OwnShidoCount { get; set; }
             public int SecondsRemaining { get; set; } = 240;
             public bool OwnStaminaLockout { get; set; }

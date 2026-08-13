@@ -39,6 +39,8 @@ namespace CounterTime.Brain
 
         // ── IBrainContext ───────────────────────────────────────────────────────
 
+        public int OpponentBalance => _engine.Balance.Get(_foe);
+
         public int OwnShidoCount => _engine.Board.Shido(_me);
         public int SecondsRemaining => _engine.Clock.RemainingSeconds;
         public bool OwnStaminaLockout => _engine.Stamina.IsExhaustedLockout(_me);

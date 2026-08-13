@@ -61,10 +61,11 @@ namespace CounterTime.Harness.Overnight
             var bInner = new HabitBrainCommitSource(FighterId.B, state, bctx, bctx, rng);
             // §H step 3 precedent (PlayModeSmokeTests) — wrap B with the 흔들기
             // lead-in decorator whenever BalanceGate is on, so B's own big-throw habits
-            // exercise the Setup drain path too (not just A's). See RunInner's bottom
-            // comment for a real interaction gap this surfaced between this decorator
-            // and OpponentDefinition.Surprise — recorded, not fixed (out of scope).
-            var brain = new SetupPrecedingCommitSource(bInner, bctx, enabled: true);
+            // exercise the Setup drain path too (not just A's). 2026-08-13 밤 수집이
+            // 발견한 두 상호작용(변칙기가 흔들기에 예고당함 / B가 게이트를 무시하고
+            // 던짐)은 SetupPrecedingCommitSource.cs 쪽에서 고쳐졌다 — 이 생성 호출은
+            // 이제 그 수정판을 그대로 쓴다(여기 코드 변경 없음).
+            var brain = new SetupPrecedingCommitSource(bInner, bctx, enabled: true, cfg.BalanceOnsetThreshold);
 
             var autoA = new AutoAPlayer(rng);
 

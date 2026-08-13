@@ -26,6 +26,7 @@ namespace CounterTime.Brain
         readonly HabitBrainCommitSource _inner;
         readonly IBrainContext _brainContext;
         readonly bool _enabled;
+        readonly int _balanceOnsetThreshold;
 
         bool _hasPending;
         FighterId _pendingWho;
@@ -44,17 +45,35 @@ namespace CounterTime.Brain
         public bool LastUsedFallback { get; private set; }
 
         public SetupPrecedingCommitSource(HabitBrainCommitSource inner, IBrainContext brainContext,
-                                          bool enabled)
+                                          bool enabled, int balanceOnsetThreshold = 70)
         {
             _inner = inner;
             _brainContext = brainContext;
             _enabled = enabled;
+            _balanceOnsetThreshold = balanceOnsetThreshold;
         }
 
         public bool TryNext(out FighterId who, out TurnChoice choice)
         {
             if (_hasPending)
             {
+                // §H 3.5b 후속(밸런스 게이트 존중, 2026-08-13 밤 데이터 수집 §6 항목1) —
+                // 상대(방어자) 밸런스가 아직 임계 이상이면 어차피 Sloppy 로 강등된다.
+                // 큰기술은 계속 대기시키고 흔들기를 한 턴 더 반복한다.
+                // BalanceDrainSetup(40)이 BalanceOnsetThreshold(70)의 절반을 넘어
+                // 보통 한 번이면 충분하지만, 그 사이 상대가 회복(수비 성공·그쳐)했으면
+                // 여러 번 반복될 수 있다.
+                if (_enabled && _brainContext.OpponentBalance >= _balanceOnsetThreshold)
+                {
+                    who = _pendingWho;
+                    choice = new TurnChoice(HandTarget.Setup, CoreStance.Neutral, LegAction.Neutral,
+                        _pendingChoice.OwnHand);
+                    LastTechnique = null;
+                    LastDecision = default;
+                    LastUsedFallback = false;
+                    return true;
+                }
+
                 _hasPending = false;
                 who = _pendingWho;
                 choice = _pendingChoice;
@@ -95,6 +114,11 @@ namespace CounterTime.Brain
             return got;
         }
 
-        static bool IsBigThrow(TechniqueSpec t) => t != null && t.Cost == ActionCost.BigThrow;
+        // §H 3.5b 후속(2026-08-13 밤 데이터 수집 §5·§6 항목2) — 변칙기는
+        // TechniqueSpec.SurpriseExempt=true 로 나온다("노출 전 파괴적, 예고 없이
+        // 온다"는 게 그 필드의 존재 이유). 이 필드를 안 보면 변칙기 앞에도 흔들기가
+        // 끼어들어 그 취지가 깨진다 — 변칙기는 이 데코레이터를 그대로 통과시킨다.
+        static bool IsBigThrow(TechniqueSpec t) =>
+            t != null && t.Cost == ActionCost.BigThrow && !t.SurpriseExempt;
     }
 }
