@@ -17,7 +17,14 @@ namespace CounterTime.Harness.Overnight
     ///      MatchEngine.IsSetupActive, the same public read SeoDohyun's own H1 habit
     ///      uses from the mirror side) by declaring CounterReady.
     ///   3. Contest grip before committing to any technique — an established grip
-    ///      (EffectiveGrip &gt;= 1) is a precondition for every attack branch below.
+    ///      (EffectiveGrip &gt;= 1) is preferred, but only for up to
+    ///      <see cref="GripBuildPatienceLimit"/> consecutive turns (2026-08-13 재수집 —
+    ///      both sides can reach a stable Value=2 grip parity where EffectiveGrip never
+    ///      reaches +/-1 for either fighter; waiting forever there is not real-player
+    ///      behavior). Past the patience limit, A stops waiting and moves on to 4/5 at
+    ///      parity, same as if grip had been won. A hard, whole-match cap
+    ///      (<see cref="GripBuildHardCap"/>) backs this up structurally — see
+    ///      <see cref="SuspectedGripDeadlock"/>.
     ///   4. If the opponent's Balance is still at/above the onset threshold (§4.4 gate
     ///      closed): drain it instead of wasting a big throw into an automatic Sloppy
     ///      downgrade — a feint/footsweep-class poke (§D.4 floor drain) most of the
@@ -43,9 +50,26 @@ namespace CounterTime.Harness.Overnight
         static readonly string[] BigThrows = { "밭다리걸기", "허리후리기", "안오금띄기", "어깨 매치기" };
         static readonly string[] Pokes = { "모두걸기", "발목받치기", "나오는발차기", "발뒤축걸기" };
 
+        // §H 3.5b 후속 (2026-08-13 재수집) — 2026-08-13 첫 재수집이 실제로 밝힌 문제:
+        // 그립 한손 고정 버그(HabitBrainCommitSource)를 고치자 B 도 양손을 다 쥘 수
+        // 있게 됐고, 둘 다 Value=2 파리티(GripScore=0)에 도달하면 이 클래스의 옛 조건
+        // (ownGrip<1)이 A/B 양쪽에서 동시에 참으로 영원히 남아 그립다지기에서 못
+        // 빠져나왔다(실측: 서도현전 seed=5, 3000턴 중 2994턴이 그립다지기). 사람 결정
+        // (2026-08-13 재수집 지시): 인내 한계 + 파리티 커밋 + 하드 상한 3중 안전장치.
+        const int GripBuildPatienceLimit = 6;   // ⚙ — 이 턴 안에 우위를 못 얻으면 포기
+        const int GripBuildHardCap = 50;        // ⚙ — 경기 전체 누적, 넘으면 교착 의심으로 집계하고 이후 영구 우회
+
         readonly IRandomSource _rng;
         int _bigIdx, _pokeIdx, _drainTurnCount, _gripBuildTurnCount;
+        int _gripBuildStreak, _totalGripBuildTurns;
         bool _lastBWasCounterReady;
+
+        /// 경기 전체에서 GripBuildHardCap 을 한 번이라도 넘었는가 — 기대값은 0(정상
+        /// 이면 절대 안 걸린다). §4 안전상한(3000교환)과는 다른 지표: 이건 "그립싸움
+        /// 하나가 하드 상한을 넘겼다"는 좁은 신호라, 안전상한 도달보다 먼저 걸려야
+        /// 정상이고(그립싸움이 원인이면), 안 걸렸는데 안전상한만 걸렸다면 원인이
+        /// 그립싸움이 아니라는 뜻이다.
+        public bool SuspectedGripDeadlock { get; private set; }
 
         // ── behavioral characterization counters (report §1) ───────────────────────
         public int TotalDecisions { get; private set; }
@@ -107,15 +131,28 @@ namespace CounterTime.Harness.Overnight
             // still a heuristic, not optimal play — it does not try to prevent B from
             // achieving a bilateral hold, it just stops A from being the only side
             // permanently limited to one hand.
-            if (ownGrip < 1)
+            if (ownGrip >= 1)
+            {
+                _gripBuildStreak = 0;   // 우위를 얻었다 — 다음에 다시 못 얻어도 처음부터 K턴 기다린다.
+            }
+            else if (_gripBuildStreak < GripBuildPatienceLimit && _totalGripBuildTurns < GripBuildHardCap)
             {
                 GripBuildTurns++;
+                _gripBuildStreak++;
+                _totalGripBuildTurns++;
                 bool right = _gripBuildTurnCount % 2 == 0;
                 _gripBuildTurnCount++;
                 return NonAttack(right
                     ? new TurnChoice(HandTarget.RightSleeve, CoreStance.Neutral, LegAction.Neutral, Hand.Right)
                     : new TurnChoice(HandTarget.LeftSleeve, CoreStance.Neutral, LegAction.Neutral, Hand.Left));
             }
+            else if (_totalGripBuildTurns >= GripBuildHardCap)
+            {
+                SuspectedGripDeadlock = true;   // 기대값 0 — 걸리면 그 자체가 보고 대상.
+            }
+            // 인내 한계(또는 하드 상한) 도달 — 그립 우위를 못 얻었어도 4/5로 넘어간다.
+            // 실제 플레이어라면 그립만 붙잡고 무한정 기다리지 않고 파리티에서라도
+            // 흔들기/견제/기술을 시도한다는 판단(2026-08-13 재수집 사람 지시).
 
             // 4 — gate closed (opponent's Balance still high): drain instead of wasting
             // a big throw into an automatic Sloppy downgrade (§4.4). Majority path is a

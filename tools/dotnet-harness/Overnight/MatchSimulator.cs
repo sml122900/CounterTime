@@ -104,6 +104,16 @@ namespace CounterTime.Harness.Overnight
                 resolver.NoteOpponentHabit(brainDecision);
 
                 bool bAttacks = brainTechnique != null;
+
+                // 2026-08-13 재수집 — 계측만, 판단·수정 없음(작업 지시). B 자신의
+                // EffectiveGrip 이 정확히 0(파리티)인 교환에서 B 가 그 턴에 기술을
+                // 못 냈는지 센다 — B 의 그립 의존 습관 대부분이 OwnEffectiveGrip>=1
+                // 을 요구하므로, 파리티에서는 그 습관들이 구조적으로 못 뜬다.
+                if (engine.Grip.EffectiveGrip(FighterId.B) == 0)
+                {
+                    r.BTurnsAtGripParity++;
+                    if (!bAttacks) r.BIdleTurnsAtGripParity++;
+                }
                 TechniqueSpec aTechnique = !bAttacks && aDecision.TechniqueId != null
                     ? BuildATechnique(aDecision.TechniqueId) : null;
                 bool aAttacks = aTechnique != null;
@@ -201,6 +211,7 @@ namespace CounterTime.Harness.Overnight
             r.A_BigThrowAttempts = autoA.BigThrowAttempts;
             r.A_HeldBackFromLiveCounterReady = autoA.HeldBackFromLiveCounterReady;
             r.A_BigThrowsWhileGateClosedSanity = autoA.BigThrowsAttemptedWhileGateClosed;
+            r.A_SuspectedGripDeadlock = autoA.SuspectedGripDeadlock;
 
             if (r.HitSafetyCap) r.TerminationReason = "DID NOT FINISH — hit the " + SafetyCap + "-iteration safety cap";
         }

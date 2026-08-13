@@ -157,6 +157,14 @@ namespace CounterTime.Harness.Overnight
             sb.AppendLine($"대진표 전체 시뮬레이션 {TournamentRuns}회. 예외 {all.Count(m => m.Exception != null)}건,");
             sb.AppendLine($"안전 상한({MatchSimulator.SafetyCap}회 교환/탈출틱) 도달 {all.Count(m => m.HitSafetyCap)}건.");
             sb.AppendLine();
+            int deadlockSuspect = all.Count(m => m.A_SuspectedGripDeadlock);
+            sb.AppendLine($"**[작업2 검증] 그립 교착 의심 판 (기대값 0): {deadlockSuspect}건.**");
+            sb.AppendLine("`AutoAPlayer` 의 그립다지기 인내 한계(6턴)+하드 상한(50턴)이 걸린 경기 수 — 이전");
+            sb.AppendLine("재수집 시도에서 실제로 발견한 무한 그립다지기(서도현전 seed=5, 3000턴 중 2994턴)");
+            sb.AppendLine("가 재발했는지의 직접 증거다. 0이면 인내 한계가 하드 상한 전에 먼저 걸려 문제를");
+            sb.AppendLine("막았다는 뜻(정상 경로), 0이 아니면 인내 한계로도 못 끊는 경우가 있다는 뜻이라");
+            sb.AppendLine("§6 에 남긴다.");
+            sb.AppendLine();
             sb.AppendLine("**[설계 판단] `BalanceGate=true`.** 기본 `MatchRulesConfig` 는 이 플래그가 꺼져 있다(§4.4/§S");
             sb.AppendLine("전체가 inert) — 이 수집은 `PlayModeSmokeTests.RunMatch(setupEnabled: true)` 가 이미 쓰던");
             sb.AppendLine("것과 똑같은 방식으로, 인스턴스 생성 시점에 이 값을 켰다(`MatchRulesConfig.cs` 의 기본값 자체는");
@@ -210,6 +218,22 @@ namespace CounterTime.Harness.Overnight
             sb.AppendLine("(원본: 2108건, 2.12%). 문준배·임준철(어깨매치기/발뒤축걸기)·오재훈의 그립 의존 습관이");
             sb.AppendLine("이 비율만큼 실전에서 발화할 기회를 얻는다 — 로스터 차별성(§2)이 이제 이 습관들도 실제로");
             sb.AppendLine("반영하는지는 §2 표를 원본과 대조해서 판단할 것(이 문서는 결론을 미리 내리지 않는다).");
+            sb.AppendLine();
+            sb.AppendLine("**[작업3 관찰 — 계측만, 판단·수정 없음] 그립 파리티에서 B(습관 브레인)의 행동.**");
+            sb.AppendLine("B 자신의 `EffectiveGrip`이 정확히 0(파리티)인 교환에서 B 가 그 턴에 기술을 냈는지");
+            sb.AppendLine("여부 — \"문준배·서도현 소극\" 인상의 원인 후보 자료(그립 의존 습관은 대부분");
+            sb.AppendLine("`OwnEffectiveGrip>=1` 을 요구해 파리티에서는 구조적으로 못 뜬다):");
+            sb.AppendLine();
+            sb.AppendLine("| 상대 | 파리티 교환 수 | 그 중 B 무기술(정체) | 정체 비율 |");
+            sb.AppendLine("|---|---|---|---|");
+            foreach (var (label, _) in Roster)
+            {
+                var list = perOpponent[label].Where(m => m.Exception == null).ToList();
+                if (list.Count == 0) continue;
+                long parity = list.Sum(m => (long)m.BTurnsAtGripParity);
+                long idle = list.Sum(m => (long)m.BIdleTurnsAtGripParity);
+                sb.AppendLine($"| {label} | {parity} | {idle} | {(parity == 0 ? 0 : 100.0 * idle / parity):0.0}% |");
+            }
             sb.AppendLine();
 
             // §2 per-opponent
@@ -429,6 +453,14 @@ namespace CounterTime.Harness.Overnight
             sb.AppendLine("8. 이 재수집이 위 세 결함을 실제로 고쳤는지는 §2/§3/§5 표를 원본 문서(`docs/");
             sb.AppendLine("   overnight-2026-08-13.md`)와 나란히 놓고 대조해야 확인된다 — 이 보고서는 새 숫자만");
             sb.AppendLine("   찍고, 그 대조·해석은 사람 몫으로 남긴다.");
+            sb.AppendLine("9. **[사실만, 원인 판단 안 함] A 승률이 원본 대비 극적으로 떨어졌다** — 원본은 6상대");
+            sb.AppendLine("   전부 98.6~99.8%, 이 재수집은 0.0~21.8%(§2). 대진표 500회 전부 `Lost`, 메달 0건");
+            sb.AppendLine("   (§4-bis, 원본은 Gold 91.6%). 같이 관측된 사실: 되치기가 전 상대에서 크게 늘었다");
+            sb.AppendLine("   (예: 서도현 43→1169건), B 판정(Yuko/WazaAri/Ippon 합)도 전반적으로 늘었다. 이");
+            sb.AppendLine("   재수집이 손댄 것(그립 파리티 인내/커밋 로직 포함 AutoAPlayer 전체, B 그립 양손화,");
+            sb.AppendLine("   B 게이트 존중) 중 무엇이 승률에 얼마나 기여했는지는 서로 얽혀 있어 이 문서만으로");
+            sb.AppendLine("   분리 못 한다 — Auto-A 는 원래 최적/인간 수준 플레이가 아니라고 §1 에 명시돼 있다는");
+            sb.AppendLine("   점도 같이 감안할 것.");
             sb.AppendLine();
 
             sb.AppendLine("## 검증");

@@ -2,7 +2,60 @@ STATUS
 
 Update this file every time a session resets. This is the ONLY copy — the root CLAUDE.md pulls it in with `@md/STATUS.md`, so it loads automatically at session start. Do not create a second copy anywhere. Check "Current State" and "Next Up" before starting work.
 
-Current State (last updated: 2026-08-13 밤)
+Current State (last updated: 2026-08-13 밤, 후속)
+**야간 수집이 찾은 버그 3건 수정 + AutoAPlayer 그립 교착 해소 + 재수집 완료.** 브랜치
+`feat/match-engine`, 커밋 `611e1e2`(버그 3건, 이미 푸시) + 이 세션의 체크포인트(아래).
+**작업1(버그 3건, Brain 프로덕션 코드, 커밋·푸시 완료)**: (①` HabitBrainCommitSource.
+ActionFor(Move.GripFight)`가 오른소매만 고정 잡던 것을 좌우+`TurnChoice.OwnHand`
+페어링으로 수정 — git blame 확인 결과 2026-08-10 브레인 최초 생성부터 있던 결함, 3.5b
+로스터 저작이 만든 게 아니다. ②`SetupPrecedingCommitSource.IsBigThrow`가 `SurpriseExempt`
+를 확인 안 해 변칙기가 흔들기에 예고당하던 것 수정. ③B 습관 AI가 §4.4 밸런스 게이트를
+무시하던 것 수정(사람 결정: "B도 게이트 존중", `IBrainContext.OpponentBalance` 신규,
+기존 `OpponentStamina` 페어와 같은 패턴). 하니스 257/257+지문 IDENTICAL.
+**세션 중 발견 — 첫 재수집 시도가 진짜 no-op 이었다.** 그립 표적(`HandTarget`)만
+번갈았더니 수치가 원본과 토씨 하나 안 틀리고 똑같이 나왔다(완전 재빌드로도 재현) —
+원인은 `GripSystem.Grab`이 실제로 채우는 슬롯이 `TurnChoice.OwnHand`(내 손)이지
+`TurnChoice.Hand`(상대 소매 표적)가 아니었던 것: 3-인자 생성자가 `OwnHand`를 기본값
+`Right`로 고정해 표적을 아무리 바꿔도 매번 같은 내 손 슬롯만 덮어썼다. `AutoAPlayer.cs`
+자신의 어젯밤 픽스(표적+`OwnHand` 같이 페어링)와 대조해 같은 패턴으로 재수정.
+**작업2 — `AutoAPlayer.cs`(하니스 전용, 게임 코드 무관) 그립 교착 해소.** 진짜로
+고치자 이번엔 서도현전 seed=5 가 3000턴 중 2994턴을 그립다지기에 갇혀 안전상한에
+도달 — 진단 결과 `AutoAPlayer`의 그립다지기 종료조건(`ownGrip<1`)이 "B는 한손만 써서
+Value=2 에 절대 못 닿는다"는 어젯밤 파일럿의 전제 위에 설계돼 있었는데, ①번 수정으로
+B도 양손을 다 쥘 수 있게 되면서 둘 다 Value=2(GripScore=0, EffectiveGrip=0) 파리티에
+도달하면 양쪽 다 `<1` 조건이 영원히 참으로 남아 못 빠져나왔다 — 어젯밤 수정이 의존하던
+비대칭을 오늘 밤 진짜 버그 수정이 없앤 결과. 사람 승인 방향대로 3중 안전장치 추가:
+그립다지기 인내 한계(`GripBuildPatienceLimit=6`⚙, 연속 실패 스트릭)를 넘으면 그립
+우위 없이도 §4/5(밸런스 게이트 기반 파리티 커밋)로 넘어감 + 하드 상한(`GripBuildHardCap
+=50`⚙, 경기 전체 누적)을 넘으면 `SuspectedGripDeadlock=true`로 집계하고 이후 영구
+우회. `MatchResult`에 `A_SuspectedGripDeadlock`/`BTurnsAtGripParity`/
+`BIdleTurnsAtGripParity`(작업3 관찰용) 신규.
+**작업3 — 재수집(같은 시드 배열, docs/overnight-2026-08-13-recollect.md).** 안전상한
+0건, 그립 교착 의심 0건(3중 안전장치 검증 통과), 대진표 크래시 0건. 문준배·오재훈이
+이제 원본처럼 소수점까지 동일하진 않다(②가 원인이었다는 것과 일치 — 완전한 통계적
+"구별"까지 되는지는 판단 없이 표만 남김). 밸런스 경제: B 닫힌게이트 시도가 원본
+2208건에서 10341건으로 오히려 늘었다(A가 이제 파리티에서도 흔들기/견제로 밸런스를
+계속 깎아서 B가 볼 게이트-닫힘 기회 자체가 늘어난 것으로 추정 — 판단 안 하고 사실만).
+변칙기-흔들기 예고 0건(③ 수정 확인). 3경로(20초 한판/정규시간만료/3회지도패배) 전부
+실측(1294/831/676건). **관찰(계측만, 지시대로 판단 안 함)**: 그립 파리티에서 B가
+기술을 못 낸 비율이 상대별로 50.4%(황도철)~88.2%(진도윤) — "문준배·서도현 소극" 인상의
+원인 후보 자료. **가장 중요한 관찰(사실만, 원인 미분리)**: A 승률이 원본(98.6~99.8%)
+대비 재수집에서 0.0~21.8%로 붕괴, 대진표 500회 전부 Lost(메달 0건, 원본은 Gold
+91.6%) — 되치기도 전 상대에서 크게 증가(예: 서도현 43→1169). 이 세션이 AutoAPlayer
+전체(그립 파리티 로직 포함)와 B 양손화·게이트존중을 동시에 바꿔서 무엇이 얼마나
+기여했는지 이 데이터만으로 분리 불가, Auto-A가 애초에 최적 플레이가 아니라는 점도
+같이 감안 필요 — 사람 판단 대기.
+**작업4 — 검증.** 하니스 257/257 그린 + 42노드 지문 IDENTICAL(버그 3건 커밋 이후 —
+AutoAPlayer.cs 는 [Test] 없는 순수 툴링이라 애초에 테스트 대상 아님, 재확인만). Core/
+Brain/⚙ 무수정 — 이번 세션이 건드린 파일은 전부 `tools/dotnet-harness/Overnight/*.cs`.
+Unity MCP는 이 세션 내내 도구 자체가 안 잡혀 연결 확인 불가(하니스 전용 세션이라 코드
+변경은 전부 Brain/harness — Unity 컴파일 재확인은 다음 세션 Unity 접속 시 필요).
+**판단 필요 (정하지 않고 목록)**:
+1. 승률 붕괴(위 참조)의 정확한 원인 분해 — AutoAPlayer 그립 파리티 로직/B 양손화/B
+   게이트 존중 중 무엇이 얼마나 기여했는지.
+2. 그립 파리티에서 B의 정체 비율(50~88%)이 실제 상대 성격("소극적")과 얼마나 일치하는지,
+   이게 로스터 설계 의도인지 아니면 §4 폴백이 더 다양한 대응을 해야 하는지.
+3. `GripBuildPatienceLimit=6`/`GripBuildHardCap=50`은 이번 세션이 고른 값 — 튜닝 대상.
 **야간 무인 데이터 수집 완료 — 헤드리스 하니스로 6상대×500경기+대진표 500회.** 상세
 보고서 `docs/overnight-2026-08-13.md`(230줄). 설계·⚙ 변경 없음, 수집 전용 — 새 코드는
 전부 `tools/dotnet-harness/Overnight/`(신규: `AutoAPlayer.cs`/`MatchSimulator.cs`/
@@ -1245,6 +1298,38 @@ Why Assets/Editor/HubForceResolve.cs disappeared — nobody deleted it. It is Un
 Whether to keep the Unity Cloud link (cloudProjectId / organizationId in ProjectSettings.asset) — keep and commit. cloudEnabled is 0, it is a project GUID rather than a secret, ProjectSettings.asset is tracked anyway, and the editor rewrites it if removed.
 
 Session Log (newest first)
+2026-08-13 (밤, 후속 — 버그 3건 수정 + AutoAPlayer 그립 교착 해소 + 재수집)
+전날 밤 데이터 수집 세션이 §6에 남긴 관찰 3건(②B 폴백 그립 한손 고정/④B 게이트 무시
+/⑤변칙기 흔들기 예고)을 사용자가 검토 후 지시. ②의 이력(git blame)과 ④의 방향("B도
+게이트 존중")을 먼저 확인·결정받은 뒤 진행.
+작업1 — 3버그 수정(Brain 프로덕션): `HabitBrainCommitSource.ActionFor`(그립 좌우
+번갈기)/`SetupPrecedingCommitSource`(SurpriseExempt 확인 + 게이트 재확인 후 큰기술
+방출)/`IBrainContext.OpponentBalance` 신규. 하니스 257/257+지문 IDENTICAL. 커밋
+`611e1e2`, 즉시 푸시(교착 문제와 독립적이라 먼저 확정).
+작업2 — 재수집 1차 시도에서 그립 표적만 바꾼 게 완전한 no-op임을 발견(수치가 원본과
+토씨 하나 안 다름, 클린 리빌드로도 재현) → `TurnChoice.OwnHand` 미지정이 원인임을
+`AutoAPlayer.cs`의 기존 수정과 대조해 확인 → 재수정 → 이번엔 실제로 바뀌었으나
+서도현전 seed=5 가 3000턴 중 2994턴 그립다지기에 갇히는 새 교착 발견(임시 진단 코드로
+확인 후 되돌림) → 원인: `AutoAPlayer`의 그립 종료조건이 "B는 한손 고정이라 못 이긴다"는
+전제 위에 있었는데 방금 그 전제를 없앤 것. 사용자에게 AskUserQuestion 으로 처리방향
+질문("원인만 더 집어서 보고") → git blame + 임시 진단으로 정확한 인과관계 확인 후
+보고, 판단은 안 하고 사용자 지시 대기.
+작업3 — 사용자가 3중 안전장치(인내 한계 6턴/파리티 커밋/하드 상한 50턴) 방향을 직접
+승인 지시. `AutoAPlayer.cs`에 구현(게임 코드 무관, harness 전용). 재수집 재실행 —
+안전상한 0/그립교착의심 0/브래킷크래시 0. `docs/overnight-2026-08-13-recollect.md`
+작성 — 원본 대비 대조 서술로 재작성(원본 버그 서술을 그대로 재실행하면 자기모순 문서가
+된다는 걸 발견해 프롤로그·§1·§3·§5·§6을 "수정 완료" 서술로 교체, 출력 경로도 별도
+파일로 분리해 원본 보존). 작업3이 요구한 그립파리티 B행동 계측(`BTurnsAtGripParity`/
+`BIdleTurnsAtGripParity`)과 교착의심 집계(`A_SuspectedGripDeadlock`)를 `MatchResult`/
+`MatchSimulator`/`OvernightRunner`에 추가 반영.
+**세션 중 발견 — 승률 붕괴.** 재수집 A 승률이 원본(98.6~99.8%) 대비 0.0~21.8%로
+폭락, 대진표 500회 전부 Lost. 원인 미분리(AutoAPlayer 전체 개편과 B 양손화가 동시에
+일어나 이 데이터만으론 기여도 분해 불가) — 판단 없이 §6에 사실만 기록.
+검증: 하니스 257/257+지문 IDENTICAL(전 단계 재확인, AutoAPlayer.cs는 애초에 비테스트
+툴링이라 지문에 안 걸림). `git status --short`로 이번 세션이 harness Overnight/ 4파일
++ STATUS.md + 재수집 리포트만 건드렸음을 확인(Core/Brain/⚙ 무수정). Unity MCP는 이
+세션 내내 도구가 안 잡혀 컴파일 재확인 불가 — 다음 Unity 세션에서 필요.
+커밋·푸시는 이 STATUS 갱신과 같은 체크포인트로 진행.
 2026-08-13 (밤, 무인 데이터 수집 세션 — 튜닝 데이터, 설계·⚙ 변경 금지)
 작업 지시: §H 3.5 완료 후 첫 실측 튜닝 데이터를 헤드리스 하니스로 수집(Unity Play 아님,
 느려서). 자동-A 휴리스틱 구축→행동 실측으로 허수아비 여부 먼저 검증→50교환 상한 제거→

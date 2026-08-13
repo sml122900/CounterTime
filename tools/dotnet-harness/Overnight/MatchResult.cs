@@ -52,5 +52,12 @@ namespace CounterTime.Harness.Overnight
         public int A_TotalDecisions, A_DefendTurns, A_CounterReadyDeclares, A_GripBuildTurns,
                    A_SetupDeclares, A_PokeAttacks, A_BigThrowAttempts, A_HeldBackFromLiveCounterReady,
                    A_BigThrowsWhileGateClosedSanity;
+        /// 2026-08-13 재수집 — AutoAPlayer.SuspectedGripDeadlock 그대로. 기대값 0(경기당).
+        public bool A_SuspectedGripDeadlock;
+
+        /// 2026-08-13 재수집 — B(습관 브레인) 관점 EffectiveGrip==0(파리티)이었던 교환 수,
+        /// 그 중 B 가 기술을 못 낸(공격 안 한) 교환 수. 판단·수정 없이 계측만 —
+        /// "문준배·서도현 소극" 원인 분석 자료(§H 3.5b-로스터 세션이 관측한 사실).
+        public int BTurnsAtGripParity, BIdleTurnsAtGripParity;
     }
 }
