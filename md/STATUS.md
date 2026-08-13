@@ -2,7 +2,28 @@ STATUS
 
 Update this file every time a session resets. This is the ONLY copy — the root CLAUDE.md pulls it in with `@md/STATUS.md`, so it loads automatically at session start. Do not create a second copy anywhere. Check "Current State" and "Next Up" before starting work.
 
-Current State (last updated: 2026-08-13)
+Current State (last updated: 2026-08-13 밤)
+**야간 무인 데이터 수집 완료 — 헤드리스 하니스로 6상대×500경기+대진표 500회.** 상세
+보고서 `docs/overnight-2026-08-13.md`(230줄). 설계·⚙ 변경 없음, 수집 전용 — 새 코드는
+전부 `tools/dotnet-harness/Overnight/`(신규: `AutoAPlayer.cs`/`MatchSimulator.cs`/
+`OvernightRunner.cs`) 안에만 있다. **핵심 발견**: (1) Auto-A 행동 검증 — 밸런스 게이트가
+닫혀 있을 때 A 가 큰기술을 던진 자가검증 위반 0건, 그립 우위 확보 뒤에만 공격 —
+"허수아비 아님" 판정. (2) **Auto-A 의 그립 지배가 로스터 차별성 데이터를 오염시킨다** —
+B 의 §4 폴백(`Move.GripFight`)이 항상 오른소매만 노려 A(양손 번갈아 확보)에게 구조적으로
+밀리고, 그 결과 문준배·오재훈이 통계상 거의 구별 안 됨(그립 우위 습관이 거의 안 뜸).
+(3) 3경로(20초 누르기 한판/정규시간 만료/3회 지도 패배) 전부 실측 성공(1898/1059/27건) —
+기존 50교환 스모크 상한 때문에 회귀망에서 한 번도 안 밟혔던 경로들. (4) B 습관 AI 는
+§4.4 밸런스 게이트를 전혀 안 본다(습관 조건 어디에도 상대 밸런스 없음) — 의도된 비대칭인지
+사람 판단 필요. (5) 변칙기가 흔들기(Setup) 선행 데코레이터에 의해 예고당할 수 있는
+설계 불일치 발견(`SurpriseExempt` 의도와 `SetupPrecedingCommitSource` 무조건 삽입이
+충돌) — 코드 수정 안 하고 관찰만 남김. 전부 §6 "관찰 — 튜닝 후보"에 7개 항목으로
+목록화(정하지 않음). **검증**: 하니스 `dotnet run -- --check` 독립 재실행으로 257/257
+그린 + 42노드 지문 IDENTICAL 확인(에이전트 자체 보고와 별개로 이 세션이 재확인).
+안전상한(3000회) 도달 0건, 대진표 크래시 0건. **세션 중 발견해 하니스 전용 코드로 고친
+버그 1건**(엔진 무관): 파일럿 실행에서 Auto-A 가 항상 오른소매만 잡는 단일 손 전략이라
+B 의 동일 전략과 맞물려 그립이 0으로 영구 고착, 매치의 99.4%가 안전상한에 걸림 —
+Auto-A 가 잡기 다지기 턴마다 좌우를 번갈아 양손을 다 잡도록 수정해 해결.
+커밋 `ec1cd8e`(하니스)+`2828b85`(보고서), origin 에 푸시 완료.
 **§H 3.5b-로스터 완료 — 구별되는 상대 6명 실저작(습관만).** ROSTER.md 근거. 3.5b-뼈대의
 진도윤 임시 배치를 6명으로 교체 — 콤보([step7])·예측 되치기[step5]·적응[step6]·평판
 확산은 전부 이월, 지금은 습관만으로 싸운다(작업 지시 그대로). 경기 엔진 무수정 — 전부
@@ -1224,6 +1245,26 @@ Why Assets/Editor/HubForceResolve.cs disappeared — nobody deleted it. It is Un
 Whether to keep the Unity Cloud link (cloudProjectId / organizationId in ProjectSettings.asset) — keep and commit. cloudEnabled is 0, it is a project GUID rather than a secret, ProjectSettings.asset is tracked anyway, and the editor rewrites it if removed.
 
 Session Log (newest first)
+2026-08-13 (밤, 무인 데이터 수집 세션 — 튜닝 데이터, 설계·⚙ 변경 금지)
+작업 지시: §H 3.5 완료 후 첫 실측 튜닝 데이터를 헤드리스 하니스로 수집(Unity Play 아님,
+느려서). 자동-A 휴리스틱 구축→행동 실측으로 허수아비 여부 먼저 검증→50교환 상한 제거→
+6상대×N판 대량 수집→대진표 견고성→`docs/overnight-2026-08-13.md` 보고. 엔진·규칙·⚙
+일절 무수정, 크래시 버그만 하니스 쪽에서 수정 허용.
+백그라운드 에이전트로 위임해 무인 실행. 완료 후 "600초 무진전, 스트림 워치독 미복구"로
+`failed` 상태 알림을 받았으나, 실제로는 작업이 끝난 뒤 git commit 까지는 성공하고 push
+직전/중에 멈춘 것으로 드러남(아래 검증 참조) — "failed" 알림이 실제 작업 실패를 뜻하지
+않을 수 있다는 사례로 기록.
+검증(에이전트 자체 보고를 그대로 신뢰하지 않고 이 세션이 독립 재확인): `git log`로 로컬이
+origin 보다 커밋 2개(`ec1cd8e`/`2828b85`) 앞서 있음을 확인(푸시 안 됨) → `cd tools/
+dotnet-harness && dotnet run -- --check` 직접 재실행으로 **257/257 그린 + 42노드 지문
+IDENTICAL** 확인(에이전트가 자기 보고에 남긴 수치와 일치, 독립 검증 완료) → `docs/
+overnight-2026-08-13.md`(230줄) 통독 — §1 Auto-A 행동 특성화(자가검증 위반 0건)부터
+§6 관찰 7개 항목까지 지시받은 구조 그대로, 자기 한계(그립 지배로 문준배/오재훈 통계상
+비구별)를 숨기지 않고 명시한 걸 확인. `sh tools/stamp.sh --check md/*.md` exit 0(이번
+세션은 스탬프 문서 무수정).
+상세 데이터·발견 사항은 위 Current State 항목 요약 및 `docs/overnight-2026-08-13.md`
+원문 참조. STATUS.md 갱신(이 항목 + Current State) 후 커밋 2개를 origin/feat/match-engine
+에 푸시(사용자의 원 지시 "커밋 체크포인트 + 푸시"가 사전 승인).
 2026-08-13 (§H 구현 세션 — 3.5b-로스터: 구별되는 상대 6명 저작)
 작업 지시: ROSTER.md 근거로 3.5b-뼈대의 진도윤 임시 배치를 6명으로 교체. 이번엔
 습관만(콤보·예측 되치기·적응·평판 확산 이월). 코드 팩토리 저작, 경기 엔진 무수정.
