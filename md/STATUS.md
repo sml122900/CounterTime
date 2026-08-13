@@ -2,6 +2,34 @@ STATUS
 
 Update this file every time a session resets. This is the ONLY copy — the root CLAUDE.md pulls it in with `@md/STATUS.md`, so it loads automatically at session start. Do not create a second copy anywhere. Check "Current State" and "Next Up" before starting work.
 
+Current State (last updated: 2026-08-14 밤, 잡정리 + 소극 3인 차별화 계획)
+**위생 정리 2건 + 소극 3인(문준배·서도현·오재훈) 차별화 조사(계획만, 습관 코드
+변경 0).** `Assets/_Recovery/`(Unity 크래시 복구 스냅샷, 2026-08-12부터 untracked
+로 존재) `.gitignore` 등록(파일 자체는 안 지움) — 커밋 `6a68a14`. Active Input
+Handling(Both)은 이미 2026-08-11 커밋에 반영돼 있어 조치 불필요, 확인만.
+**소극 3인 차별화**: v3 데이터(2026-08-13 밤)가 지목한 "가장 안 갈리는 세 상대"
+차별화를 위해 습관 저작 절차(HabitId enum→HabitCatalogue.Build case→상대
+Habits[] 배열, 3단계, 6상대 코드 전부 확인)·재사용 가능한 `IHabitContext` 5개
+멤버(`OwnEffectiveGrip`/`TurnsSinceOwnShido`/`OwnStamina`·`OpponentStamina`/
+`OpponentSetupActive`/`OwnBalance`)·지문 위험을 조사. **지문 위험은 구조적으로
+0** — `Game/Match/MatchRunner.cs`(42노드 스크립트 경로)를 grep한 결과 Brain
+패키지 상대 팩토리 참조가 아예 0개, 스크립트 경로가 이 코드를 원천적으로 안
+밟는다(§H4~7 계획서들과 달리 게이트 없이도 안전). 상대별 코드 관점 선택지
+2~3개씩(문준배: SeekGrip 패턴 비공격 습관/예비 TurtleWhenTired 재활용/서도현
+습관 공유(비추천 사유 명시) — 서도현: 그립우위 반격/지도 후 만회/쿨다운 교대
+2지선다 — 오재훈: 그립열세 축 추가/임준철 습관 공유/신규 `IHabitContext.
+OpponentBalance` 필요한 밸런스 기반 습관) 나열, 방향 선택은 전부 사용자 몫으로
+남김. `docs/plan-passive-differentiation.md`(커밋 `d827f9a`), 통합 보고
+`docs/overnight-2026-08-14.md`.
+**검증**: 세션 시작~종료 전 구간 하니스 269/269 그린 + 42노드 지문 IDENTICAL
+유지(둘 다 문서/gitignore 전용 세션이라 당연한 결과 — 매 체크포인트 재확인
+목적), 스탬프 6종 exit 0. Unity MCP 0 에러 확인(세션 시작).
+**판단 필요 (정하지 않고 목록, `plan-passive-differentiation.md` 끝과 동일)**:
+(1) 세 상대 각각 어느 선택지를 쓸지 (2) 기존 HabitId를 상대 간 공유하는 게
+허용 범위인지 (3) 오재훈의 "고루 하는" 원형과 차별화 목표가 어디까지 공존
+가능한지 (4) 발화확률·쿨다운 ⚙ 수치(이번엔 제안조차 안 함) (5) 신규
+`IHabitContext.OpponentBalance` 를 열 경우 공유 범위.
+
 Current State (last updated: 2026-08-14, 야간 — §H 4 판정 승격 + 이월 로드맵 계획서 5건)
 **§H 4(판정 승격, MATCH_RULES §E) 구현 완료.** §4 판정식의 결정론 하한은 무수정 —
 `PromotionGate`(기본 off, `BalanceGate`와 같은 패턴)로 감싼 상향 전용 연쇄 롤을
@@ -557,7 +585,13 @@ Full detail, including the exact 현실적 A osaekomi-entry-shortfall breakdown 
   Unity Editor + MCP 브리지가 밤새 연결 유지(사람 없음) — 매 작업 후 AssetDatabase.Refresh() + GetConsoleLogs 로 0 에러/0 경고 재확인, RunCommand 안에서 짧은 이름(CompilationPipeline 등)이 Unity.AI.Assistant.* 네임스페이스와 충돌하는 기존 함정 재확인(전체 경로로 우회)
 
 Next Up (in priority order)
-**가장 최근 — §H 4(판정 승격) 완료 + §H 5/6/7·훈련 본체·대련 실행 입력 계획서 5건.**
+**가장 최근 — 잡정리(위생 2건) + 소극 3인(문준배·서도현·오재훈) 차별화 조사.**
+상세는 위 Current State 항목 및 `docs/overnight-2026-08-14.md` 참조. **다음 —
+`plan-passive-differentiation.md`의 판단 필요 5개 중 최소 1번(상대별 선택지)이
+정해져야 착수 가능** — 정해지면 지문 위험이 구조적으로 0(스크립트 경로가 애초에
+안 밟음)이라 §H4~7 계획서들보다 훨씬 가벼운 착수. 방향이 정해지면 `tools/
+dotnet-harness/Overnight/`의 v3 파이프라인으로 바로 재측정 가능.
+**다음 (그 앞) — §H 4(판정 승격) 완료 + §H 5/6/7·훈련 본체·대련 실행 입력 계획서 5건.**
 상세는 위 Current State 항목 및 `docs/overnight-2026-08-13-groundwork.md` 참조.
 **다음 — 통합 결정 필요 목록(위 Current State 항목 끝, 7개 우선순위) 중 최소 1개는
 사람이 정해야 §H 5/6/7·훈련 본체·대련 실행 입력 중 어느 것이든 실제 착수가 가능하다.**
@@ -1490,6 +1524,38 @@ Why Assets/Editor/HubForceResolve.cs disappeared — nobody deleted it. It is Un
 Whether to keep the Unity Cloud link (cloudProjectId / organizationId in ProjectSettings.asset) — keep and commit. cloudEnabled is 0, it is a project GUID rather than a secret, ProjectSettings.asset is tracked anyway, and the editor rewrites it if removed.
 
 Session Log (newest first)
+2026-08-14 (밤 2차, 야간 자율 실행 — 잡정리 + 소극 3인 차별화 계획)
+작업 지시: 사람 판단이 필요 없는 위생 정리(작업A) + 소극 3인 차별화의 코드
+접점 조사(작업B, 조사만·구현 0). 절대선 둘 — 42노드 지문 IDENTICAL 하드
+게이트, 설계·게임 감각 결정 금지.
+작업0 — 스탬프 --check exit 0(6종), 하니스 269/269·지문 IDENTICAL, Unity MCP
+0 에러 확인 후 진행.
+작업A(위생 정리, 독립 커밋 2건 시도 → 실제 조치 1건) — `Assets/_Recovery/`를
+`ls -la`로 재확인(2026-08-12 세션이 처음 발견한 것과 동일 패턴, 4개 씬+메타)
+후 `.gitignore`에 등록 — `/Assets/_Recovery/` + `/Assets/_Recovery.meta`(폴더
+자체의 메타는 기존 `!/[Aa]ssets/**/*.meta` 부정 규칙이 안 잡아줘서 `AI
+Toolkit.meta`와 같은 패턴으로 별도 줄 필요, `git status`로 실측 확인 후 추가).
+파일 자체는 안 지움. Active Input Handling 은 `ProjectSettings.asset`의
+`activeInputHandler: 2`(Both)를 확인한 결과 `git log`로 2026-08-11 커밋
+(`54bd5be`)에 이미 반영·`git diff` 무변경까지 확인 — 조치 불필요, 그대로 보고.
+그 외 순수 위생 후보는 `git status --porcelain --ignored=matching`·
+`git ls-files` 스크래치 패턴 grep으로 찾아봤으나 오탐 하나(SceneTemplateSettings.json)
+뿐 실제 후보 없음 — 억지로 안 만들고 목록도 안 늘림. 커밋 `6a68a14`, push 완료.
+작업B(소극 3인 차별화, 조사만) — v3 데이터(같은 날 앞선 세션)가 지목한
+문준배·서도현·오재훈의 저작 코드(각 .cs 파일)를 직접 Read해 3단계 절차
+(HabitId enum→HabitCatalogue.Build case→Habits[] 배열) 확인, `IHabitContext`
+5개 멤버 전수 정리(`IBrainContext`와의 경계도 재확인 — `OpponentBalance`는
+습관이 못 보는 면에만 있음), `Game/Match/MatchRunner.cs`를 grep해 Brain
+패키지 상대 팩토리 참조 0개임을 확인(지문 위험 구조적으로 0, §H4~7 계획서들과
+다른 성격). 상대별 선택지 2~3개씩(코드 관점만, 방향 미선택) 나열해
+`docs/plan-passive-differentiation.md` 작성 — 커밋 `d827f9a`, push 완료.
+작업C(보고) — `docs/overnight-2026-08-14.md`. 작업A/B 요약 + 통합 판단 필요
+목록(5개, `plan-passive-differentiation.md`와 동일) + 체크포인트별 지문·테스트
+표.
+검증: 세션 시작~종료 269/269 그린 + 42노드 지문 IDENTICAL 전 구간 유지(둘 다
+문서/설정 전용 세션이라 당연한 결과 — 매 체크포인트 재확인 목적). `git status
+--short`로 의도한 파일(`.gitignore` + `docs/plan-passive-differentiation.md` +
+`docs/overnight-2026-08-14.md` + STATUS.md)만 바뀌었음을 확인.
 2026-08-14 (밤, 야간 자율 실행 — §H 4 판정 승격 + 이월 로드맵 계획서 5건)
 작업 지시: §H 4(판정 승격) 실구현 + 이월 로드맵 나머지(§H 5/6/7, 훈련 본체, 대련
 실행 입력)의 계획서·안전 뼈대. 절대선 둘 — 42노드 지문 IDENTICAL 하드 게이트,
