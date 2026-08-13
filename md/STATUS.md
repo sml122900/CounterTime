@@ -2,6 +2,48 @@ STATUS
 
 Update this file every time a session resets. This is the ONLY copy — the root CLAUDE.md pulls it in with `@md/STATUS.md`, so it loads automatically at session start. Do not create a second copy anywhere. Check "Current State" and "Next Up" before starting work.
 
+Current State (last updated: 2026-08-14, 야간 — §H 4 판정 승격 + 이월 로드맵 계획서 5건)
+**§H 4(판정 승격, MATCH_RULES §E) 구현 완료.** §4 판정식의 결정론 하한은 무수정 —
+`PromotionGate`(기본 off, `BalanceGate`와 같은 패턴)로 감싼 상향 전용 연쇄 롤을
+그 위에 얹었다. `JudgementCalculator.Promote(floor, effectiveSum, cfg, rng)` 신규
+(순수 함수, `p = PromoteBase(0.10)+PromoteSlope(0.05)×(sum−브래킷하한)`, 링크당
+×`PromoteChainFactor(0.25)`, 최대 `PromoteMaxChain(2)` 연쇄, `None` 브래킷도 승격
+가능 — §E.1.4 "럭키펀치", 유일한 호출부가 이미 구조적으로 realAttempt라 별도 플래그
+불필요). `MatchEngine.ResolveTechnique`: Balance 무득점 드레인(§S/§E.2, "결정론
+유지")은 승격 **전** 하한 기준으로 먼저 처리 → 승격 롤은 그 다음, `Board.Award`
+직전. 되치기는 `|sum|` 대칭 적용(§E.1.3) — `JudgementResult.Sum`은 원부호 유지라
+승격 호출부에서 명시적으로 뒤집는다(전용 테스트로 부호 버그 시 반드시 실패하도록
+수치를 골라 고정). 새 이벤트 `JudgementPromoted`(승격 실제 발생 시에만 발화) —
+`JudgementScored` 자체는 필드 무변경(2026-08-10 `TechniqueId` 시도가 지문을 깼던
+전례 회피). 하니스 257→**269/269** 그린(신규 12개) + 42노드 지문 IDENTICAL. Unity
+MCP `RunCommand`로 실제 컴파일·실행까지 확인. 커밋 `d6b7729`, push 완료.
+**나머지(§H 5/6/7 + 훈련 본체 + 대련 실행 입력)는 계획서만 — 코드 무수정.** 작업
+지시의 절대선("동작 0·지문 IDENTICAL·플래그 off를 다 만족할 때만 뼈대") 기준으로
+다섯 클러스터 전부가 실제로 걸렸다(조사 후 판단, 임의 스킵 아님): §H5(예측 되치기)는
+`TurnChoice`에 예측 슬롯 자체가 없고, §H6(B 적응)은 `IReadResolver.For` 시그니처에
+기술 id가 안 들어가 있어(실제 호출부 추적으로 확인 — `LiveMatchRunner.cs`, `technique`
+변수가 이미 계산돼 있는데 안 넘어감) 인터페이스 변경이 필요, §H7(성장 다발)은 이번에
+만든 `Promote()`를 숙련도·콤보 둘 다 확장하려는데 합성 규칙이 없고 체력 격화는
+`StaminaSystem` 자체를 건드리는 규칙 변경(원문서가 스스로 "지문 영향 반드시 확인"
+못박음), 훈련 코치 압박 축은 "v1 대체냐 공존이냐"부터 미정, 대련 실행 입력은 범위
+(ⓑ "매 기술마다 vs 결정적 순간만")가 안 정해지면 뼈대 자체가 나중에 다시 써야
+한다고 판단. 대신 계획서 5건을 `docs/plan-*.md`로 남겼다 — 각각 실제 grep/Read로
+확인한 정확한 코드 접점(파일·현재 줄 번호·현재 시그니처), 의존관계, 지문 위험,
+★사용자 결정 필요 목록 포함. 특히 `plan-execution-input.md`는 "이 기능은 아마 Core를
+전혀 안 건드려도 될 것"(권장, 미검증 — 입력 성공/실패를 `SubmitA` 호출 전 Game
+레이어에서 끝내면 됨)이라는, 나머지 넷과는 다른 위험도의 아키텍처 힌트를 남겨뒀다.
+**통합 결정 필요 목록(우선순위)**: (1) 실행 입력 범위 ⓑ — 레버리지가 가장 크다고
+판단 (2) 훈련 코치 압박 축의 v1 대체/공존 여부 (3) §H7 숙련도·콤보 보정이 §E 승격식
+에서 합성되는 방식 (4) `linkages` 세이브 필드 지금 예약할지 (5) 오독 +1이 승격 롤
+`effectiveSum`에도 반영되는지(§H4·§H5 접점) (6) §H6 기술 노출 카운트가 성공/실패
+무관 전부 세는지 (7) 체력 격화 수치·곡선(MATCH_RULES 개정 선행 필요) — 나머지는
+각 계획서 끝에 목록. 상세 전문은 `docs/overnight-2026-08-13-groundwork.md` 참조.
+**검증**: 세션 시작 하니스 257/257·지문 IDENTICAL·스탬프 6종 exit 0 확인 후 진행,
+§H4 이후 269/269·IDENTICAL, 계획서 5건 작성 후 재확인 269/269·IDENTICAL(문서만
+추가했으므로 당연한 결과 — 재확인 목적). `git status --short`로 의도한 파일(§H4
+코드 7개 + `docs/plan-*.md` 5개 + 이 보고서 + STATUS.md)만 바뀌었음을 확인
+(`Assets/_Recovery/`는 이전 세션부터 있던 untracked, 무관).
+
 Current State (last updated: 2026-08-13, 훈련 클립 스캐폴드)
 **DESIGN_training-draft.md §5(A) 완료 — 훈련 화면 + 종목 선택 + 능동 렙 입력 + 방전 +
 종목별 모캡 클립 슬롯.** 범위는 지시받은 (A)뿐 — 스탯/숙련 진행 연결(B)은 §H 7 이월,
@@ -515,16 +557,24 @@ Full detail, including the exact 현실적 A osaekomi-entry-shortfall breakdown 
   Unity Editor + MCP 브리지가 밤새 연결 유지(사람 없음) — 매 작업 후 AssetDatabase.Refresh() + GetConsoleLogs 로 0 에러/0 경고 재확인, RunCommand 안에서 짧은 이름(CompilationPipeline 등)이 Unity.AI.Assistant.* 네임스페이스와 충돌하는 기존 함정 재확인(전체 경로로 우회)
 
 Next Up (in priority order)
-**가장 최근 — DESIGN_training §5(A) 훈련 클립 스캐폴드 완료.** 상세는 위 Current State
-항목 참조. 요약: `Assets/_Project/Scripts/Game/Training/`(TrainingCatalog/
-TrainingStageView/TrainingSessionController, 신규) + `Game/Editor/TrainingAssetBuilder.cs`
-(AC_Training.controller + 13종 오버라이드 + TrainingCatalog.asset 생성 메뉴, 이미
-있는 에셋은 안 덮어씀) + `MetaFlowController`(훈련 선택/실행 화면) +
-`PlayModeSetupMenu`(Training GameObject 배선). ★핵심 검증(오버라이드 슬롯 클립만
-바꾸면 코드 수정 없이 종목 동작이 바뀜) Play 로 실측 확인. 경기 엔진 무수정, 하니스
-257/257+지문 IDENTICAL. **다음 — §H 4(판정 승격) 또는 DESIGN_training §5(B, 스탯/
-숙련 진행 연결) 중 사람 판단.**
-**다음 (그 앞) — §H 4: 판정 승격(§E).**
+**가장 최근 — §H 4(판정 승격) 완료 + §H 5/6/7·훈련 본체·대련 실행 입력 계획서 5건.**
+상세는 위 Current State 항목 및 `docs/overnight-2026-08-13-groundwork.md` 참조.
+**다음 — 통합 결정 필요 목록(위 Current State 항목 끝, 7개 우선순위) 중 최소 1개는
+사람이 정해야 §H 5/6/7·훈련 본체·대련 실행 입력 중 어느 것이든 실제 착수가 가능하다.**
+다섯 계획서(`docs/plan-cognition-predictive-counter.md` / `plan-adaptation.md` /
+`plan-mastery-and-growth.md` / `plan-training-body.md` / `plan-execution-input.md`)
+각각이 정확한 코드 접점을 이미 확인해뒀으니, 결정만 나면 바로 구현 착수 가능.
+**다음 (그 앞) — DESIGN_training §5(B, 스탯/숙련 진행 연결) — §H 7 이월, 위와 동일
+클러스터.**
+**가장 최근 (그 앞) — DESIGN_training §5(A) 훈련 클립 스캐폴드 완료.** 상세는 위 Current
+State 항목(2026-08-13 훈련 클립 스캐폴드) 참조. 요약: `Assets/_Project/Scripts/Game/
+Training/`(TrainingCatalog/TrainingStageView/TrainingSessionController, 신규) +
+`Game/Editor/TrainingAssetBuilder.cs`(AC_Training.controller + 13종 오버라이드 +
+TrainingCatalog.asset 생성 메뉴, 이미 있는 에셋은 안 덮어씀) + `MetaFlowController`
+(훈련 선택/실행 화면) + `PlayModeSetupMenu`(Training GameObject 배선). ★핵심 검증
+(오버라이드 슬롯 클립만 바꾸면 코드 수정 없이 종목 동작이 바뀜) Play 로 실측 확인.
+경기 엔진 무수정, 하니스 257/257+지문 IDENTICAL.
+**다음 (그 앞 그 앞) — §H 4: 판정 승격(§E). — 완료(위 참조)**
 **가장 최근 (그 앞) — §H 3.5b-로스터: 구별되는 상대 6명 실저작(습관만).** 상세는 위 Current
 State 항목 참조. 요약: `Assets/_Project/Scripts/Brain/`에 5개 신규 상대 팩토리
 (`HwangDochul`/`MoonJunbae`/`SeoDohyun`/`ImJunchul`/`OhJaehoon`) + `SurpriseTechnique`
@@ -1440,6 +1490,41 @@ Why Assets/Editor/HubForceResolve.cs disappeared — nobody deleted it. It is Un
 Whether to keep the Unity Cloud link (cloudProjectId / organizationId in ProjectSettings.asset) — keep and commit. cloudEnabled is 0, it is a project GUID rather than a secret, ProjectSettings.asset is tracked anyway, and the editor rewrites it if removed.
 
 Session Log (newest first)
+2026-08-14 (밤, 야간 자율 실행 — §H 4 판정 승격 + 이월 로드맵 계획서 5건)
+작업 지시: §H 4(판정 승격) 실구현 + 이월 로드맵 나머지(§H 5/6/7, 훈련 본체, 대련
+실행 입력)의 계획서·안전 뼈대. 절대선 둘 — 42노드 지문 IDENTICAL 하드 게이트,
+설계·게임 감각 결정 금지(열린 질문은 구현하지 말고 문서화).
+작업0 — 스탬프 --check exit 0(6종), 하니스 257/257·지문 IDENTICAL 확인 후 진행.
+작업A(§H4, 구현) — MATCH_RULES §E 그대로. `JudgementCalculator.Promote` 신규(순수
+함수, 결정론 하한 위에 상향 전용 연쇄 롤) + `MatchRulesConfig`에 `PromotionGate`
+(기본 off)+4개 ⚙ 추가 + `MatchEngine.ResolveTechnique`에 배선(Balance 무득점
+드레인은 승격 전 하한 기준 그대로, 승격은 그 다음 Board.Award 직전 — §E.2 "Balance
+changes stay deterministic" 그대로 지킴) + 새 이벤트 `JudgementPromoted`. 되치기
+`|sum|` 대칭 적용을 전용 테스트로 고정(부호 버그 시 반드시 실패하도록 수치 선정).
+새 테스트 12개(`JudgementPromotionTests` — 순수 연쇄/확률 수학 7개 + MatchEngine
+배선 5개). 하니스 257→269/269 그린 + 42노드 지문 IDENTICAL. Unity MCP
+`Unity_RunCommand`로 실제 컴파일·실행 재확인(`Promote(None,1,PromoteBase=1)`→
+`WazaAri`, 하니스 테스트와 동일 수치 재현). 커밋 `d6b7729`, push 완료.
+작업B(계획서, 5건) — 각 클러스터 착수 전 실제 코드(grep/Read)를 조사한 뒤 "안전
+뼈대"가 가능한지 판단 — 다섯 다 걸림돌이 실재해 코드는 안 만들고 계획서만 작성:
+`docs/plan-cognition-predictive-counter.md`(§H5, §C.1+§D — `TurnChoice`에 예측
+슬롯 없음), `docs/plan-adaptation.md`(§H6, §C.2+§C.3 — `IReadResolver.For` 시그니처에
+기술 id 없음, `LiveMatchRunner.cs` 실제 호출부 추적으로 확인), `docs/plan-mastery-
+and-growth.md`(§H7, §F+future-mechanics §1-4 — `Promote()` 확장 시 숙련도·콤보
+보정 합성 규칙 없음, 체력 격화는 StaminaSystem 규칙 변경이라 원문서 스스로
+"지문 영향 확인" 요구), `docs/plan-training-body.md`(훈련 본체 — 코치 압박 축
+v1 대체/공존 미정, 기술 습득 리듬게임은 입력 방식 자체가 이 리포에 처음 정의되는
+것), `docs/plan-execution-input.md`(대련 실행 입력 — 범위 ⓑ 미정이 뼈대의 모양
+자체를 바꿈, 대신 "아마 Core 무변경으로 가능"이라는 아키텍처 힌트를 권장으로
+남김). 각 문서에 정확한 코드 접점(파일·줄 번호·시그니처, grep/Read로 확인한
+사실)·의존관계·지문 위험·★사용자 결정 필요 목록 포함.
+작업C(보고) — `docs/overnight-2026-08-13-groundwork.md`. 다섯 문서의 결정 필요
+항목을 통합해 우선순위 7개로 재정렬(1순위: 실행 입력 범위 ⓑ — 레버리지가 가장
+크다고 판단).
+검증: 세션 시작 257/257·IDENTICAL, §H4 이후 269/269·IDENTICAL, 계획서 작성 후
+재확인 269/269·IDENTICAL(문서만 추가했으므로 당연한 결과 — 재확인 목적). `git
+status --short`로 의도한 파일만 바뀌었음을 확인. 커밋·푸시는 작업 지시가 완료 시
+사전 승인.
 2026-08-14 (문서 세션 — 확장 아이디어 4건 정본화)
 작업 지시: 사용자 착상 4건(인터벌·산악 러닝 종목/코치 압박 축/기술 습득 리듬게임/대련
 실행 입력 층)을 리포에 남긴다 — 전부 §H 7 이월 설계, 지금 구현 아님. 코드·테스트 무수정.
