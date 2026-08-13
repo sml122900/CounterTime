@@ -62,6 +62,28 @@ namespace CounterTime.Core
         }
     }
 
+    /// §E/§H step 4 — a promotion roll actually moved the result up from its
+    /// deterministic §4 floor. Only emitted when it fires (floor != final) — a live
+    /// exchange whose promotion roll(s) all miss emits no such event, same "silent
+    /// unless it actually landed" shape as `SetupDeclared`. §E.3: "JudgementScored
+    /// exposes floor/promotion separately, so the coach panel can say 'the judgment
+    /// floor was yuko, and the referee saw it bigger'" — `JudgementScored.Judgement`
+    /// already carries the FINAL (promoted) value like any other judgment; this event
+    /// is what supplies the floor half of that sentence, without touching
+    /// JudgementScored's existing shape (see MatchEngine.ResolveTechnique's comment on
+    /// why a new event was used instead of adding a field to it).
+    public sealed class JudgementPromoted : MatchEvent
+    {
+        public readonly FighterId ScoredBy;
+        public readonly Judgement Floor;
+        public readonly Judgement Promoted;
+
+        public JudgementPromoted(FighterId scoredBy, Judgement floor, Judgement promoted)
+        {
+            ScoredBy = scoredBy; Floor = floor; Promoted = promoted;
+        }
+    }
+
     public sealed class ShidoGiven : MatchEvent
     {
         public readonly FighterId Who;

@@ -65,6 +65,60 @@ namespace CounterTime.Core
             return r;
         }
 
+        /// §E/§H step 4 — upward-only promotion roll layered on the deterministic §4
+        /// floor. §E.2 (confirmed): grip resolution, Balance changes, and the floor
+        /// itself all stay fully deterministic — probability touches exactly the
+        /// promotion roll, referee detection, and habit firing. Nothing about the
+        /// floor's own math (this file's `Evaluate`/`Bracket`) changes; this only ever
+        /// moves the result UP.
+        ///
+        /// Live path only. Callers gate this behind `MatchRulesConfig.PromotionGate`
+        /// (same "off reproduces v1 대조 모드 exactly" contract as `BalanceGate`) — the
+        /// scripted/habit paths and the 42-node fingerprint never call this method.
+        ///
+        /// `effectiveSum` is the magnitude the floor bracket was assigned from: the raw
+        /// §4 sum for a direct score, or |sum| for a counter (§E.1.3 — "applies
+        /// symmetrically to counters on |sum|"). A "None" floor may still promote
+        /// (§E.1.4, "럭키펀치") — that carve-out is "realAttempt only", which every
+        /// caller of this method already satisfies structurally: a poke never reaches
+        /// `Evaluate` at all (`MatchEngine.ResolveTechnique` returns before it), so the
+        /// only way to have a `JudgementResult` to promote in the first place is a real
+        /// (non-poke) attempt.
+        ///
+        /// `BracketFloor` reads as "the lowest sum that already qualifies for this
+        /// tier" — brackets are contiguous, so each tier's floor is exactly one past
+        /// the tier below's ceiling, and None's floor (which has no natural lower
+        /// bound of its own) is defined the same way one level further down: one past
+        /// the counter threshold, the lowest sum that is not itself a counter. This is
+        /// a first-cut reading of an ⚙ formula MATCH_RULES only pins down by example at
+        /// the Yuko/WazaAri end (§D.4: "full grip advantage + 정독 = floor Yuko") — not
+        /// a confirmed mapping, flagged as a tuning candidate like every ⚙ it consumes.
+        public static Judgement Promote(Judgement floor, int effectiveSum, MatchRulesConfig cfg, IRandomSource rng)
+        {
+            Judgement current = floor;
+            for (int link = 0; link < cfg.PromoteMaxChain && current != Judgement.Ippon; link++)
+            {
+                float p = cfg.PromoteBase + cfg.PromoteSlope * (effectiveSum - BracketFloor(current, cfg));
+                float chainScale = 1f;
+                for (int i = 0; i < link; i++) chainScale *= cfg.PromoteChainFactor;
+                p *= chainScale;
+                if (p < 0f) p = 0f; else if (p > 1f) p = 1f;
+
+                if (rng.NextFloat() >= p) break;   // chain requires consecutive successes
+                current = (Judgement)((int)current + 1);
+            }
+            return current;
+        }
+
+        static int BracketFloor(Judgement j, MatchRulesConfig cfg) => j switch
+        {
+            Judgement.None    => cfg.CounterThreshold + 1,
+            Judgement.Yuko    => cfg.NoPointMax + 1,
+            Judgement.WazaAri => cfg.YukoMax + 1,
+            Judgement.Ippon   => cfg.WazaAriMax + 1,
+            _ => 0
+        };
+
         /// §4 defensive stance — the ONLY place this is derived. The engine fills
         /// JudgementContext.OpponentDefensivePosture from this; nothing else may
         /// re-derive it inline.

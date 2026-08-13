@@ -529,6 +529,33 @@ namespace CounterTime.Core
                 ev.Add(new BalanceChanged(defender, Balance.Get(defender)));
             }
 
+            // §E/§H step 4 — promotion roll, live path only. Placed AFTER the Balance
+            // no-score check above (§E.2 confirms Balance changes stay deterministic —
+            // they key off the FLOOR, not a promoted result) and BEFORE stamina pay/
+            // Board.Award below (§E.1: the promoted value is what actually scores —
+            // osaekomi's entry gate, the scoreboard, and the HUD all see it like any
+            // other judgment, no special-casing needed downstream).
+            //
+            // A new event (JudgementPromoted) carries the floor separately rather than
+            // adding a field to JudgementScored — STATUS records an earlier attempt
+            // (2026-08-10, adding TechniqueId to JudgementScored) that broke the
+            // 42-node fingerprint dump even though nothing scored differently, because
+            // the dump printed the new field on every line. This harness's current
+            // Describe() only prints hand-picked fields per event type, so that
+            // specific failure mode no longer applies — but a new event, only emitted
+            // when it actually fires, needs no such trust: PromotionGate defaults off,
+            // so the event is never constructed on the scripted/habit paths, full stop.
+            if (_cfg.PromotionGate)
+            {
+                int effectiveSum = result.IsCounter ? -result.Sum : result.Sum;
+                Judgement promoted = JudgementCalculator.Promote(result.Judgement, effectiveSum, _cfg, _rng);
+                if (promoted != result.Judgement)
+                {
+                    ev.Add(new JudgementPromoted(result.ScoredBy, result.Judgement, promoted));
+                    result = new JudgementResult(promoted, result.ScoredBy, result.IsCounter, result.Sum);
+                }
+            }
+
             // §9.1 (v3.6) — same pre-payment snapshot §4 just used above, just
             // re-pointed at whichever fighter Opp(scorer) turns out to be (that's
             // `defenderStamina` unless this is a counter, in which case the scorer

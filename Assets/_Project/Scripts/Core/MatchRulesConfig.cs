@@ -82,5 +82,18 @@ namespace CounterTime.Core
         public int BalanceDrainThreatNoScore = 15;  // a genuine BigThrow attempt (realAttempt) that scored None
         public int BalanceRecoverDefense = 10;      // a Clean defense (§5.2 — won the read)
         public int BalanceRecoverMatte = 3;         // 그쳐/굳히기 탈출 부분 회복 — same magnitude as MatteRecovery, same shape
+
+        // §E/§H step 4 — judgment promotion. Deterministic floor (§4's Bracket) stays
+        // exactly as-is; this is the upward-only dice layered on top. Live path only —
+        // PromotionGate mirrors BalanceGate's contract: off reproduces v1 대조 모드
+        // exactly (scripted/habit paths never call JudgementCalculator.Promote, so the
+        // 42-node fingerprint is unaffected by this entire feature existing). All ⚙,
+        // taken straight from MATCH_RULES §E.1.3's proposed numbers — not confirmed,
+        // real-play tuning candidates like every other ⚙ in this file.
+        public bool PromotionGate = false;
+        public float PromoteBase = 0.10f;         // base chance per link
+        public float PromoteSlope = 0.05f;        // + this much per point of (sum − bracket floor)
+        public float PromoteChainFactor = 0.25f;  // link N's chance is scaled by this ^ (N-1)
+        public int PromoteMaxChain = 2;           // at most 2 tiers up (e.g. Yuko → WazaAri → Ippon)
     }
 }

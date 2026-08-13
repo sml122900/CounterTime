@@ -216,6 +216,8 @@ class Program
             case JudgementScored j:
                 return "판정 " + j.Judgement + " sum=" + j.Sum + " by=" + j.ScoredBy +
                        (j.IsCounter ? " (되치기)" : "") + " [" + string.Join(",", j.Terms) + "]";
+            case JudgementPromoted jp:
+                return "판정 승격 " + jp.ScoredBy + ": " + jp.Floor + "→" + jp.Promoted;
             case GripChanged g: return "잡기 " + g.Who + " " + g.OwnHand + "→" + g.Part + " (" + g.Kind + ")";
             case TearResolved t: return "뜯기 " + t.Who + " " + t.Hand + " → " + t.Outcome;
             case CounterReadyApplied c:
