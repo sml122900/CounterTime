@@ -1,0 +1,56 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 73775eb1b447884498eea0cf0fe53d7d, type: 3}
+  m_Name: TrainingCatalog
+  m_EditorClassIdentifier: CounterTime.Game::CounterTime.Game.Training.TrainingCatalog
+  disciplines:
+  - id: pull_up
+    displayName: "\uD480\uC5C5(\uCE5C\uC5C5/\uB3C4\uBCF5\uC7A1\uACE0)"
+    overrideController: {fileID: 22100000, guid: a47309af083201e418507f3a8d23caa0, type: 2}
+  - id: tube_uchikomi
+    displayName: "\uD29C\uBE0C \uC6B0\uCE58\uCF54\uBBF8(\uB2F9\uAE30\uAE30/\uCC44\uAE30/\uAE30\uC220\uC190)"
+    overrideController: {fileID: 22100000, guid: fb239182c20b4c94cbce73651b1f3447, type: 2}
+  - id: crawl_push
+    displayName: "\uBC30\uBC00\uAE30"
+    overrideController: {fileID: 22100000, guid: 167ca3ae1ee5f484ca4b858b9b62fbd2, type: 2}
+  - id: plate_spin
+    displayName: "\uC6D0\uD310 \uB3CC\uB9AC\uAE30"
+    overrideController: {fileID: 22100000, guid: f3ca02b86460f224385349289c33c46b, type: 2}
+  - id: power_clean
+    displayName: "\uD30C\uC6CC\uD074\uB9B0(\uD6C5\uD6C5 \uCC44\uAE30)"
+    overrideController: {fileID: 22100000, guid: 50b420cd03b35c943b4284ef0e9eadd3, type: 2}
+  - id: grip_crush
+    displayName: "\uC545\uB825(\uCD94 \uAC10\uAE30/\uAD50\uCC28 \uC7A1\uACE0 \uB358\uC838
+      \uBC14\uAFD4\uC7A1\uAE30/\uB9E4\uB2EC\uB824 \uC190 \uAD50\uCC28)"
+    overrideController: {fileID: 22100000, guid: 936bf1ca092e0684db5eb35cf3de452e, type: 2}
+  - id: rope_climb
+    displayName: "\uB85C\uD504 \uC624\uB974\uAE30"
+    overrideController: {fileID: 22100000, guid: 428a089f4323b96499fa527fd3dc2051, type: 2}
+  - id: battle_rope
+    displayName: "\uBC30\uD2C0\uB85C\uD504"
+    overrideController: {fileID: 22100000, guid: 77774d785a47bb3408cae4c02962cf44, type: 2}
+  - id: neck_harness
+    displayName: "\uB125 \uD558\uB2C8\uC2A4"
+    overrideController: {fileID: 22100000, guid: f55c8ae3115a19542884a3d61cc3eda1, type: 2}
+  - id: farmers_walk
+    displayName: "\uD30C\uBA38\uC2A4 \uC6CC\uD06C"
+    overrideController: {fileID: 22100000, guid: 40783f112af3cdf4bb8cc4f832bee067, type: 2}
+  - id: pinch_grip
+    displayName: "\uD540\uCE58 \uADF8\uB9BD(\uC6D0\uD310 \uC9D1\uAE30)"
+    overrideController: {fileID: 22100000, guid: d9a0efb68cd93e14a932bc46c4b5fa7f, type: 2}
+  - id: resistance_throw
+    displayName: "\uC800\uD56D \uB358\uC9C0\uAE30(\uBA54\uB514\uC2E0\uBCFC/\uC0CC\uB4DC\uBC31
+      \uC548\uACE0 \uBA54\uCE58\uAE30)"
+    overrideController: {fileID: 22100000, guid: 5401e5342adb2334b9722f4559d67d19, type: 2}
+  - id: squat_deadlift
+    displayName: "\uC2A4\uCFFC\uD2B8/\uB370\uB4DC\uB9AC\uD504\uD2B8"
+    overrideController: {fileID: 22100000, guid: 2c31460ced906204b8eb5e87cd184502, type: 2}

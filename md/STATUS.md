@@ -2,6 +2,77 @@ STATUS
 
 Update this file every time a session resets. This is the ONLY copy — the root CLAUDE.md pulls it in with `@md/STATUS.md`, so it loads automatically at session start. Do not create a second copy anywhere. Check "Current State" and "Next Up" before starting work.
 
+Current State (last updated: 2026-08-13, 훈련 클립 스캐폴드)
+**DESIGN_training-draft.md §5(A) 완료 — 훈련 화면 + 종목 선택 + 능동 렙 입력 + 방전 +
+종목별 모캡 클립 슬롯.** 범위는 지시받은 (A)뿐 — 스탯/숙련 진행 연결(B)은 §H 7 이월,
+문(호출 지점)만 냈다. 경기 엔진(Core/Brain/⚙) 무수정 — 하니스 257/257 + 42노드 지문
+IDENTICAL 로 확인(작업 범위가 전부 Game 계층이라 애초에 하니스 컴파일 대상 밖).
+**신규 파일**: `Assets/_Project/Scripts/Game/Training/`(3개, 신규 어셈블리 아님 —
+`CounterTime.Game.asmdef` 소속) — `TrainingCatalog`(ScriptableObject, NodeMotionMap과
+같은 패턴: id/displayName/overrideController 목록, 종목 추가는 이 에셋에 항목만
+늘리면 됨) / `TrainingStageView`(ArenaStageView 를 캐릭터 1명으로 축소한 저해상도
+RT 스테이지, `SetController`로 종목별 `AnimatorOverrideController` 교체) /
+`TrainingSessionController`(능동 렙 상태기계 — 상태 이름 `Ready/Rep/Strained/Collapse`
+를 스크립트가 직접 CrossFade, 이 프로젝트 기존 패턴인 ScenarioMotionBinder/
+ArenaStageView 와 동일 — 새 Animator 파라미터·트랜지션 그래프 불필요).
+`Assets/_Project/Scripts/Game/Editor/TrainingAssetBuilder.cs`(신규, 메뉴
+"CounterTime/Build Training Assets") — `AC_Training.controller`(4상태, placeholder
+클립은 기존 `AC_Fighter_A.controller`에서 그대로 재사용: Ready=Fight Idle/
+Rep=Standing Melee Punch/Strained=Stumble Backwards/Collapse=Defeated) + §4 13종
+각각의 `AnimatorOverrideController`(전부 placeholder pass-through, 아직 아무 것도
+안 덮음) + `TrainingCatalog.asset`을 만든다. **이미 있는 에셋은 절대 안 덮어쓴다**
+(있으면 스킵) — 재실행이 사람이 채운 모캡을 지우는 사고를 막으려고 명시적으로
+그렇게 짰다.
+**능동 렙 메커니즘(⚙ 제안 초기치, 튜닝 전)**: `fatiguePerRep=7`/`fatigueLimit=100`/
+`strainedStartFatigue=55`/`collapsedAnimatorSpeed=0.55`(피로가 오르면 Animator.speed
+가 1→0.55 로 선형 감속) — 100/7≈15렙에서 방전, 55/7≈8렙째부터 Strained 로 전환.
+렙 입력은 버튼 클릭 + 스페이스/엔터 키(기존 `Input.GetKeyDown` 관행 그대로, 새 Input
+System 배선 없음) 한 진입점(`OnRepInput`)으로 모인다. v1은 "누르면 1렙" 단순형
+(§2 [설계 판단] 제안 그대로, 타이밍 채점 없음).
+**[설계 판단] "돌아가며 훈련"의 세션 경계**: §2 는 "한 종목 훈련 세션"의 흐름만
+정의하고, §6 확인2("방전 후 처리")는 애매하게 남아 있었다 — 개별 종목의 방전인지
+전체 방문의 방전인지 구분 없이 "지금은 복귀만"만 제안. 이번 구현은 §1 "3~4개 선택,
+돌아가며 훈련"을 문자 그대로 따라 **종목 하나가 방전하면 자동으로 다음 종목으로
+넘어가고(재시도 없음, §6 확인2 제안 그대로), 선택한 종목을 전부 돌고 나서야 지도로
+복귀**하는 구조로 판단해 구현했다 — 사람 확인 필요(아래 판단 필요 목록 참조).
+전환은 버튼 클릭("다음 종목"/"훈련 종료")이지 타이머 자동전환이 아니다 — 이 프로젝트
+전체가 명시적 확인 버튼 패턴(매치 결과 "확인" 등)이라 그것과 통일.
+**저장 훅 자리**: `MetaFlowController.RecordTrainingResult(TrainingSessionController.Result)`
+가 빈 메서드로 존재 — 매 종목 방전마다 호출은 되지만 SaveData 스키마는 무수정,
+값 연결 없음(작업 지시 그대로 §H 7 이월).
+**★검증 포인트(작업3 핵심) 실측 완료**: Play 모드에서 `pull_up` 종목의 오버라이드
+컨트롤러(`AC_Training_pull_up.overrideController`)를 `AnimatorOverrideController.
+ApplyOverrides`(인스펙터가 슬롯에 클립을 드롭할 때 쓰는 것과 동일한 API)로 RepClip
+을 Standing Melee Punch→Taunt 로 교체 → 코드 재컴파일 없이 그 종목 렙 입력 시 실제로
+Taunt 클립이 재생됨을 확인(교체 전엔 Standing Melee Punch) → 검증 후 원상복구.
+"모캡만 따면 바로 적용"이 코드 수정 없이 성립한다는 걸 직접 실측으로 증명했다.
+**Play 실측(전체 흐름 한 바퀴)**: 지도→유도장(종목 13개 토글, 3~4개 제한 확인:
+5번째 선택 시도는 무시됨)→4종목 선택→훈련 시작→RT(320x180) 정상 표시→렙 15회
+입력→Fatigue 100/100 도달, Animator 가 Rep(8렙째부터 Strained)→Collapse(Defeated
+클립)로 정확히 전환→방전 즉시 렙 버튼 숨김+결과 배너("풀업(친업/도복잡고): 15렙")+
+"다음 종목" 버튼 노출→클릭 시 다음 종목(배틀로프)으로 전환되며 렙/피로 0 리셋+
+Animator Ready(Fight Idle)로 복귀 확인.
+**검증**: Unity MCP 컴파일 0/0(전 단계). 하니스 `dotnet run -- --check` 257/257
+그린 + 42노드 지문 IDENTICAL(경기 엔진 무수정 — 이번 세션 파일은 전부 Game/Training,
+Game/Editor, Game/Meta 뿐이라 하니스 컴파일 대상 자체가 아니라서 당연한 결과이지만
+재확인 목적). `NotoSansKR SDF.asset` 변경은 새 한글 UI 문구(종목명 등)가 런타임에
+새 글리프를 구워 넣은 부수효과 — 기존 세션들에도 반복적으로 기록된 알려진 현상,
+버그 아님.
+**판단 필요 (정하지 않고 목록)**:
+1. "돌아가며 훈련"의 세션 경계 해석(위 참조) — 종목별 방전마다 자동 다음 종목 진행이
+   맞는지, 아니면 한 종목만 하고 바로 지도로 돌아가는 편이 나을지 실플레이 판단 필요.
+2. ⚙ 5개(`fatiguePerRep`/`fatigueLimit`/`strainedStartFatigue`/`collapsedAnimatorSpeed`/
+   `crossfadeBlend`) 전부 이번 세션이 새로 고른 제안값 — 플레이 감으로 튜닝 대상.
+3. `TrainingStageView` 카메라 프레이밍(위치 (0,1.5,-3.2), FOV45)은 ArenaStageView 처럼
+   반복 실측을 거치지 않은 초기 배치 — 사람이 Play 로 직접 보고 조정할 여지.
+4. placeholder 클립 선택(Rep=Standing Melee Punch/Strained=Stumble Backwards/
+   Collapse=Defeated, 13종목 전부 공용)이 종목 성격과 안 맞아 보일 수 있다 — 모캡
+   전까지는 어쩔 수 없는 임시값, 인지만 해둠.
+5. `RepButton`/`RefreshTrainingRunHud` 등 v1 문구("훈련! (Space/Enter)", "렙: N",
+   "피로: N / 100")는 기존 STATUS "카피 교체 목록" 관행대로 나중에 진짜 카피로 교체될
+   기계적 문구다 — 지금 등록 안 함(스캐폴드 UI라 이 문서 카피 교체 목록에 아직 안
+   올렸다, 다음 세션이 그 목록 갱신할 때 같이 정리할 것).
+
 Current State (last updated: 2026-08-13 밤, v3 후속 측정)
 **v3 후속 측정 완료 — 승률 붕괴 원인 분리 + 로스터 차별성 재측정(B 행동 기준) +
 그립 파리티 동역학.** 브랜치 `feat/match-engine`, HEAD `a3fb534`(무수정, 그대로).
@@ -444,7 +515,17 @@ Full detail, including the exact 현실적 A osaekomi-entry-shortfall breakdown 
   Unity Editor + MCP 브리지가 밤새 연결 유지(사람 없음) — 매 작업 후 AssetDatabase.Refresh() + GetConsoleLogs 로 0 에러/0 경고 재확인, RunCommand 안에서 짧은 이름(CompilationPipeline 등)이 Unity.AI.Assistant.* 네임스페이스와 충돌하는 기존 함정 재확인(전체 경로로 우회)
 
 Next Up (in priority order)
-**가장 최근 — §H 3.5b-로스터: 구별되는 상대 6명 실저작(습관만).** 상세는 위 Current
+**가장 최근 — DESIGN_training §5(A) 훈련 클립 스캐폴드 완료.** 상세는 위 Current State
+항목 참조. 요약: `Assets/_Project/Scripts/Game/Training/`(TrainingCatalog/
+TrainingStageView/TrainingSessionController, 신규) + `Game/Editor/TrainingAssetBuilder.cs`
+(AC_Training.controller + 13종 오버라이드 + TrainingCatalog.asset 생성 메뉴, 이미
+있는 에셋은 안 덮어씀) + `MetaFlowController`(훈련 선택/실행 화면) +
+`PlayModeSetupMenu`(Training GameObject 배선). ★핵심 검증(오버라이드 슬롯 클립만
+바꾸면 코드 수정 없이 종목 동작이 바뀜) Play 로 실측 확인. 경기 엔진 무수정, 하니스
+257/257+지문 IDENTICAL. **다음 — §H 4(판정 승격) 또는 DESIGN_training §5(B, 스탯/
+숙련 진행 연결) 중 사람 판단.**
+**다음 (그 앞) — §H 4: 판정 승격(§E).**
+**가장 최근 (그 앞) — §H 3.5b-로스터: 구별되는 상대 6명 실저작(습관만).** 상세는 위 Current
 State 항목 참조. 요약: `Assets/_Project/Scripts/Brain/`에 5개 신규 상대 팩토리
 (`HwangDochul`/`MoonJunbae`/`SeoDohyun`/`ImJunchul`/`OhJaehoon`) + `SurpriseTechnique`
 (변칙기 하드 규칙, 신규) + `HabitId` 5→14 + `IHabitContext` 2개 확장(보고 후) +
@@ -1351,6 +1432,64 @@ Why Assets/Editor/HubForceResolve.cs disappeared — nobody deleted it. It is Un
 Whether to keep the Unity Cloud link (cloudProjectId / organizationId in ProjectSettings.asset) — keep and commit. cloudEnabled is 0, it is a project GUID rather than a secret, ProjectSettings.asset is tracked anyway, and the editor rewrites it if removed.
 
 Session Log (newest first)
+2026-08-13 (훈련 클립 스캐폴드 — DESIGN_training §5(A))
+작업 지시: `md/DESIGN_training-draft.md` §5의 "지금 빌드(A)"만 — 훈련 화면 + 종목
+선택 + 능동 렙 입력 + 방전 + 종목별 모캡 클립 슬롯. 스탯/숙련 진행 연결(B)은 §H 7
+이월, 문(호출 지점)만. 경기 엔진(Core/Brain/⚙) 무수정 — 지문 IDENTICAL 유지가 조건.
+작업0 — 스탬프 --check exit 0, 하니스 257/257·지문 IDENTICAL, Unity MCP
+`GetConsoleLogs` 0/0 확인 후 진행.
+작업1(훈련 화면) — `MetaFlowController`의 기존 훈련 placeholder(`BuildTemplateContent`)
+를 `BuildTrainingSelectContent`(13종목 토글 버튼 + "선택: N/3~4" + 3~4개 제한 —
+4개 선택된 상태에서 5번째 클릭은 조용히 무시)로 교체.
+작업2(능동 렙) — `TrainingSessionController`: 렙 입력 1회 = `OnRepInput()` 한 진입점
+(버튼 클릭 + Update() 안 `Input.GetKeyDown(Space/Return)`, 기존 `MatchRunner.cs`/
+`BurstFeelTest.cs`가 이미 쓰던 구 Input 관행 그대로 — 새 Input System 배선 안 함).
+피로(⚙ `fatiguePerRep=7`/`fatigueLimit=100`)가 오르면 `Animator.speed`를 1→
+`collapsedAnimatorSpeed(0.55)`로 선형 감속하고, `strainedStartFatigue=55` 넘으면
+CrossFade 대상을 "Rep"→"Strained"로 바꿔치기(실제 크로스페이드 블렌드가 "섞여
+들어감"을 구현). 방전(`Fatigue>=fatigueLimit`)이면 "Collapse" 로 CrossFade 후
+`SessionEnded` 이벤트 발화, 세션 종료. 세션 결과(`Result{disciplineId, repCount}`)는
+`MetaFlowController.RecordTrainingResult`라는 빈 메서드로만 흘러간다 — SaveData
+스키마 무수정, 값 연결 없음(작업 지시 "저장 훅 자리만" 그대로).
+작업3(클립 스캐폴드, 핵심) — 상태 전환은 Animator 파라미터/트랜지션 그래프가 아니라
+스크립트가 상태 이름으로 직접 CrossFade한다(이 프로젝트가 이미 쓰는
+ScenarioMotionBinder/ArenaStageView 패턴과 동일 — 새 그래프 설계 불필요, 정확히
+같은 방식이라 재사용 판단). `TrainingAssetBuilder.cs`(Editor 메뉴, 신규)가
+`AC_Training.controller`(Ready/Rep/Strained/Collapse 4상태, placeholder 클립은
+기존 `AC_Fighter_A.controller`에서 상태 이름으로 찾아 재사용: Fight Idle/Standing
+Melee Punch/Stumble Backwards/Defeated) + 종목 13개 각각의
+`AnimatorOverrideController`(전부 pass-through, 아직 아무 것도 안 덮음) +
+`TrainingCatalog.asset`(id/displayName/overrideController 목록, `NodeMotionMap`과
+같은 ScriptableObject 패턴)을 만든다. **이미 있는 에셋은 절대 안 덮어쓴다** — 재실행
+때 사람이 채워둔 모캡 클립을 지우는 사고를 코드로 원천 차단(`existing != null` 이면
+그대로 반환하는 가드를 매 생성 함수에 넣음).
+**★검증 포인트 실측(작업 지시가 명시한 "이게 성립 증거") — `pull_up` 종목의 오버라이드
+컨트롤러에 `AnimatorOverrideController.ApplyOverrides`(인스펙터가 슬롯에 클립을
+드롭할 때 쓰는 것과 동일한 공개 API)로 RepClip 을 Standing Melee Punch→Taunt 로
+교체 → **코드 재컴파일 없이** Play 모드에서 그 종목 렙 입력 시 실제로 Taunt 클립이
+재생됨을 확인(교체 전엔 Standing Melee Punch 가 재생되던 자리) → 검증 후 원상복구
+(override를 다시 null로 되돌려 pass-through 상태로 커밋). "모캡만 따면 바로 적용"
+요구가 코드 수정 없이 실제로 성립한다는 걸 직접 실측으로 증명했다 — 추측이 아니다.
+작업4(검증) — Unity MCP: `AssetDatabase.Refresh` 후 컴파일 0/0, `Build Training
+Assets`/`Play Mode Setup` 두 메뉴 다 `ExecuteMenuItem`으로 실행해 0/0 재확인. Play
+모드 실측 전체 흐름: 지도→유도장→13종목 중 4개 선택(5번째 시도는 무시됨 확인)→
+훈련 시작→RT(320x180) RawImage 에 정상 표시→렙 15회 입력(버튼 `onClick.Invoke()`)
+→렙수 15/피로 100 정확히 도달, Animator 가 Rep(8렙째부터 Strained로 자동 전환)→
+Collapse(Defeated 클립)까지 정확히 흘러감→방전 즉시 렙 버튼 숨김+결과 배너("풀업
+(친업/도복잡고): 15렙")+"다음 종목" 버튼 노출→클릭 시 배틀로프로 전환, 렙/피로
+0 리셋+Animator 가 Ready(Fight Idle)로 복귀(별도 RunCommand 호출로 프레임이 지난
+뒤 확인 — 같은 동기 호출 안에서 CrossFade 직후 읽으면 이전 클립이 나온다는 이
+프로젝트의 기존 함정을 그대로 재확인, 버그 아님). 하니스 `dotnet run -- --check`
+257/257 그린 + 42노드 지문 IDENTICAL(이번 세션 파일은 전부 Game/Training,
+Game/Editor, Game/Meta 뿐이라 하니스 컴파일 대상 자체가 아님 — 재확인 목적).
+`git status --short`로 의도한 파일(Training 스크립트 3개+에셋들, TrainingAssetBuilder,
+MetaFlowController/PlayModeSetupMenu 수정, STATUS.md)만 바뀌었음을 확인
+(`NotoSansKR SDF.asset` 변경은 새 한글 UI 문구가 유발한 알려진 부수효과,
+`Assets/_Recovery/`는 이전 세션부터 있던 untracked, 둘 다 무관).
+판단 필요 5건(상세는 위 Current State 항목)은 정하지 않고 목록으로 남김 — 특히
+"돌아가며 훈련"의 세션 경계 해석(종목별 방전마다 자동 다음 진행 vs 한 종목만)은
+문서가 명시하지 않아 이번 세션이 판단해 구현한 지점이라 사람 확인이 가장 필요하다.
+커밋·푸시는 작업 지시가 완료 시 사전 승인.
 2026-08-13 (밤, v3 후속 측정 — 승률 붕괴 원인 분리 + 로스터 차별성 재측정 + 그립 파리티 동역학)
 작업 지시: 이날 앞선 두 야간 수집이 남긴 두 미해결 질문을 후속 측정. (1) 재수집
 headline("A 승률 붕괴")이 같은 커밋에서 동시에 일어난 B 브레인 버그 수정과

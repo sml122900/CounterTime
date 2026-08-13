@@ -1,5 +1,6 @@
 using CounterTime.Game.Match;
 using CounterTime.Game.Meta;
+using CounterTime.Game.Training;
 using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -35,6 +36,12 @@ namespace CounterTime.Game.Editor
         const string FighterAControllerPath = "Assets/_Project/Art/Animations/AC_Fighter_A.controller";
         const string FighterBControllerPath = "Assets/_Project/Art/Animations/AC_Fighter_B.controller";
         const string FloorMaterialPath = "Assets/_Project/Art/M_Stage_Floor.mat";
+
+        // 훈련 클립 스캐폴드 — CounterTime/Build Training Assets(TrainingAssetBuilder)가
+        // 미리 만들어둬야 하는 에셋. 여기서는 없으면 경고만 하고 넘어간다(재생성은 그
+        // 메뉴 몫 — 여기서 만들면 오버라이드 컨트롤러에 채운 모캡을 덮어쓸 위험이 있다).
+        const string TrainingControllerPath = "Assets/_Project/Art/Animations/AC_Training.controller";
+        const string TrainingCatalogPath = "Assets/_Project/ScriptableObjects/TrainingCatalog.asset";
 
         [MenuItem("CounterTime/Play Mode Setup")]
         static void Setup()
@@ -110,12 +117,30 @@ namespace CounterTime.Game.Editor
             // 아예 미룬다 — 순서 운에 기대지 않는 확정적인 방법.
             go.SetActive(false);
 
+            // DESIGN_training.md §5-A — 훈련 3D 스테이지. LiveMatch 와 같은 이유로
+            // 비활성 상태로 미리 지어두고, MetaFlowController.StartTrainingRun 이
+            // SetActive(true) 할 때 Awake(EnsureBuilt 포함)가 그 자리에서 완주한다.
+            var trainingGo = new GameObject("Training", typeof(TrainingStageView), typeof(TrainingSessionController));
+            var trainingStageSo = new SerializedObject(trainingGo.GetComponent<TrainingStageView>());
+            AssignAsset<GameObject>(trainingStageSo, "fighterModel", FighterAModelPath);
+            AssignAsset<RuntimeAnimatorController>(trainingStageSo, "defaultController", TrainingControllerPath);
+            AssignAsset<Material>(trainingStageSo, "floorMaterial", FloorMaterialPath);
+            trainingStageSo.ApplyModifiedPropertiesWithoutUndo();
+            trainingGo.SetActive(false);
+
+            var trainingCatalog = AssetDatabase.LoadAssetAtPath<TrainingCatalog>(TrainingCatalogPath);
+            if (trainingCatalog == null)
+                Debug.LogWarning("[PlayModeSetupMenu] 훈련 카탈로그를 못 찾음 — 먼저 " +
+                                  "CounterTime > Build Training Assets 를 실행할 것: " + TrainingCatalogPath);
+
             var metaGo = new GameObject("MetaFlow", typeof(MetaFlowController));
             var metaSo = new SerializedObject(metaGo.GetComponent<MetaFlowController>());
             if (font != null) metaSo.FindProperty("koreanFont").objectReferenceValue = font;
             metaSo.FindProperty("liveMatchRunner").objectReferenceValue = go.GetComponent<LiveMatchRunner>();
             metaSo.FindProperty("liveMatchPanel").objectReferenceValue = go.GetComponent<LiveMatchPanel>();
             metaSo.FindProperty("liveMatchRoot").objectReferenceValue = go;
+            metaSo.FindProperty("trainingSession").objectReferenceValue = trainingGo.GetComponent<TrainingSessionController>();
+            if (trainingCatalog != null) metaSo.FindProperty("trainingCatalog").objectReferenceValue = trainingCatalog;
             metaSo.ApplyModifiedPropertiesWithoutUndo();
 
             Selection.activeGameObject = metaGo;

@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using CounterTime.Brain;
 using CounterTime.Core;
 using CounterTime.Game.Match;
 using CounterTime.Game.Save;
+using CounterTime.Game.Training;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -40,6 +42,8 @@ namespace CounterTime.Game.Meta
         [SerializeField] LiveMatchPanel liveMatchPanel;
         [SerializeField] GameObject liveMatchRoot;
         [SerializeField] int bracketSeed = 777;
+        [SerializeField] TrainingSessionController trainingSession;
+        [SerializeField] TrainingCatalog trainingCatalog;
 
         static readonly Color ScreenBg = new Color(0.12f, 0.14f, 0.18f);
         static readonly Color PanelBg = new Color(0.18f, 0.18f, 0.20f, 0.95f);
@@ -52,13 +56,23 @@ namespace CounterTime.Game.Meta
         TournamentBracket _bracket;
 
         GameObject _metaCanvasGo;
-        GameObject _mapRoot, _trainingRoot, _restRoot, _tournamentListRoot, _bracketRoot;
+        GameObject _mapRoot, _trainingRoot, _restRoot, _tournamentListRoot, _bracketRoot, _trainingRunRoot;
         TMP_Text _mapStatusText, _tournamentListStatusText;
         Transform _bracketContent;
 
         GameObject _overlayCanvasGo, _matchResultRoot;
         TMP_Text _matchResultText;
         bool _pendingPlayerWon;
+
+        // ── 훈련(DESIGN_training §5-A) ─────────────────────────────────────────
+        readonly List<string> _trainingSelectedIds = new List<string>();
+        readonly Dictionary<string, Button> _trainingToggleButtons = new Dictionary<string, Button>();
+        readonly List<TrainingSessionController.Result> _trainingResults = new List<TrainingSessionController.Result>();
+        List<string> _trainingQueue = new List<string>();
+        int _trainingQueueIndex;
+        TMP_Text _trainingSelectCountText, _trainingDisciplineLabel, _trainingRepText, _trainingFatigueText, _trainingResultText;
+        Button _trainingStartButton, _trainingRepButton, _trainingResultButton;
+        RawImage _trainingStageImage;
 
         void Awake()
         {
@@ -72,11 +86,26 @@ namespace CounterTime.Game.Meta
             BuildCanvas();
             liveMatchRoot.SetActive(false);
             liveMatchRunner.Presented += OnMatchEvent;
+            trainingSession.gameObject.SetActive(false);
+            trainingSession.SessionEnded += OnTrainingDisciplineEnded;
 
             ShowMap();
         }
 
-        void OnDestroy() => liveMatchRunner.Presented -= OnMatchEvent;
+        void OnDestroy()
+        {
+            liveMatchRunner.Presented -= OnMatchEvent;
+            trainingSession.SessionEnded -= OnTrainingDisciplineEnded;
+        }
+
+        void Update()
+        {
+            if (_trainingRunRoot != null && _trainingRunRoot.activeSelf &&
+                (Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.Return)))
+            {
+                OnTrainingRepInput();
+            }
+        }
 
         void OnApplicationQuit() => SaveNow();
 
@@ -184,6 +213,7 @@ namespace CounterTime.Game.Meta
             _restRoot.SetActive(active == _restRoot);
             _tournamentListRoot.SetActive(active == _tournamentListRoot);
             _bracketRoot.SetActive(active == _bracketRoot);
+            _trainingRunRoot.SetActive(active == _trainingRunRoot);
         }
 
         void ShowMap()
@@ -196,6 +226,110 @@ namespace CounterTime.Game.Meta
 
         void ShowTraining() => SetScreen(_trainingRoot);
         void ShowRest() => SetScreen(_restRoot);
+
+        // ── 훈련(DESIGN_training §5-A) ─────────────────────────────────────────
+
+        void ToggleDiscipline(string id)
+        {
+            if (_trainingSelectedIds.Contains(id))
+                _trainingSelectedIds.Remove(id);
+            else if (_trainingSelectedIds.Count < 4)
+                _trainingSelectedIds.Add(id);
+            RefreshTrainingSelectUI();
+        }
+
+        void RefreshTrainingSelectUI()
+        {
+            foreach (var kv in _trainingToggleButtons)
+            {
+                bool selected = _trainingSelectedIds.Contains(kv.Key);
+                kv.Value.GetComponent<Image>().color = selected ? Highlight : ButtonBg;
+            }
+            int n = _trainingSelectedIds.Count;
+            _trainingSelectCountText.text = $"선택: {n} / 3~4";
+            _trainingStartButton.interactable = n >= 3 && n <= 4;
+        }
+
+        void StartTrainingRun()
+        {
+            if (_trainingSelectedIds.Count < 3 || _trainingSelectedIds.Count > 4) return;
+
+            _trainingQueue = new List<string>(_trainingSelectedIds);
+            _trainingQueueIndex = 0;
+            _trainingResults.Clear();
+
+            // Training GameObject 는 LiveMatch 와 같은 이유로 첫 훈련 전까지 비활성 —
+            // 활성화가 그 Awake(TrainingStageView.EnsureBuilt 포함)를 이 시점에 동기로
+            // 완주시킨다(SetActive(true) 안에서 Awake 가 즉시 돈다), Output 은 그 다음 줄부터 유효.
+            trainingSession.gameObject.SetActive(true);
+            _trainingStageImage.texture = trainingSession.Output;
+
+            SetScreen(_trainingRunRoot);
+            BeginTrainingDiscipline();
+        }
+
+        void BeginTrainingDiscipline()
+        {
+            _trainingResultText.gameObject.SetActive(false);
+            _trainingResultButton.gameObject.SetActive(false);
+            _trainingRepButton.gameObject.SetActive(true);
+
+            var entry = trainingCatalog.Find(_trainingQueue[_trainingQueueIndex]);
+            trainingSession.BeginSession(entry);
+            _trainingDisciplineLabel.text = entry.displayName;
+            RefreshTrainingRunHud();
+        }
+
+        void OnTrainingRepInput()
+        {
+            if (trainingSession == null || !trainingSession.Active) return;
+            trainingSession.OnRepInput();
+            RefreshTrainingRunHud();
+        }
+
+        void RefreshTrainingRunHud()
+        {
+            _trainingRepText.text = $"렙: {trainingSession.RepCount}";
+            _trainingFatigueText.text = $"피로: {Mathf.RoundToInt(trainingSession.Fatigue)} / {Mathf.RoundToInt(trainingSession.FatigueLimit)}";
+        }
+
+        /// <see cref="TrainingSessionController.SessionEnded"/> — 한 종목이 방전으로
+        /// 끝났다. 저장 훅 자리 — 값 연결은 §H 7 이월(DESIGN_training §5-B), 지금은
+        /// 집계만 한다.
+        void OnTrainingDisciplineEnded(TrainingSessionController.Result result)
+        {
+            _trainingResults.Add(result);
+            RecordTrainingResult(result);
+            RefreshTrainingRunHud();
+
+            _trainingRepButton.gameObject.SetActive(false);
+            bool more = _trainingQueueIndex + 1 < _trainingQueue.Count;
+            if (more)
+            {
+                _trainingResultText.text = $"{_trainingDisciplineLabel.text}: {result.RepCount}렙";
+                _trainingResultButton.GetComponentInChildren<TMP_Text>().text = "다음 종목";
+            }
+            else
+            {
+                int total = 0;
+                foreach (var r in _trainingResults) total += r.RepCount;
+                _trainingResultText.text = $"훈련 종료 — 총 {total}렙 ({_trainingResults.Count}종목)";
+                _trainingResultButton.GetComponentInChildren<TMP_Text>().text = "지도로 돌아가기";
+            }
+            _trainingResultText.gameObject.SetActive(true);
+            _trainingResultButton.gameObject.SetActive(true);
+        }
+
+        void OnTrainingResultButtonClicked()
+        {
+            _trainingQueueIndex++;
+            if (_trainingQueueIndex < _trainingQueue.Count) BeginTrainingDiscipline();
+            else ShowMap();
+        }
+
+        /// §H 7 이월(DESIGN_training §5-B) — 스탯/숙련 반영이 붙을 자리. SaveData 스키마는
+        /// 무수정, 값 연결 없음 — 작업 지시 그대로 훅 자리만.
+        void RecordTrainingResult(TrainingSessionController.Result result) { }
 
         void ShowTournamentList()
         {
@@ -318,7 +452,10 @@ namespace CounterTime.Game.Meta
             BuildMapContent(_mapRoot.transform);
 
             _trainingRoot = BuildScreenRoot(_metaCanvasGo.transform, "TrainingRoot");
-            BuildTemplateContent(_trainingRoot.transform, "훈련");
+            BuildTrainingSelectContent(_trainingRoot.transform);
+
+            _trainingRunRoot = BuildScreenRoot(_metaCanvasGo.transform, "TrainingRunRoot");
+            BuildTrainingRunContent(_trainingRunRoot.transform);
 
             _restRoot = BuildScreenRoot(_metaCanvasGo.transform, "RestRoot");
             BuildTemplateContent(_restRoot.transform, "휴식");
@@ -369,6 +506,63 @@ namespace CounterTime.Game.Meta
             var panel = BuildCenteredPanel(parent, 480, 260);
             MakeText(panel, title, TextAlignmentOptions.Center, 30);
             MakeButton(panel, "지도로 돌아가기", ShowMap, 240, 48);
+        }
+
+        /// DESIGN_training §4/§5-A — 종목 목록 + 3~4개 선택.
+        void BuildTrainingSelectContent(Transform parent)
+        {
+            var panel = BuildCenteredPanel(parent, 520, 740, spacing: 6);
+            MakeText(panel, "훈련 종목 선택", TextAlignmentOptions.Center, 26);
+            _trainingSelectCountText = MakeText(panel, "", TextAlignmentOptions.Center, 15);
+            _trainingSelectCountText.color = Dim;
+
+            if (trainingCatalog != null)
+            {
+                foreach (var entry in trainingCatalog.Disciplines)
+                {
+                    var id = entry.id;
+                    var btn = MakeButton(panel, entry.displayName, () => ToggleDiscipline(id), 460, 30);
+                    _trainingToggleButtons[id] = btn;
+                }
+            }
+            else
+            {
+                var warn = MakeText(panel, "훈련 카탈로그 미배선", TextAlignmentOptions.Center, 14);
+                warn.color = Dim;
+            }
+
+            _trainingStartButton = MakeButton(panel, "훈련 시작", StartTrainingRun, 280, 48);
+            MakeButton(panel, "지도로 돌아가기", ShowMap, 240, 44);
+            RefreshTrainingSelectUI();
+        }
+
+        /// DESIGN_training §2/§3 — 능동 렙 세션 화면. 3D 렌더는
+        /// <see cref="TrainingSessionController"/>/<see cref="TrainingStageView"/> 가
+        /// 만드는 RenderTexture 를 그대로 표시만 한다(LiveMatchPanel 의 ArenaStageView
+        /// RawImage 표시와 같은 패턴).
+        void BuildTrainingRunContent(Transform parent)
+        {
+            var panel = BuildCenteredPanel(parent, 520, 560, spacing: 10);
+            _trainingDisciplineLabel = MakeText(panel, "", TextAlignmentOptions.Center, 22);
+
+            var imgGo = new GameObject("StageImage", typeof(RectTransform), typeof(RawImage), typeof(LayoutElement));
+            imgGo.transform.SetParent(panel, false);
+            var le = imgGo.GetComponent<LayoutElement>();
+            le.preferredWidth = 480; le.preferredHeight = 270; le.minWidth = 480; le.minHeight = 270;
+            _trainingStageImage = imgGo.GetComponent<RawImage>();
+
+            _trainingRepText = MakeText(panel, "", TextAlignmentOptions.Center, 18);
+            _trainingFatigueText = MakeText(panel, "", TextAlignmentOptions.Center, 15);
+            _trainingFatigueText.color = Dim;
+
+            _trainingRepButton = MakeButton(panel, "훈련! (Space/Enter)", OnTrainingRepInput, 320, 56);
+
+            _trainingResultText = MakeText(panel, "", TextAlignmentOptions.Center, 18);
+            _trainingResultText.color = Highlight;
+            _trainingResultText.gameObject.SetActive(false);
+
+            _trainingResultButton = MakeButton(panel, "", OnTrainingResultButtonClicked, 280, 48);
+            _trainingResultButton.gameObject.SetActive(false);
         }
 
         void BuildTournamentListContent(Transform parent)
