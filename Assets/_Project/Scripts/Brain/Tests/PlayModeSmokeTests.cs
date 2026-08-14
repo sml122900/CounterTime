@@ -400,6 +400,9 @@ namespace CounterTime.Brain.Tests
 
                 int bGripChanged = 0, bGripFailed = 0, bSolidified = 0, bCrossTicks = 0, bCrossExpired = 0;
                 int aGripChanged = 0, aGripFailed = 0;
+                // §2b v4.2 후속(2026-08-14 밤 6차) — B 의 소매 표적을 미러 손으로
+                // 정정한 뒤 정/교차 분포가 실제로 바뀌었는지(정이 0 이 아닌지) 계측.
+                int bMirrorGrabs = 0, bCrossGrabs = 0;
 
                 Assert.DoesNotThrow(() =>
                 {
@@ -422,7 +425,16 @@ namespace CounterTime.Brain.Tests
 
                         foreach (var e in events)
                         {
-                            if (e is GripChanged gc) { if (gc.Who == FighterId.B) bGripChanged++; else aGripChanged++; }
+                            if (e is GripChanged gc)
+                            {
+                                if (gc.Who == FighterId.B)
+                                {
+                                    bGripChanged++;
+                                    if (CounterTime.Core.GripSystem.IsCrossOrientation(b.OwnHand, b.Hand)) bCrossGrabs++;
+                                    else bMirrorGrabs++;
+                                }
+                                else aGripChanged++;
+                            }
                             if (e is GripAttemptFailed gf) { if (gf.Who == FighterId.B) bGripFailed++; else aGripFailed++; }
                             if (e is GripSolidified && ((GripSolidified)e).Who == FighterId.B) bSolidified++;
                             if (e is CrossGripTimerTicked ct && ct.Who == FighterId.B)
@@ -439,7 +451,8 @@ namespace CounterTime.Brain.Tests
                 }, $"프로필 '{name}' — GripRevisionGate on 에서 예외 없이 끝까지 돌아야 한다");
 
                 Console.WriteLine($"=== GripRevisionGate on — {name} ===");
-                Console.WriteLine($"  B: grabbed={bGripChanged} failed={bGripFailed} solidified={bSolidified}"
+                Console.WriteLine($"  B: grabbed={bGripChanged} (mirror={bMirrorGrabs} cross={bCrossGrabs})"
+                    + $" failed={bGripFailed} solidified={bSolidified}"
                     + $" crossTicks={bCrossTicks} crossExpired(지도)={bCrossExpired}");
                 Console.WriteLine($"  A: grabbed={aGripChanged} failed={aGripFailed}");
                 Console.WriteLine($"  final grip A={engine.Grip.EffectiveGrip(FighterId.A)} B={engine.Grip.EffectiveGrip(FighterId.B)}"

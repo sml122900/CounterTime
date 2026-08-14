@@ -73,14 +73,23 @@ namespace CounterTime.Brain
                 //
                 // H1 과 조건이 정확히 배타적이다(≥ +1 / < +1). 둘이 같은 턴에 다투지
                 // 않으므로 사다리 순서가 둘 사이에서는 의미가 없다.
+                // §2b v4.2 후속(2026-08-14 밤 6차, 작성 오류 정정) — OwnHand=Left.
+                // "오른소매 노림"(상대 오른소매가 표적)의 기본 맞잡기는 정잡기다 —
+                // 내 손이 표적과 반대측이어야 정(§2b "내 오른손→상대 왼쪽"과 대칭
+                // 규칙 그대로: 표적 Right ↔ 내손 Left). OwnHand=Right로 짰던 원래
+                // 코드는 매핑 아티팩트로 항상 교차였다 — 실유도 기본 맞잡기와도,
+                // 1차 지시서 예시 의도와도 어긋났다(예시 문구 자체는 반대로
+                // 적혀 있었다는 게 이번 세션에서 확인됨, 위 STATUS 참조).
                 case HabitId.SeekGripRightSleeve:
-                    return SeekGrip(id, cfg, fireProbability, HandTarget.RightSleeve, Hand.Right, isReserve: false);
+                    return SeekGrip(id, cfg, fireProbability, HandTarget.RightSleeve, Hand.Left, isReserve: false);
 
                 // H4b — 예비 교체분. 폐기는 삭제가 아니다: 잡기를 아예 안 가면 B 가
                 // 자멸한다. 간파당했으니 반대 소매로 바꾼다 — 플레이어는 새 부위를
                 // 0 부터 다시 관측해야 하고, 그래서 읽기 루프가 살아 있다.
+                // §2b v4.2 후속 — 같은 정정, 반대 표적. OwnHand=Right(표적 Left ↔ 내손
+                // Right = 정).
                 case HabitId.SeekGripLeftSleeve:
-                    return SeekGrip(id, cfg, fireProbability, HandTarget.LeftSleeve, Hand.Left, isReserve: true);
+                    return SeekGrip(id, cfg, fireProbability, HandTarget.LeftSleeve, Hand.Right, isReserve: true);
 
                 // ── §H 3.5b 로스터 확장 (ROSTER.md) ─────────────────────────────
 

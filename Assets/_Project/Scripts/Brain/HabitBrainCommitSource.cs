@@ -199,7 +199,13 @@ namespace CounterTime.Brain
                     // (TurnChoice.Hand 는 상대 소매 쪽 표적일 뿐). 표적만 번갈고 OwnHand 를
                     // 기본값(Right)에 맡기면 매번 같은 내 손 슬롯을 덮어써 Value()가 절대
                     // 2를 못 넘는다 — 표적과 내 손을 같이 번갈아야 두 손 다 실제로 쌓인다.
-                    var ownHand = hand == HandTarget.RightSleeve ? Hand.Right : Hand.Left;
+                    //
+                    // §2b v4.2 후속(2026-08-14 밤 6차, 작성 오류 정정) — 내 손을 표적과
+                    // 반대측으로 매핑해야 정잡기(기본 맞잡기)다. 표적=RightSleeve(상대
+                    // 오른쪽) ↔ 내손=Left, 표적=LeftSleeve(상대 왼쪽) ↔ 내손=Right —
+                    // 예전엔 표적과 같은측(Right→Right/Left→Left)이라 폴백이 항상
+                    // 교차만 냈다.
+                    var ownHand = hand == HandTarget.RightSleeve ? Hand.Left : Hand.Right;
                     _nextGripHand = hand == HandTarget.RightSleeve
                         ? HandTarget.LeftSleeve : HandTarget.RightSleeve;
                     return new HabitAction(

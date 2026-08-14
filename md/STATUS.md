@@ -2,6 +2,36 @@ STATUS
 
 Update this file every time a session resets. This is the ONLY copy — the root CLAUDE.md pulls it in with `@md/STATUS.md`, so it loads automatically at session start. Do not create a second copy anywhere. Check "Current State" and "Next Up" before starting work.
 
+Current State (last updated: 2026-08-14 밤 6차, 잡기 개편 1차 소수정 — B 잡기 손 매핑을 정잡기 기본으로)
+**배경 확인**: 5차 세션이 "B 의 잡기가 전부 교차, 1차 지시서 예시와 반대"라고
+보고한 것을 사용자가 검토 — 지시서 예시가 작성 오류였고(지적이 맞음), 설계
+의도는 실유도와 동일하게 기본 맞잡기=정잡기다. B 가 상시 교차였던 건 매핑
+아티팩트로 확정, 이번 세션에서 수정.
+**수정**: `HabitCatalogue.cs`의 H4/H4b(`SeekGripRightSleeve`/`SeekGripLeftSleeve`)
+호출부 `ownHand` 인자를 표적과 반대측으로 뒤집음(Right소매→OwnHand Left,
+Left소매→OwnHand Right) + `HabitBrainCommitSource.ActionFor(Move.GripFight)`의
+동일 로직도 같이 뒤집음(`hand==RightSleeve ? Hand.Right : Hand.Left`→
+`? Hand.Left : Hand.Right`) — 표적 자체(어느 소매를 노리는가)는 무수정, 내
+손만 정정. H3/서도현 H2 회피 존 기본값(양소매)은 지시대로 그대로 뒀다.
+**재실측**(`PlayModeSmokeTests.GripRevisionGateOn_HabitBrainStillCompletesAMatch`,
+정/교차 계측 추가): 3프로필 전부 **B 의 그립이 100% 정(mirror), 교차 0**으로
+뒤집힘(반복 1/0, 변주 15/0, 현실적 13/0 — mirror/cross) — 지시받은 결과 정확히
+재현. **교차잡기 타이머도 3프로필 전부 crossTicks=0·crossExpired=0으로 완전히
+사라짐**(B 가 이제 교차 그립을 아예 안 잡으니 타이머가 시작될 일 자체가
+없다) — 5차 세션이 관찰했던 "B 도 그립 정체로 지도를 받는다"는 부수효과가
+이번 정정으로 없어졌다는 뜻, 판단 없이 사실만(B 의 의도적 교차 사용은
+3차 이월이라 지금은 정상).
+**검증**: 하니스 `dotnet run -- --check` **292/292 그린(개수 무변화) + 42노드
+지문 IDENTICAL**(스크립트 경로는 HabitCatalogue 를 안 거치므로 당연한 결과 —
+재확인 목적). Unity MCP 컴파일 0 에러. 기존 테스트 중 `SeekGripRightSleeve`/
+`SeekGripLeftSleeve`/`GripFight` 의 `OwnHand`를 직접 단언하는 테스트가 없어
+(확인함) 컴파일·값 양쪽 다 무충돌. `git status --short`로 Brain 2개(
+`HabitCatalogue.cs`/`HabitBrainCommitSource.cs`) + 테스트 1개(
+`PlayModeSmokeTests.cs`, 계측 추가)만 바뀌었음을 확인.
+**판단 필요 없음** — 지시받은 방향대로 실행하고 재측정만 보고. B 의 그립이
+전부 정이 된 것 자체를 "너무 단조롭다"고 볼지, 로스터별로 교차를 섞을지는
+여전히 3차 이월(행동 품질 개선 범주).
+
 Current State (last updated: 2026-08-14 밤 5차, 잡기 개편 1차 확인 — B 브레인 최소 적응 조사 + 회피 존 결손 1건 수정)
 **질문1(B 브레인 최소 적응 실제 구현 여부) — 절반은 이미 됐고, 절반은 이번에 고쳤다.**
 매트릭스·교차 타이머 적용 자체는 **처음부터 자동**이었다 —
@@ -820,14 +850,16 @@ Full detail, including the exact 현실적 A osaekomi-entry-shortfall breakdown 
   Unity Editor + MCP 브리지가 밤새 연결 유지(사람 없음) — 매 작업 후 AssetDatabase.Refresh() + GetConsoleLogs 로 0 에러/0 경고 재확인, RunCommand 안에서 짧은 이름(CompilationPipeline 등)이 Unity.AI.Assistant.* 네임스페이스와 충돌하는 기존 함정 재확인(전체 경로로 우회)
 
 Next Up (in priority order)
-**가장 최근 — 잡기 개편 1차 확인 세션: B 브레인 최소 적응 조사 + 회피 존
-결손 1건 수정.** 상세는 위 Current State 항목 참조. B 는 새 체계로 실제
-경기를 성립시킬 수 있는 상태(스모크 3프로필×50교환 예외 없이 완주 확인) —
-그립 매트릭스·교차 타이머는 처음부터 A/B 대칭 적용됐고, 이번에 회피 습관
-둘의 존 결손만 고쳤다. **다음 — 별도 지시 없으면 이 클러스터는 종료, 다른
-§H 우선순위(아래 항목들)로 복귀 가능.** 남은 판단 사항(B 그립이 전부
-교차인 것/회피 기본 존이 로스터 성격과 맞는지/가슴깃·틀어잡기·견고화를
-B 에게 언제 열지)은 행동 품질 개선 범주라 착수 전 방향 필요.
+**가장 최근 — 잡기 개편 1차 소수정: B 잡기 손을 정잡기 기본으로 정정.** 상세는
+위 Current State 항목 참조. B 의 그립이 이제 100% 정(mirror) — 재측정으로
+확인, 교차잡기 타이머 지도 부수효과도 함께 사라짐(예상된 결과). **다음 —
+별도 지시 없으면 이 클러스터는 종료, 다른 §H 우선순위(아래 항목들)로 복귀
+가능.** 남은 판단 사항(B 의 의도적 교차 사용/가슴깃·틀어잡기·견고화를 B 에게
+언제 열지)은 행동 품질 개선 범주(3차 이월)라 착수 전 방향 필요.
+**가장 최근 (그 앞) — 잡기 개편 1차 확인 세션: B 브레인 최소 적응 조사 + 회피 존
+결손 1건 수정.** B 는 새 체계로 실제 경기를 성립시킬 수 있는 상태(스모크
+3프로필×50교환 예외 없이 완주 확인) — 그립 매트릭스·교차 타이머는 처음부터
+A/B 대칭 적용됐고, 회피 습관 둘의 존 결손을 고쳤다.
 **가장 최근 (그 앞) — 잡기 개편 1차 완료(MATCH_RULES v4.2 §2b): Core+LiveAssembler+
 `LiveMatchPanel` 화면까지 전부 구현·Play 실측·커밋.** `GripRevisionGate` 기본
 off — 실제로 켜서 대회에 쓸지는 사람 판단(§2b §8의 남은 ⚙ 항목들과 함께
