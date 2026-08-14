@@ -69,6 +69,15 @@ namespace CounterTime.Core
         /// Scratch state, valid only within one ResolveExchange call.
         readonly bool[] _setupDeclaredThisExchange = new bool[2];
 
+        /// §2 v4.2 — 교차잡기 rolling timer, turns remaining (0 = no active timer).
+        /// Live path only (GripRevisionGate); never touched otherwise.
+        readonly int[] _crossGripTimer = new int[2];
+        /// §2 v4.2 — consecutive same-tier mutual-defense clashes (both Core=Defensive
+        /// on a matching grab attempt). One shared counter, not per-fighter — the
+        /// spec's "반복 2회" describes the PAIR repeating the same stalemate, not
+        /// either fighter individually.
+        int _mutualDefenseClashStreak;
+
         public GripSystem Grip { get; }
         public StaminaSystem Stamina { get; }
         public BalanceSystem Balance { get; }
@@ -138,9 +147,18 @@ namespace CounterTime.Core
             if (script.DeclaredA) Referee.ObserveTurn(FighterId.A, a, entryA, realA);
             if (script.DeclaredB) Referee.ObserveTurn(FighterId.B, b, entryB, realB);
 
-            // 2. grip resolution
-            ResolveGrip(FighterId.A, a, b, ev);
-            ResolveGrip(FighterId.B, b, a, ev);
+            // 2. grip resolution — §2 v4.2: GripRevisionGate off reproduces the old
+            // per-fighter, always-succeeds resolution exactly (same two calls, same
+            // order, same code); on, both commits resolve together through the new
+            // matrix. Same "off is byte-identical to pre-gate" contract as
+            // BalanceGate/PromotionGate.
+            if (_cfg.GripRevisionGate)
+                ResolveGripExchangeRevised(a, b, realA, realB, ev);
+            else
+            {
+                ResolveGrip(FighterId.A, a, b, ev);
+                ResolveGrip(FighterId.B, b, a, ev);
+            }
 
             // 3 / 3.5 / 4 / 5 — technique
             if (attacker.HasValue && script.Technique != null)
@@ -416,6 +434,235 @@ namespace CounterTime.Core
                         TechniqueClass.Sloppy), Grip.EffectiveGrip(who));
                     break;
             }
+        }
+
+        // ================= §2 v4.2 — grip revision (GripRevisionGate) =================
+
+        /// §2 v4.2 — replaces the two independent ResolveGrip(A)/ResolveGrip(B) calls
+        /// when the gate is on. Setup/Tear/Solidify resolve per-fighter (no cross-
+        /// reference needed); the six grab targets (3 tiers × 정/교차) go through the
+        /// new matrix, which DOES need both commits together.
+        void ResolveGripExchangeRevised(in TurnChoice a, in TurnChoice b, bool realA, bool realB, List<MatchEvent> ev)
+        {
+            ResolveNonMatrixHandAction(FighterId.A, a, b, ev);
+            ResolveNonMatrixHandAction(FighterId.B, b, a, ev);
+
+            HandTarget? targetA = GrabTargetOf(a.Hand);
+            HandTarget? targetB = GrabTargetOf(b.Hand);
+
+            bool aSucceeds = targetA.HasValue && !IsZoneDefended(targetA.Value, b);
+            bool bSucceeds = targetB.HasValue && !IsZoneDefended(targetB.Value, a);
+            bool aSolidBonus = false, bSolidBonus = false;
+
+            // §2 "가슴깃 노림" — resolved per-attempt off the OPPONENT's Core this
+            // exchange, independent of what the other fighter's hand is doing.
+            // Neutral opponent Core is read as "not defensive" (succeeds) — the spec
+            // only names Aggressive/Defensive outcomes; ⚙ judgment call, documented
+            // in the v4.2 impact report, not derived from the task text.
+            if (aSucceeds && IsLapel(targetA.Value)) aSucceeds = b.Core != CoreStance.Defensive;
+            if (bSucceeds && IsLapel(targetB.Value)) bSucceeds = a.Core != CoreStance.Defensive;
+
+            // A lapel attempt already got its final answer above; only non-lapel
+            // attempts still in play enter the clash/split-stance logic below.
+            bool aPending = aSucceeds && !IsLapel(targetA.Value);
+            bool bPending = bSucceeds && !IsLapel(targetB.Value);
+
+            if (aPending && bPending)
+            {
+                bool sameTier = TierOf(targetA.Value) == TierOf(targetB.Value);
+                bool aAggro = a.Core == CoreStance.Aggressive, bAggro = b.Core == CoreStance.Aggressive;
+                bool aDef = a.Core == CoreStance.Defensive, bDef = b.Core == CoreStance.Defensive;
+                bool split = aAggro != bAggro;   // §2 "공·수 갈림" — one aggressive, the other not
+
+                if (sameTier && aDef && bDef)
+                {
+                    // §2 소매 같은 쌍, "둘 다 수비 = 상호 실패"
+                    aSucceeds = bSucceeds = false;
+                    _mutualDefenseClashStreak++;
+                    if (_mutualDefenseClashStreak >= _cfg.GripMutualDefenseShidoRepeats)
+                    {
+                        _mutualDefenseClashStreak = 0;
+                        AwardExternalShido(FighterId.A, ev);
+                        AwardExternalShido(FighterId.B, ev);
+                    }
+                }
+                else
+                {
+                    _mutualDefenseClashStreak = 0;
+                    // §2 "상호 성립(순변화 0)" / "둘 다 성립" — both succeed, UNLESS the
+                    // ⚙10% split-stance roll below hands it to the aggressive side alone.
+                    if (split && _rng.NextFloat() < _cfg.GripSplitStanceSoloChance)
+                    {
+                        if (aAggro) { bSucceeds = false; aSolidBonus = true; }
+                        else        { aSucceeds = false; bSolidBonus = true; }
+                    }
+                }
+            }
+            else
+            {
+                _mutualDefenseClashStreak = 0;
+            }
+
+            ApplyGrabResult(FighterId.A, a, targetA, aSucceeds, aSolidBonus, ev);
+            ApplyGrabResult(FighterId.B, b, targetB, bSucceeds, bSolidBonus, ev);
+
+            TickCrossGripTimer(FighterId.A, realA, a.Hand == HandTarget.Setup, ev);
+            TickCrossGripTimer(FighterId.B, realB, b.Hand == HandTarget.Setup, ev);
+        }
+
+        /// §2 v4.2 — Setup/Tear reuse the OLD ResolveGrip's exact bodies (duplicated,
+        /// not shared, so the old method stays provably untouched). Solidify is new —
+        /// no cross-reference needed, so it resolves per-fighter here rather than in
+        /// the matrix.
+        void ResolveNonMatrixHandAction(FighterId who, in TurnChoice mine, in TurnChoice theirs, List<MatchEvent> ev)
+        {
+            switch (mine.Hand)
+            {
+                case HandTarget.Setup:
+                    if (!_cfg.BalanceGate || !Grip.HasAnyGrip(who)) break;
+                    Stamina.PaySetup(who);
+                    _setupDeclaredThisExchange[(int)who] = true;
+                    ev.Add(new SetupDeclared(who));
+                    Balance.Drain(Opp(who), _cfg.BalanceDrainSetup);
+                    ev.Add(new BalanceChanged(Opp(who), Balance.Get(Opp(who))));
+                    break;
+
+                case HandTarget.Tear:
+                    Hand holderHand = Grip.HolderHandGripping(who, mine.OwnHand);
+                    var outcome = Grip.ResolveTear(who, mine.OwnHand,
+                        theirs.Hand == HandTarget.MaintainGrip);
+                    ev.Add(new TearResolved(who, mine.OwnHand, outcome));
+                    if (outcome == TearOutcome.Freed && holderHand != Hand.None)
+                        ev.Add(new GripChanged(Opp(who), holderHand, HandTarget.None, GripKind.None));
+                    Stamina.PayAttack(who, new TechniqueSpec("tear", ActionCost.Tear,
+                        TechniqueClass.Sloppy), Grip.EffectiveGrip(who));
+                    break;
+
+                case HandTarget.Solidify:
+                    if (Grip.Solidify(who, mine.OwnHand))
+                        ev.Add(new GripSolidified(who, mine.OwnHand));
+                    break;
+            }
+        }
+
+        /// §2 v4.2 — commits a resolved grab (or its failure) to GripSystem/events.
+        /// `target` is null when this fighter did not attempt a grab this exchange —
+        /// then `succeeds` is always false and there is nothing to do.
+        void ApplyGrabResult(FighterId who, in TurnChoice mine, HandTarget? target,
+                             bool succeeds, bool solidBonus, List<MatchEvent> ev)
+        {
+            if (!target.HasValue) return;
+            if (!succeeds)
+            {
+                ev.Add(new GripAttemptFailed(who, target.Value));
+                return;
+            }
+            GripKind tier = TierOf(target.Value);
+            Hand side = TargetSideOf(target.Value);
+            Grip.Grab(who, mine.OwnHand, side, tier);
+            ev.Add(new GripChanged(who, mine.OwnHand, target.Value, tier));
+            if (solidBonus && Grip.Solidify(who, mine.OwnHand))
+                ev.Add(new GripSolidified(who, mine.OwnHand));
+        }
+
+        /// §2 v4.2 — 교차잡기 rolling timer. Ticks down while `who` currently holds
+        /// at least one cross-oriented grip; resets on a 흔들기 declare or a real
+        /// technique attempt THIS exchange; awards a shido and restarts (not just
+        /// clears) on expiry — "지도 후에도 교차 유지 시 타이머 재시작".
+        void TickCrossGripTimer(FighterId who, bool realAttemptThisExchange, bool setupThisExchange, List<MatchEvent> ev)
+        {
+            bool holdsCross = Grip.IsCrossOrientation(who, Hand.Left) || Grip.IsCrossOrientation(who, Hand.Right);
+            int i = (int)who;
+
+            if (!holdsCross) { _crossGripTimer[i] = 0; return; }
+
+            if (_crossGripTimer[i] <= 0)
+            {
+                _crossGripTimer[i] = _cfg.CrossGripTimerTurns;
+                ev.Add(new CrossGripTimerTicked(who, _crossGripTimer[i], expired: false));
+                return;
+            }
+
+            if (realAttemptThisExchange || setupThisExchange)
+            {
+                _crossGripTimer[i] = _cfg.CrossGripTimerTurns;
+                ev.Add(new CrossGripTimerTicked(who, _crossGripTimer[i], expired: false));
+                return;
+            }
+
+            _crossGripTimer[i]--;
+            if (_crossGripTimer[i] <= 0)
+            {
+                AwardExternalShido(who, ev);
+                _crossGripTimer[i] = _cfg.CrossGripTimerTurns;   // restarts, per §2
+                ev.Add(new CrossGripTimerTicked(who, _crossGripTimer[i], expired: true));
+            }
+            else
+            {
+                ev.Add(new CrossGripTimerTicked(who, _crossGripTimer[i], expired: false));
+            }
+        }
+
+        /// §2 v4.2 — a shido from outside RefereeSystem's own §6.2 accumulator (grip
+        /// stalling, not a passivity threshold). Uses ScoreBoard directly, the same
+        /// entry point CheckReferee's threshold/feint shidos already use — Board.Shido
+        /// is the authoritative count for the 3-shido loss rule either way.
+        void AwardExternalShido(FighterId who, List<MatchEvent> ev)
+        {
+            Board.AddShido(who);
+            ev.Add(new ShidoGiven(who, Board.Shido(who), fromFeint: false));
+        }
+
+        static HandTarget? GrabTargetOf(HandTarget h) => h switch
+        {
+            HandTarget.RightSleeve or HandTarget.LeftSleeve or
+            HandTarget.LeftLapel or HandTarget.RightLapel or
+            HandTarget.TwistGrip or HandTarget.BackGrab => h,
+            _ => null,
+        };
+
+        static bool IsLapel(HandTarget h) => h == HandTarget.LeftLapel || h == HandTarget.RightLapel;
+
+        /// §2 v4.2 — grip value tier per the task spec (소매1/가슴깃2/틀어잡기3).
+        static GripKind TierOf(HandTarget h) => h switch
+        {
+            HandTarget.RightSleeve or HandTarget.LeftSleeve => GripKind.Normal,
+            HandTarget.LeftLapel or HandTarget.RightLapel => GripKind.Lapel,
+            HandTarget.TwistGrip or HandTarget.BackGrab => GripKind.BackGrip,
+            _ => GripKind.None,
+        };
+
+        /// §2 v4.2 — which side a target sits on, for 정(mirror)/교차(cross) and for
+        /// the defended-zone check. TwistGrip/BackGrab have no inherent left/right in
+        /// the pre-v4.2 model; this assigns them Right/Left respectively so they get
+        /// the same mirror/cross treatment as sleeve/lapel (a judgment call — no
+        /// canonical mapping exists in MATCH_RULES, documented in the v4.2 impact
+        /// report).
+        static Hand TargetSideOf(HandTarget h) => h switch
+        {
+            HandTarget.RightSleeve or HandTarget.RightLapel or HandTarget.TwistGrip => Hand.Right,
+            HandTarget.LeftSleeve or HandTarget.LeftLapel or HandTarget.BackGrab => Hand.Left,
+            _ => Hand.None,
+        };
+
+        static DefenseZone ZoneOf(HandTarget h) => h switch
+        {
+            HandTarget.RightSleeve => DefenseZone.RightSleeve,
+            HandTarget.LeftSleeve => DefenseZone.LeftSleeve,
+            HandTarget.RightLapel => DefenseZone.RightLapel,
+            HandTarget.LeftLapel => DefenseZone.LeftLapel,
+            HandTarget.TwistGrip => DefenseZone.RightUpper,
+            HandTarget.BackGrab => DefenseZone.LeftUpper,
+            _ => DefenseZone.LeftSleeve,   // unreachable — GrabTargetOf already filtered
+        };
+
+        /// §2 v4.2 — true if `defender` declared Evade this exchange with a zone that
+        /// matches `target`. §2: "방어된 존 공격: 확률 0".
+        static bool IsZoneDefended(HandTarget target, in TurnChoice defender)
+        {
+            if (defender.Hand != HandTarget.Evade) return false;
+            DefenseZone zone = ZoneOf(target);
+            return defender.EvadeZoneLeft == zone || defender.EvadeZoneRight == zone;
         }
 
         void ResolveTechnique(FighterId attacker, ExchangeScript script,

@@ -2,6 +2,90 @@ STATUS
 
 Update this file every time a session resets. This is the ONLY copy — the root CLAUDE.md pulls it in with `@md/STATUS.md`, so it loads automatically at session start. Do not create a second copy anywhere. Check "Current State" and "Next Up" before starting work.
 
+Current State (last updated: 2026-08-14 밤 3차, 잡기 개편 1차 — Core 완료, UI 미착수)
+**MATCH_RULES v4.2 §2b(잡기 개편 1차) — Core 엔진·`LiveAssembler`·테스트 완료,
+`LiveMatchPanel` 화면(선택 UI·HUD)은 착수 전.** 작업 지시 그대로 `md/IMPACT_grip-
+revision.md`(신규, 조사 전용) 부터 작성 — 소매·가슴깃은 기존 `HandTarget`(OwnHand+
+target 조합)으로 이미 표현 가능, 틀어잡기는 전제조건 게이트(`CanUseConversion`)를
+없애야 함(작업 지시가 명시한 변경), 해결 매트릭스는 `ResolveGrip`을 양측 동시
+참조로 재구성해야 하며 42노드 지문 보호를 위해 `BalanceGate`/`PromotionGate`와
+같은 패턴의 신규 게이트가 필수, 회피 2존은 `TurnChoice` 필드 추가가 필요 — 판단
+필요(차단하는) 사항은 없다고 결론짓고 접�목록대로 바로 착수. 커밋·PR 없이 이번
+세션 안에서 진행, 최종 커밋은 사용자 확인 후.
+**Core (완료, 검증됨)**: `Enums.cs`에 `HandTarget.Solidify`(견고화) + `GripKind`
+확장(`Lapel=2`/`BackGrip=3`, 기존 `Normal/Dominant`와 값이 우연히 겹치지만 서로
+다른 코드 경로에서만 쓰여 무해 — 어느 switch도 GripKind를 값으로 소비하지 않고
+`Value()`가 순수 합산만 하는 걸 확인 후 판단) + `DefenseZone`(6존) 신규.
+`TurnChoice`에 `EvadeZoneLeft`/`EvadeZoneRight`(nullable, 기본 null) 순수 추가 —
+기존 생성자 시그니처에 파라미터 2개만 늘어(기본값 있음) 132개 기존 `new
+TurnChoice(...)` 호출부 전부 무수정 컴파일. `GripSystem`: `_solid[2,2]` bool
+배열 신규(Value()에 +1씩 합산, 기존 경로는 항상 false라 무변화 — 재확인
+근거로 `SideCap`을 2→4로 올려도 기존 테스트 전부 그대로 통과함을 실측: 최종
+`Clamp(-2,2)`가 이미 포화시키므로 중간 캡 값 자체는 사전 v4.2 케이스에 영향 없음)
++ `Solidify`/`Holds`/`IsCrossOrientation` 신규 공개 메서드. `MatchRulesConfig`에
+`GripRevisionGate`(기본 **false**) + `GripMutualDefenseShidoRepeats=2` +
+`GripSplitStanceSoloChance=0.10f` + `CrossGripTimerTurns=2` 추가(전부 ⚙, 작업
+지시가 준 제안값 그대로). `MatchEngine.ResolveExchange`의 그립 해결 단계를
+게이트 분기로 감쌈 — off면 기존 `ResolveGrip(A)`/`ResolveGrip(B)` 호출 두 줄
+그대로(바이트 단위 무변경), on이면 신규 `ResolveGripExchangeRevised`(양쪽
+`TurnChoice`를 함께 받아 매트릭스 판정: 가슴깃 노림=상대 Core 직접 참조/같은
+쌍 맞잡기=둘다공격 상호성립·둘다수비 상호실패+연속2회 시 양쪽 지도·갈림=⚙10%
+공격측 단독 성립+즉시 견고화/서로 다른 손 목표=둘다 성립+갈림 시 같은 10%
+롤/방어된 존=확률 0). 신규 이벤트 4종(`GripAttemptFailed`/`GripSolidified`/
+`CrossGripTimerTicked`, 전부 게이트 안쪽에서만 생성 — `BalanceGate` 선례가 이미
+증명한 "off면 이벤트 자체가 안 만들어져 지문 무관" 계약 재사용) + 교차잡기
+타이머(`_crossGripTimer[2]`, `_setupActive` 패턴 재사용 — 확립 시 첫 교환은 안
+깎이고 2턴 유예, 흔들기/실제 기술 시도 시 리셋, 만료 시 지도+재시작).
+**LiveAssembler (완료, 테스트로 검증)**: `HandOptionsRevised(ownHand)`(6개 그립
+대상+이미 잡았으면 견고화 추가, 뜯기 없음 — 작업 지시 "뜯기 슬롯은 2차" 그대로)
++ `EvadeZoneOptions(hand)`(손별 4존 부분집합) + `BuildEvade(...)` 신규.
+**검증**: 신규 `Core/Tests/GripRevisionTests.cs`(17개 — 매트릭스 5개 분기·교차
+타이머 확립/만료/리셋/정잡기무관·방어존 차단/미차단·견고화 성공/무대상, 완료
+기준이 요구한 "각 분기·타이머 만료/리셋·존 차단 각 최소 1개"를 전부 충족) +
+`LiveAssemblerTests.cs` 4개 추가. 하니스 269→**290/290 그린 + 42노드 지문
+IDENTICAL**(신규 코드가 전부 `GripRevisionGate` 뒤에 있고 스크립트 경로는 이
+플래그를 절대 안 켜므로 예상대로). Unity MCP `AssetDatabase.Refresh()` 후
+컴파일 **0 에러**(경고 1개는 이 세션 무관인 기존 Unity AI Toolkit 네트워크 폴링
+경고). `md/IMPACT_grip-revision.md`(신규, 조사 전용) + `md/MATCH_RULES.md`
+v4.1→**v4.2**(§2 표 재작성 + §3을 §2a[구식, 게이트 off]/§2b[v4.2 확정]로 분리 +
+§8에 v4.2 미해결 항목 4개 등재) — `sh tools/stamp.sh md/MATCH_RULES.md` 로 해시
+재계산, `--check md/*.md` exit 0(6종) 확인.
+**미착수 — `LiveMatchPanel` 선택 UI + HUD.** Core/LiveAssembler는 끝났지만 실제
+화면(방사형 휠, 회피 2존 선택 흐름, 손별 그립 상태+교차 타이머 HUD 노출)은 이번
+세션에 손대지 않았다 — **추측으로 밀어붙이지 않은 이유가 있다**: 기존 손 축
+스테이지1(왼손/오른손 2항목)은 "항목이 정확히 2개면 배치 공식이 −90°/+90°에
+놓고 cos(90°)=0이라 반지름과 무관하게 A와 안 겹친다"는, 여러 세션에 걸쳐 실측·
+승인된 성질에 기대고 있다(2026-08-12 6차 세션 근거). 작업 지시의 "손 →
+오른손|왼손|회피" 최상위 3택을 그 자리에 그대로 얹으면 항목이 3개가 되고, 3개
+공식은 가운데 항목을 정확히 각도 0°(반지름 그대로 A 쪽으로 돌출)에 놓아 그
+무겹침 보장이 깨진다 — Play로 실측하지 않고는 실제 겹침 정도도, 그게 딤 처리로
+충분히 흡수되는지도 판단할 수 없다. 회피의 2단계 존 선택(왼손 존→오른손 존,
+중복 제외)도 화면 검증 없이 새로 얹기엔 위험도가 같다. `IMPACT_grip-revision.md`
+와 `MATCH_RULES.md` §8에 이 사실과 함께 남겨뒀다 — 사람이 Play로 방향(기존
+2항목 자리 재사용 vs 완전히 새 트리거 레이아웃)을 정한 뒤 이어서 진행하는 게
+맞다고 판단.
+**미구현(작업 지시 항목 5, 관측만)**: "노그립 즉시 기술" 항은 §4/§E(판정식·승격)
+조정이라 이번 그립 전용 세션 범위와 접점이 불명확 — 코드 미반영, §8에 남김.
+**Brain**: 습관 코드(`HabitCatalogue`/`HabitBrainCommitSource`)는 기존
+`HandTarget.RightSleeve/LeftSleeve` + `OwnHand`만 써서 무수정으로 컴파일·통과
+(하니스가 이미 확인) — 매트릭스가 켜지면 B의 그립 시도도 A와 똑같이 그 매트릭스를
+통과하게 된다(게이트가 공격자 구분 없이 적용되므로 코드 추가 없이 자동 반영).
+행동 품질 개선(가슴깃/틀어잡기를 전략적으로 고르게 하는 것)은 작업 지시대로
+안 함.
+**판단 필요 (정하지 않고 목록)**:
+1. 손 휠 최상위 3택(오른손/왼손/회피)을 화면에 어떻게 배치할지 — 기존 2항목
+   자리를 재사용하면서 회피를 다른 진입점으로 뺄지, 3항목 배치를 아예 다시
+   설계할지, 사람이 Play로 보고 결정.
+2. 가슴깃 노림에서 상대 Core=중립일 때 성공/실패 — 이번 세션은 "수비 아님→
+   성공"으로 구현(⚙, 명시 안 된 갭).
+3. 틀어잡기(TwistGrip/BackGrab)의 좌/우 배정 — 정/교차·방어존 판정에 쓸 근거가
+   기존 규칙에 없어 TwistGrip=오른쪽/BackGrab=왼쪽으로 임의 배정(⚙).
+4. 견고화(v4.2)와 잠김(GripLock.Locked, 뜯기 실패 결과)이 이름은 비슷하나 무관한
+   개념이라는 점 — MATCH_RULES §3.2에 "(견고)" 표기를 "(잠김)"으로 정정했지만
+   구두로 참고할 때 혼동 여지가 있다는 걸 인지해둘 것.
+5. ⚙ 4개(교차 타이머 2턴/공수갈림 롤 10%/같은쌍수비 반복 지도 2회/side cap 4)
+   전부 작업 지시가 준 제안값 그대로 — 실플레이 튜닝 대상.
+
 Current State (last updated: 2026-08-14 밤, 잡정리 + 소극 3인 차별화 계획)
 **위생 정리 2건 + 소극 3인(문준배·서도현·오재훈) 차별화 조사(계획만, 습관 코드
 변경 0).** `Assets/_Recovery/`(Unity 크래시 복구 스냅샷, 2026-08-12부터 untracked
@@ -585,7 +669,12 @@ Full detail, including the exact 현실적 A osaekomi-entry-shortfall breakdown 
   Unity Editor + MCP 브리지가 밤새 연결 유지(사람 없음) — 매 작업 후 AssetDatabase.Refresh() + GetConsoleLogs 로 0 에러/0 경고 재확인, RunCommand 안에서 짧은 이름(CompilationPipeline 등)이 Unity.AI.Assistant.* 네임스페이스와 충돌하는 기존 함정 재확인(전체 경로로 우회)
 
 Next Up (in priority order)
-**가장 최근 — 잡정리(위생 2건) + 소극 3인(문준배·서도현·오재훈) 차별화 조사.**
+**가장 최근 — 잡기 개편 1차(MATCH_RULES v4.2 §2b): Core+LiveAssembler 완료,
+`LiveMatchPanel` 화면 미착수.** 상세는 위 Current State 항목 참조. **다음 —
+판단 필요 #1(손 휠 최상위 3택 배치)을 사람이 Play로 보고 정해야 화면 작업 착수
+가능** — 나머지 4개(가슴깃 중립 판정/틀어잡기 좌우 배정/견고화·잠김 용어 구분/
+⚙ 4개)는 이미 합리적 기본값으로 구현돼 있어 착수를 막지 않는다.
+**가장 최근 (그 앞) — 잡정리(위생 2건) + 소극 3인(문준배·서도현·오재훈) 차별화 조사.**
 상세는 위 Current State 항목 및 `docs/overnight-2026-08-14.md` 참조. **다음 —
 `plan-passive-differentiation.md`의 판단 필요 5개 중 최소 1번(상대별 선택지)이
 정해져야 착수 가능** — 정해지면 지문 위험이 구조적으로 0(스크립트 경로가 애초에

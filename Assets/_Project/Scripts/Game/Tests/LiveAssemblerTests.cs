@@ -143,6 +143,76 @@ namespace CounterTime.Game.Tests
             Assert.Contains(HandTarget.Setup, a.HandOptions(Hand.Right).ToList());
         }
 
+        // ---- §2 v4.2 — 잡기 개편 1차 ----
+
+        [Test]
+        public void HandOptionsRevised_WithNothingHeld_IsTheSixGrabTargets_NoSolidifyNoTear()
+        {
+            var cfg = new MatchRulesConfig { GripRevisionGate = true };
+            var engine = new MatchEngine(cfg, RefereeProfile.Standard, new SystemRandomSource(1));
+            var a = new LiveAssembler(engine, cfg, FighterId.A);
+
+            var options = a.HandOptionsRevised(Hand.Right);
+
+            CollectionAssert.AreEquivalent(
+                new[] { HandTarget.RightSleeve, HandTarget.LeftSleeve, HandTarget.LeftLapel,
+                        HandTarget.RightLapel, HandTarget.TwistGrip, HandTarget.BackGrab },
+                options);
+            Assert.IsFalse(options.Contains(HandTarget.Tear), "뜯기는 2차 범위 — 1차엔 안 열린다");
+            Assert.IsFalse(options.Contains(HandTarget.Solidify), "아무것도 안 잡았으면 견고화할 게 없다");
+        }
+
+        [Test]
+        public void HandOptionsRevised_HandAlreadyHolding_AddsSolidify_KeepsRetargeting()
+        {
+            var cfg = new MatchRulesConfig { GripRevisionGate = true };
+            var engine = new MatchEngine(cfg, RefereeProfile.Standard, new SystemRandomSource(1));
+            engine.ResolveExchange(
+                new TurnChoice(HandTarget.RightSleeve, CoreStance.Neutral, LegAction.Neutral, Hand.Right),
+                TurnChoice.Neutral, new ExchangeScript());
+
+            var a = new LiveAssembler(engine, cfg, FighterId.A);
+            var options = a.HandOptionsRevised(Hand.Right);
+
+            Assert.Contains(HandTarget.Solidify, options.ToList());
+            Assert.Contains(HandTarget.RightSleeve, options.ToList(), "이미 잡은 손도 다른 대상으로 재지정할 수 있다");
+        }
+
+        [Test]
+        public void EvadeZoneOptions_LeftAndRightHand_ShareLapelsButNotSleeveOrUpper()
+        {
+            var cfg = new MatchRulesConfig { GripRevisionGate = true };
+            var engine = new MatchEngine(cfg, RefereeProfile.Standard, new SystemRandomSource(1));
+            var a = new LiveAssembler(engine, cfg, FighterId.A);
+
+            var left = a.EvadeZoneOptions(Hand.Left);
+            var right = a.EvadeZoneOptions(Hand.Right);
+
+            CollectionAssert.AreEquivalent(
+                new[] { DefenseZone.LeftSleeve, DefenseZone.LeftLapel, DefenseZone.RightLapel, DefenseZone.LeftUpper },
+                left);
+            CollectionAssert.AreEquivalent(
+                new[] { DefenseZone.RightSleeve, DefenseZone.LeftLapel, DefenseZone.RightLapel, DefenseZone.RightUpper },
+                right);
+            Assert.IsFalse(left.Contains(DefenseZone.RightSleeve));
+            Assert.IsFalse(right.Contains(DefenseZone.LeftSleeve));
+        }
+
+        [Test]
+        public void BuildEvade_SetsBothZones()
+        {
+            var cfg = new MatchRulesConfig { GripRevisionGate = true };
+            var engine = new MatchEngine(cfg, RefereeProfile.Standard, new SystemRandomSource(1));
+            var a = new LiveAssembler(engine, cfg, FighterId.A);
+
+            var choice = a.BuildEvade(DefenseZone.LeftSleeve, DefenseZone.RightUpper,
+                CoreStance.Defensive, LegAction.Defend);
+
+            Assert.AreEqual(HandTarget.Evade, choice.Hand);
+            Assert.AreEqual(DefenseZone.LeftSleeve, choice.EvadeZoneLeft);
+            Assert.AreEqual(DefenseZone.RightUpper, choice.EvadeZoneRight);
+        }
+
         [Test]
         public void Build_AssemblesExactlyTheGivenFields()
         {

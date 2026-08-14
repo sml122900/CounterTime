@@ -10,14 +10,23 @@ namespace CounterTime.Core
         /// Which of MY hands fills the single hand slot. §2 names only the target,
         /// but GripSystem needs the slot to place the hold and to address a tear.
         public readonly Hand OwnHand;
+        /// §2 v4.2 — which zone each of MY hands guards when <see cref="Hand"/> is
+        /// Evade. Both null unless evading; a plain additive field (default null) so
+        /// every pre-v4.2 call site keeps compiling unchanged. Not read anywhere
+        /// outside the GripRevisionGate path.
+        public readonly DefenseZone? EvadeZoneLeft;
+        public readonly DefenseZone? EvadeZoneRight;
 
         public TurnChoice(HandTarget hand, CoreStance core, LegAction legs,
-                          Hand ownHand = CounterTime.Core.Hand.Right)
+                          Hand ownHand = CounterTime.Core.Hand.Right,
+                          DefenseZone? evadeZoneLeft = null, DefenseZone? evadeZoneRight = null)
         {
             Hand = hand;
             Core = core;
             Legs = legs;
             OwnHand = ownHand;
+            EvadeZoneLeft = evadeZoneLeft;
+            EvadeZoneRight = evadeZoneRight;
         }
 
         /// §2 — 이 손이 <b>사건</b>을 일으키는가. 자세는 상태고 손 행동은 사건이다.

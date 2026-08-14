@@ -94,5 +94,47 @@ namespace CounterTime.Game.Match
 
         public TurnChoice Build(HandTarget hand, CoreStance core, LegAction legs, Hand ownHand = Hand.Right) =>
             new TurnChoice(hand, core, legs, ownHand);
+
+        // ================= §2 v4.2 — 잡기 개편 1차 (GripRevisionGate) =================
+
+        /// §2 v4.2 — top-level hand choice under the gate: 오른손/왼손/회피. Evade is no
+        /// longer one value among a per-hand list (§2's old "상대 지정 넷 + 회피" table) —
+        /// it is a THIRD sibling to picking a hand at all, since it now commits both
+        /// hands to a defended zone at once (§2 "회피: 손마다 1존, 총 2존"), which a
+        /// single-hand option list cannot express. Only meaningful when
+        /// <see cref="MatchRulesConfig.GripRevisionGate"/> is on — the gate-off flow
+        /// keeps using <see cref="HandOptions"/> exactly as before.
+        public bool RevisedFlowActive => _cfg.GripRevisionGate;
+
+        /// §2 v4.2 — the six grab targets (3 tiers × 정/교차) plus 견고화 if this
+        /// specific hand already holds something ("이미 잡은 손 선택: 견고하게 잡기
+        /// 추가" — added to the list, not a replacement, so re-targeting stays
+        /// available too). 뜯기 is deliberately absent — 2차 범위(작업 지시 명시).
+        /// 흔들기(Setup) rides along unchanged if BalanceGate is separately on, same
+        /// gate/label as the pre-v4.2 flow.
+        public IReadOnlyList<HandTarget> HandOptionsRevised(Hand ownHand)
+        {
+            var options = new List<HandTarget>
+            {
+                HandTarget.RightSleeve, HandTarget.LeftSleeve,
+                HandTarget.LeftLapel, HandTarget.RightLapel,
+                HandTarget.TwistGrip, HandTarget.BackGrab,
+            };
+            if (_engine.Grip.Holds(_me, ownHand)) options.Add(HandTarget.Solidify);
+            if (_cfg.BalanceGate && _engine.Grip.HasAnyGrip(_me)) options.Add(HandTarget.Setup);
+            return options;
+        }
+
+        /// §2 v4.2 — the four zones a given hand may guard (§2: sleeve/upper are
+        /// hand-exclusive, both lapel zones are shared). Caller is responsible for
+        /// "중복 불가" (excluding whatever the OTHER hand already picked) — that is a
+        /// UI selection-flow constraint, not something either zone list or
+        /// <see cref="BuildEvade"/> enforces on its own.
+        public IReadOnlyList<DefenseZone> EvadeZoneOptions(Hand hand) => hand == Hand.Left
+            ? new[] { DefenseZone.LeftSleeve, DefenseZone.LeftLapel, DefenseZone.RightLapel, DefenseZone.LeftUpper }
+            : new[] { DefenseZone.RightSleeve, DefenseZone.LeftLapel, DefenseZone.RightLapel, DefenseZone.RightUpper };
+
+        public TurnChoice BuildEvade(DefenseZone leftZone, DefenseZone rightZone, CoreStance core, LegAction legs) =>
+            new TurnChoice(HandTarget.Evade, core, legs, Hand.Right, leftZone, rightZone);
     }
 }

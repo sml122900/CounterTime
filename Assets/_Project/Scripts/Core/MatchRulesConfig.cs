@@ -95,5 +95,30 @@ namespace CounterTime.Core
         public float PromoteSlope = 0.05f;        // + this much per point of (sum − bracket floor)
         public float PromoteChainFactor = 0.25f;  // link N's chance is scaled by this ^ (N-1)
         public int PromoteMaxChain = 2;           // at most 2 tiers up (e.g. Yuko → WazaAri → Ippon)
+
+        // §2 v4.2 — 잡기 개편 1차. Live path only — GripRevisionGate mirrors
+        // BalanceGate/PromotionGate's contract exactly: off reproduces the pre-v4.2
+        // grip system byte-for-byte (scripted/habit paths never call
+        // MatchEngine.ResolveGripExchange, only the old per-fighter ResolveGrip), so
+        // the 42-node fingerprint is unaffected by this entire feature existing. All
+        // ⚙ below are taken from the task spec's own proposed numbers where given;
+        // the two without a spec number (jitter's home) reuse this file's existing
+        // convention (IRandomSource, same as PromotionGate/§6.2's threshold jitter) —
+        // not confirmed, real-play tuning candidates like every other ⚙ here.
+        public bool GripRevisionGate = false;
+        // §2 v4.2 — mutual same-tier clash where BOTH declared Core=Defensive this
+        // exchange: neither grab succeeds. After this many CONSECUTIVE such clashes,
+        // both fighters get a shido (§2: "반복 ⚙2회 시 양쪽 지도").
+        public int GripMutualDefenseShidoRepeats = 2;
+        // §2 v4.2 — a Core split (one Aggressive, one Defensive) on a grab clash still
+        // lets both succeed normally MOST of the time; this is the chance the
+        // Aggressive side alone succeeds (and is immediately solidified, +1 — the
+        // spec's "공격측만 성립(+1)" read as an immediate 견고화, §2 v4.2 sole reading
+        // that reuses an existing value bonus rather than inventing a new one).
+        public float GripSplitStanceSoloChance = 0.10f;
+        // §2 v4.2 — a newly-established 교차잡기(cross grip) starts a rolling timer
+        // this many exchanges long. Any 흔들기 or technique declaration by its holder
+        // resets it; if it expires untouched, that fighter gets an immediate shido.
+        public int CrossGripTimerTurns = 2;
     }
 }

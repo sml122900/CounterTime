@@ -187,6 +187,38 @@ namespace CounterTime.Core
         public BalanceChanged(FighterId who, int newValue) { Who = who; NewValue = newValue; }
     }
 
+    /// §2 v4.2 — a grab attempt the matrix blocked (defended zone, mutual-defense
+    /// clash, or the split-stance 90% miss). Live path only (GripRevisionGate).
+    public sealed class GripAttemptFailed : MatchEvent
+    {
+        public readonly FighterId Who;
+        public readonly HandTarget Target;
+        public GripAttemptFailed(FighterId who, HandTarget target) { Who = who; Target = target; }
+    }
+
+    /// §2 v4.2 — 견고화 landed on a hand that already held something. Live path only.
+    public sealed class GripSolidified : MatchEvent
+    {
+        public readonly FighterId Who;
+        public readonly Hand Hand;
+        public GripSolidified(FighterId who, Hand hand) { Who = who; Hand = hand; }
+    }
+
+    /// §2 v4.2 — a fighter's 교차잡기 rolling timer state changed. `TurnsRemaining`
+    /// counts down each exchange the cross grip is held without a reset; `Expired`
+    /// marks the exchange it hit zero (a shido follows, reported separately via
+    /// ShidoGiven). Live path only.
+    public sealed class CrossGripTimerTicked : MatchEvent
+    {
+        public readonly FighterId Who;
+        public readonly int TurnsRemaining;
+        public readonly bool Expired;
+        public CrossGripTimerTicked(FighterId who, int turnsRemaining, bool expired)
+        {
+            Who = who; TurnsRemaining = turnsRemaining; Expired = expired;
+        }
+    }
+
     public sealed class MatchEnded : MatchEvent
     {
         public readonly FighterId? Winner;

@@ -1,5 +1,5 @@
-<!-- v4.1 | body:dd48c35 -->
-# MATCH_RULES.md — COUNTER TIME judo match system (v4.1)
+<!-- v4.2 | body:1e0afaa -->
+# MATCH_RULES.md — COUNTER TIME judo match system (v4.2)
 
 Single source of truth for match logic. `CounterTime.Core` implements THIS file;
 if code and this file disagree, this file wins. All numbers are v1 tunables unless
@@ -39,12 +39,9 @@ commit by both fighters. Per-turn choice =
 
 | Slot | Options | Notes |
 |---|---|---|
-| Hand — **split left/right (confirmed, v4.0 — §A.1)** | ONE of your own hands (left or right) targets opponent's: 오른소매 / 왼소매 / 왼가슴 / 오른가슴 / 회피 | The hand you did NOT command auto-maintains its grip if it holds one, else stays released — not counted as "undeclared" for §6.1. Committing both hands in one turn is still not offered (real-judo suicide). |
-| Hand — unlocked conversions | 틀어잡기(back-collar twist), 등싸잡기 | Only available while the OTHER hand already holds a sleeve/lapel. |
-| Hand — 뜯기(tear) | resolves per §3.2's simultaneous mind-game | Gate: opponent holds at least one of your hands (`GripLock != Free`). |
-| Hand — 잡기 유지(maintain grip) | the defending side of §3.2's tear contest | Gate: you hold at least one grip (`HasAnyGrip`). |
-| Hand — 흔들기 (확정, v4.0 — §4.4) | 상대 밸런스(§S)를 깎아 다음 교환의 큰기술에 정당성을 준다 | `BalanceGate` 플래그 뒤(구 `SetupGateEnabled` — 2026-08-11 오후 세션에서 `Kuzushi*`→`Setup*`로 이미 개명됐던 그 플래그. `SetupGateEnabled`→`BalanceGate` 개명은 §H 3단계에서, §S 참조. 구현 시 기본 **on**으로 승격 예정 — 이 문서 갱신 시점의 실제 코드는 여전히 옛 이름·off). 자기 그립이 하나라도 있어야 선언 가능. 판정 미발화(견제 발기술과 동급), 별도 상성표 rung 없음. |
-| Core | 공격적 / 중립 / 수비적 | |
+| Hand — **손 → 오른손\|왼손\|회피 (확정, v4.2 — §2b)** | 오른손/왼손을 고르면 그 손으로 소매/가슴깃/틀어잡기 3종 × 정/교차 중 하나(빈 손) + 이미 잡았으면 견고화(§2b) 추가. 회피를 고르면 손별로 방어 존 1개씩, 총 2존을 지정한다(§2b). | `GripRevisionGate` 플래그 뒤(기본 off, `BalanceGate`/`PromotionGate`와 같은 계약 — 꺼지면 §2a[구식]가 그대로 적용된다). 뜯기 슬롯은 2차 이월(아래 §2a 그대로 유지, §2b 흐름엔 없음). 명령 안 한 손은 자동으로 그립을 유지한다(§6.1 미신고로 안 잡힘) — v4.0 그대로. |
+| Hand — 흔들기 (확정, v4.0 — §4.4) | 상대 밸런스(§S)를 깎아 다음 교환의 큰기술에 정당성을 준다 | `BalanceGate` 플래그 뒤(구 `SetupGateEnabled` — 2026-08-11 오후 세션에서 `Kuzushi*`→`Setup*`로 이미 개명됐던 그 플래그. `SetupGateEnabled`→`BalanceGate` 개명은 §H 3단계에서, §S 참조). §2b의 그립 매트릭스와 독립 — 손 슬롯은 같지만 서로 다른 코드 경로(게이트도 다르다). 자기 그립이 하나라도 있어야 선언 가능. 판정 미발화(견제 발기술과 동급), 별도 상성표 rung 없음. |
+| Core | 공격적 / 중립 / 수비적 | §2b에서 그립 매트릭스가 이 값을 직접 읽는다(가슴깃 노림·같은 쌍 맞잡기·공수 갈림) — 아래 §2b 참조. |
 | Legs (발기술) | 공격(= **technique selection**, confirmed v4.0 — §A.2/§B) / 중립 / 수비 / 카운터 준비(+ §D.1 예측 입력) | Legs act even while gripping. A technique-declare turn carries no Core/Hand input that turn and is treated as Aggressive posture (§A.2). |
 
 **동시 공격 우선순위 [v1 임시 규칙].** 한 교환에는 공격자가 하나뿐이다 — A가 Legs=공격을
@@ -80,14 +77,16 @@ Target feel: one hajime→matte sequence = 30–60 s; 6–8 sequences per regula
 
 ## 3. Grip system
 
-### 3.1 Grip score (잡기 수치) — FIXED range −2…+2
+### §2a — grip resolution before v4.2 (kept, `GripRevisionGate` off)
+
+#### 3.1 Grip score (잡기 수치) — FIXED range −2…+2
 Each fighter's hold value: normal grip (sleeve/lapel) = 1, dominant grip
 (틀어잡기 or 등싸잡기) = 2. Side total capped at 2.
 **gripScore(A) = capped(A holds) − capped(B holds)**, clamped to [−2, +2].
 Perspective flips sign for B.
 
-### 3.2 Grip lock states (per hand held by opponent)
-`Free → Held → Locked(견고)`
+#### 3.2 Grip lock states (per hand held by opponent)
+`Free → Held → Locked(잠김)`
 
 - Opponent grabs your hand/sleeve ⇒ that connection is **Held**.
 - **Tear (뜯기)** resolution is a simultaneous mind-game: your `뜯기` vs opponent's
@@ -102,6 +101,63 @@ Perspective flips sign for B.
   to Free on matte.
 - Training can unlock special tear moves (higher tear success vs `잡기 유지`);
   hook exists, values TBD.
+
+**Naming note (v4.2)**: this section used to gloss `Locked` as "(견고)" in Korean.
+§2b below gives 견고(화) a different, unrelated meaning (reinforcing a hand you
+already hold) — the gloss here is renamed to "(잠김)", matching what the live HUD
+already displayed (`LiveMatchPanel`), to avoid the two ideas reading as the same
+thing. No behavior changed, ASCII/code identifiers (`GripLock.Locked`) untouched.
+
+### §2b — grip resolution, v4.2 확정 (`GripRevisionGate`, 기본 off)
+
+**대상 3종 × 정/교차.** 정잡기(내 오른손→상대 왼쪽) = mirror, 교차잡기(같은측) =
+cross — 손·타겟 조합 하나로 이미 표현된다(별도 축 아님). 뜯기 슬롯은 **2차 이월**
+— §2b 흐름엔 없다(§2a의 뜯기는 게이트 off일 때만 여전히 유효).
+
+| 대상 | 가치 ⚙ | 비고 |
+|---|---|---|
+| 소매 | 1 | §2a의 Normal과 값이 같다 (`GripKind.Normal`) |
+| 가슴깃 | 2 | §2a의 Dominant와 값은 같으나 별개 개념(`GripKind.Lapel`) — 아래 매트릭스가 따로 다룬다 |
+| 틀어잡기(뒷깃, 조지아그립) | 3 | §2a의 "conversion" 전제조건(다른 손이 이미 잡고 있어야 함) 없음 — **빈 손에서 바로 선택 가능** (v4.2가 §2a를 대체하는 지점) |
+| 견고화 | +1 | 이미 잡은 손에만. 손이 갱신(재지정)되면 사라진다. |
+
+Side total 캡 ⚙4(한 손이 낼 수 있는 최댓값 = 틀어잡기+견고). 최종
+`gripScore = clamp(capped(mine) − capped(theirs), −2, +2)` — §2a와 같은 모양,
+숫자만 갱신.
+
+**해결 매트릭스 (양쪽 커밋을 함께 본다):**
+
+1. **가슴깃 노림** — 상대 Core가 공격적이면 무조건 성공, 수비적이면 무조건 실패.
+   중립은 "수비 아님"으로 읽어 성공 쪽(⚙, 문서에 명시 안 된 갭 — 구현 세션의 판단).
+   다른 기(모든 다른 손 목표)와 무관하게 매 시도마다 독립적으로 이 규칙만 적용된다.
+2. **같은 쌍 맞잡기** (가슴깃이 아닌 두 시도가 같은 급(소매/소매, 틀어잡기/틀어잡기)일 때):
+   - 둘 다 공격 → 상호 성립(순변화 0, GripScore 차감 상쇄로 자연히 나온다).
+   - 둘 다 수비 → 상호 실패. 연속 ⚙2회 반복되면 양쪽에 지도(§6과 별개 경로 —
+     §6.2 문턱 축적기를 안 거치고 바로 지도).
+   - 갈림(하나만 공격적) → 상호 성립하되 ⚙10%로 공격측만 성립 + 즉시 견고화(+1).
+3. **서로 다른 손 목표** (급이 다르거나 가슴깃이 이미 걸러진 나머지) — 둘 다 성립.
+   갈림이면 2번과 같은 ⚙10% 솔로 롤이 적용된다.
+4. **방어된 존** — 상대가 그 존을 회피로 지정했으면 확률 0. 회피만 반복하면
+   기존 §6.1 사다리(Hand==Evade, +2 rung)로 자연히 흡수된다 — 새 규칙 아님.
+5. **노그립 즉시 기술** — 상대 Core가 공격적이면 판정 성공률 보정↑, 수비적이면
+   희박(⚙). **v4.2 1차 구현에는 반영되지 않았다** — 판정식(§4)·승격(§E) 어느
+   항을 조정하는지 특정이 안 돼 있어(코드 접점이 불명확) 관측만 남긴다. §H
+   이후 §4/§E 논의 시 재검토.
+
+**회피 (v4.2)** — 손마다 존 1개, 총 2존. 존 6개: 왼소매/오른소매(손 전용)·
+왼가슴깃/오른가슴깃(양손 공용)·왼상단/오른상단(손 전용, 틀어잡기 방어). 왼손이
+고를 수 있는 4개 = {왼소매, 왼가슴깃, 오른가슴깃, 왼상단}, 오른손 4개 =
+{오른소매, 왼가슴깃, 오른가슴깃, 오른상단}. 양손이 같은 존을 중복 지정할 수
+없다(선택 UI 단의 제약).
+
+**교차잡기 롤링 타이머** — 교차 방향으로 잡기가 확립되면(그 즉시는 안 깎임)
+타이머 ⚙2턴 시작. 매 교환마다: 그 턴에 흔들기를 선언했거나 실제 기술 시도를
+했으면 타이머가 ⚙2로 리셋, 아니면 1씩 감소. 0에 닿으면 즉시 지도 후 타이머가
+다시 ⚙2로 재시작(지도 후에도 계속 교차를 유지하면 또 돈다 — 하드 캡 없음).
+정(mirror) 방향 잡기는 이 타이머와 무관하다.
+
+**견고화** — 이미 잡은 손을 대상으로 선택하면 +1(위 표). 확률·조건 없음(항상
+성공, 잡은 게 있으면). 그 손을 다른 대상으로 재지정하면 사라진다.
 
 ## S. Balance (밸런스) — third resource axis (v4.0)
 
@@ -477,6 +533,24 @@ it implicit in the animation.
      (`MasteryCostReduction`/`MasteryReadReduction`) are unaffected by the downgrade
      and always apply. Full text: §4.4's closing bullet.
 - Carried-over scope for a later round: §G below.
+- **§2b (v4.2, 잡기 개편 1차) — open items, not yet coded, kept here so they don't
+  get lost:**
+  1. **가슴깃 노림 vs 중립 Core.** The spec names only 공격적(succeeds)/수비적(fails);
+     Neutral was read as "not defensive → succeeds" during implementation — a
+     judgment call, not a spec answer. Retune if that reading feels wrong in play.
+  2. **노그립 즉시 기술.** "상대 Core 공격=성공률↑/수비=희박" is NOT implemented —
+     it names an effect on technique judgment (§4/§E), not on grip resolution
+     itself, and which term it should adjust is unspecified. Deferred until §4/§E
+     work resumes; see `IMPACT_grip-revision.md` for the reasoning.
+  3. **틀어잡기 side mapping.** TwistGrip/BackGrab have no canonical left/right in
+     the pre-v4.2 model — v4.2 assigns them Right/Left respectively (for 정/교차
+     and defended-zone purposes) as an implementation judgment call, not a spec
+     answer.
+  4. **선택 UI (`LiveMatchPanel`) 미착수.** The Core engine (`MatchEngine`,
+     `GripSystem`) and `LiveAssembler`'s option-listing API are implemented and
+     tested; the actual radial-wheel screen is not — see STATUS.md for why (a real
+     geometric conflict with the existing hand-wheel's confirmed layout that needs
+     Play-mode verification this session couldn't do blind).
 
 ## 9. Osaekomi — entry & escape (굳히기)
 
