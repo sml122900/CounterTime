@@ -2,6 +2,82 @@ STATUS
 
 Update this file every time a session resets. This is the ONLY copy — the root CLAUDE.md pulls it in with `@md/STATUS.md`, so it loads automatically at session start. Do not create a second copy anywhere. Check "Current State" and "Next Up" before starting work.
 
+Current State (last updated: 2026-08-14 밤 5차, 잡기 개편 1차 확인 — B 브레인 최소 적응 조사 + 회피 존 결손 1건 수정)
+**질문1(B 브레인 최소 적응 실제 구현 여부) — 절반은 이미 됐고, 절반은 이번에 고쳤다.**
+매트릭스·교차 타이머 적용 자체는 **처음부터 자동**이었다 —
+`MatchEngine.ResolveGripExchangeRevised`가 A/B 를 완전히 대칭으로 처리하므로
+(`ApplyGrabResult`/`TickCrossGripTimer` 둘 다 FighterId.A/B 양쪽에 각각 호출),
+B 의 습관·폴백이 내는 `TurnChoice`가 새 매트릭스를 통과하는 데 추가 코드가
+필요 없었다 — 3차 세션 보고가 옳았다. **다만 "습관/폴백 그립 표적의 새 분류
+매핑"의 절반, 회피 존은 빠져 있었다** — `HabitCatalogue.cs`의 극단적 방어류
+습관 둘(H3 TurtleWhenTired / 서도현 H2 StayDefensiveWhenBalanceHigh)이
+`HandTarget.Evade`만 내고 `EvadeZoneLeft`/`EvadeZoneRight`를 안 채우고
+있었다 — `IsZoneDefended`는 null 존을 항상 false로 읽으므로, 게이트 on
+상태에서 이 두 습관은 §6.1 소극 사다리(+3 rung)에는 여전히 기여하지만
+**새 그립 매트릭스에서는 아무것도 못 막고 있었다**(진짜 결손, 발견 즉시
+수정 — 아래 참조).
+**질문2(B 가 낼 수 있는 행동)** — 실측(신규 스모크
+`GripRevisionGateOn_HabitBrainStillCompletesAMatch`, 3프로필×50교환)로 확인:
+- **대상 선택(소매)**: 낸다 — H4/H4b·폴백 GripFight 전부 RightSleeve/LeftSleeve.
+- **가슴깃·틀어잡기**: **못 낸다** — 어떤 습관도 폴백도 `HandTarget.LeftLapel/
+  RightLapel/TwistGrip/BackGrab`을 안 쓴다. 1차 작업 지시가 명시한 "행동 품질
+  개선은 하지 않음"에 따라 의도적으로 그대로 뒀다(작업 범위 밖) — B 는 여전히
+  소매만 노린다.
+- **정/교차**: 결과적으로 낸다(선택해서 고르는 게 아니라 우연) — H4(OwnHand=
+  Right+RightSleeve)/H4b(OwnHand=Left+LeftSleeve)/폴백 둘 다 계산해보면
+  **전부 교차(같은측)다, 정(미러)은 한 번도 안 나온다**(TargetSideOf(타겟)==
+  OwnHand 인 경우가 교차 — B 의 기존 손-표적 조합이 전부 이 경우). **1차
+  지시서 자체의 예시("H4 오른소매 노림 → 오른손 정잡기 소매")와 반대 결과다**
+  — 지시서 예시가 실제 코드(OwnHand=Right, 타겟=RightSleeve)를 대입 안 하고
+  직관적으로 "오른소매=정"이라 붙인 것으로 보인다(실제 유도에서도 내 오른손이
+  상대 오른쪽으로 가는 건 교차 그립이 맞다 — 정상적인 마주선 두 오른잡이의
+  기본 맞잡기는 내 오른손↔상대 왼쪽이다). 판단은 안 하고 사실만 보고 — B 의
+  실제 행동을 "정으로 바꾸자"는 건 행동 품질 개선(범위 밖)이라 손 안 댐.
+- **회피 2존**: 이번에 고쳐서 **낸다**(양소매 고정 기본값, 아래 참조) — 고치기
+  전엔 존 없는 회피만 나가서 매트릭스 관점에서 안 낸 것과 같았다.
+- **견고화**: **못 낸다** — 어떤 습관도 폴백도 `HandTarget.Solidify`를 안 쓴다.
+  스모크 실측으로도 재확인(`solidified=0`, 3프로필 전부).
+**질문3(6상대 습관 → 새 문법 번역표, 그립 관련 습관만 — 나머지는 Hand=None):**
+| 습관 | 상대 | 새 문법 번역 |
+|---|---|---|
+| H4 SeekGripRightSleeve | 진도윤 | 오른손 **교차**잡기 소매(오른소매) |
+| H4b SeekGripLeftSleeve | 진도윤 | 왼손 **교차**잡기 소매(왼소매) |
+| H3 TurtleWhenTired | 진도윤 | 회피(양소매 방어, 이번에 추가) |
+| 서도현 H2 StayDefensiveWhenBalanceHigh | 서도현 | 회피(양소매 방어, 이번에 추가) |
+| 폴백 GripFight(모든 상대 공용) | 전체 | 오른손↔왼손 번갈아 **교차**잡기 소매 |
+나머지 습관(황도철/문준배/서도현H1/임준철H1·H2/오재훈)은 전부 `HandTarget.
+None`(기술·카운터준비만)이라 그립 매트릭스와 접점이 없다 — 번역 대상 자체가
+아니다.
+**질문4(미구현분 즉시 수정) — 회피 존 결손 1건 고침, 나머지는 의도된 범위
+제한이라 안 고침.** `HabitCatalogue.cs`의 두 극단적 방어 습관에
+`DefenseZone.LeftSleeve`/`RightSleeve` 기본값을 실었다(TurnChoice 의 nullable
+필드라 순수 추가, 게이트 off 땐 안 읽혀 §2a 무변화). "똑똑한 존 선택"이 아니라
+가장 기초적인 방어(양소매)만 굳힌 최소 적응 — 이 이상은 행동 품질 개선이라
+범위 밖. 신규 테스트 3개: `HabitBrainTests.H3_...`에 존 확정 어서션 추가(기존
+테스트 확장) + `GripRevisionTests.HabitDrivenExtremeDefense_BlocksBothSleeveGrabs`
+(H3 가 실제로 내보내는 커밋 모양 그대로 재현해 A 의 양소매 시도가 실제
+엔진에서 막히는지 확인) + `PlayModeSmokeTests.GripRevisionGateOn_
+HabitBrainStillCompletesAMatch`(3프로필×50교환, 예외 없이 완주 + 그립 관련
+이벤트 카운트 계측 — 실측: B 는 매치당 1~8회 성공적으로 그립을 잡고
+(failed=0, A 가 이 3프로필에서 회피 시점과 안 겹쳐 차단 사례 자체가 이번엔
+안 남 — 별도 단위테스트가 차단 자체는 직접 검증), 교차잡기 타이머가 매치당
+4~11회 틱하고 1~3회 만료돼 **B 도 그립 정체로 지도를 실제로 받는다**는 것도
+확인 — 새 규칙이 A 에게만 유리하게 비대칭 적용되는 게 아니라는 증거).
+**검증**: 하니스 290→**292/292 그린 + 42노드 지문 IDENTICAL**. Unity MCP
+컴파일 0 에러. `git status --short`로 Brain 3개 파일(HabitCatalogue.cs +
+테스트 2개) + Core 테스트 1개(GripRevisionTests.cs)만 바뀌었음을 확인 —
+Core 프로덕션 코드(MatchEngine/GripSystem 등)는 이번엔 무수정(3~4차 세션이
+이미 완성해둔 매트릭스 위에 B 쪽 습관 정의만 보강).
+**남은 판단 사항(정하지 않고 목록)**:
+1. B 의 그립이 전부 교차(정 없음)라는 사실 — 이게 "소극적/단조롭다"는 인상을
+   주는지, 로스터별로 정/교차를 섞을지는 실플레이 판단(행동 품질 개선 범위,
+   착수 전 방향 필요).
+2. 회피 존 기본값(양소매)이 상대별 로스터 성격과 맞는지 — 예: 오재훈은
+   "고루 하는" 원형인데 양소매 고정이 그 서사와 맞는지.
+3. 가슴깃·틀어잡기·견고화를 언제 B 에게 열지 — 1차 지시가 "행동 품질 개선
+   안 함"이라 명시했으니 이번 세션은 손 안 댔지만, 사람이 실플레이해보고
+   "B 가 너무 단조롭다"고 판단하면 다음 클러스터로 열 수 있다.
+
 Current State (last updated: 2026-08-14 밤 4차, 잡기 개편 1차 후속 — 커밋 + 손 휠 UI 완료)
 **결정 1(즉시 커밋) 완료** — 3차 세션 종료 상태(Core 완료, GripRevisionGate off,
 하니스 290/290, 지문 IDENTICAL, MATCH_RULES v4.2)를 커밋 `b361dac`로 확정.
@@ -744,11 +820,18 @@ Full detail, including the exact 현실적 A osaekomi-entry-shortfall breakdown 
   Unity Editor + MCP 브리지가 밤새 연결 유지(사람 없음) — 매 작업 후 AssetDatabase.Refresh() + GetConsoleLogs 로 0 에러/0 경고 재확인, RunCommand 안에서 짧은 이름(CompilationPipeline 등)이 Unity.AI.Assistant.* 네임스페이스와 충돌하는 기존 함정 재확인(전체 경로로 우회)
 
 Next Up (in priority order)
-**가장 최근 — 잡기 개편 1차 완료(MATCH_RULES v4.2 §2b): Core+LiveAssembler+
-`LiveMatchPanel` 화면까지 전부 구현·Play 실측·커밋.** 상세는 위 Current State
-항목 참조. `GripRevisionGate` 기본 off — 실제로 켜서 대회에 쓸지는 사람 판단
-(§2b §8의 남은 ⚙ 항목들과 함께 실플레이 튜닝 대상). **다음 — 별도 지시 없으면
-이 클러스터는 종료, 다른 §H 우선순위(아래 항목들)로 복귀 가능.**
+**가장 최근 — 잡기 개편 1차 확인 세션: B 브레인 최소 적응 조사 + 회피 존
+결손 1건 수정.** 상세는 위 Current State 항목 참조. B 는 새 체계로 실제
+경기를 성립시킬 수 있는 상태(스모크 3프로필×50교환 예외 없이 완주 확인) —
+그립 매트릭스·교차 타이머는 처음부터 A/B 대칭 적용됐고, 이번에 회피 습관
+둘의 존 결손만 고쳤다. **다음 — 별도 지시 없으면 이 클러스터는 종료, 다른
+§H 우선순위(아래 항목들)로 복귀 가능.** 남은 판단 사항(B 그립이 전부
+교차인 것/회피 기본 존이 로스터 성격과 맞는지/가슴깃·틀어잡기·견고화를
+B 에게 언제 열지)은 행동 품질 개선 범주라 착수 전 방향 필요.
+**가장 최근 (그 앞) — 잡기 개편 1차 완료(MATCH_RULES v4.2 §2b): Core+LiveAssembler+
+`LiveMatchPanel` 화면까지 전부 구현·Play 실측·커밋.** `GripRevisionGate` 기본
+off — 실제로 켜서 대회에 쓸지는 사람 판단(§2b §8의 남은 ⚙ 항목들과 함께
+실플레이 튜닝 대상).
 **가장 최근 (그 앞) — 잡기 개편 1차(MATCH_RULES v4.2 §2b): Core+LiveAssembler
 완료, `LiveMatchPanel` 화면 미착수(이후 완료됨, 위 참조).**
 **가장 최근 (그 앞) — 잡정리(위생 2건) + 소극 3인(문준배·서도현·오재훈) 차별화 조사.**

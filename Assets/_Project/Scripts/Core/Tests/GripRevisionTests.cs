@@ -222,6 +222,29 @@ namespace CounterTime.Core.Tests
             Assert.IsEmpty(ev.OfType<GripSolidified>(), "잡은 게 없으면 견고화할 대상이 없다");
         }
 
+        // ---- B 브레인 최소 적응(§2b) — 극단적 방어류 습관의 회피 존 ----
+
+        /// H3(TurtleWhenTired)/서도현 H2(StayDefensiveWhenBalanceHigh)가 실제로 내보내는
+        /// 커밋과 정확히 같은 모양(HabitCatalogue.cs 참조 — Evade + 양소매 기본값)이
+        /// 실제 엔진에서 A의 소매 노림을 막는지 확인한다. HabitCatalogue 자체를 참조하지
+        /// 않는다 — Core는 Brain을 모른다(어셈블리 경계), 여기서는 그 습관이 만드는
+        /// TurnChoice 모양만 재현한다.
+        [Test]
+        public void HabitDrivenExtremeDefense_BlocksBothSleeveGrabs()
+        {
+            var e = NewEngine();
+            var bTurtle = new TurnChoice(HandTarget.Evade, CoreStance.Defensive, LegAction.Defend,
+                Hand.Right, DefenseZone.LeftSleeve, DefenseZone.RightSleeve);
+
+            var ev1 = e.ResolveExchange(Grab(HandTarget.RightSleeve, CoreStance.Aggressive, Hand.Right), bTurtle,
+                new ExchangeScript());
+            Assert.IsEmpty(ev1.OfType<GripChanged>(), "오른소매도 막혀야 한다");
+
+            var ev2 = e.ResolveExchange(Grab(HandTarget.LeftSleeve, CoreStance.Aggressive, Hand.Left), bTurtle,
+                new ExchangeScript());
+            Assert.IsEmpty(ev2.OfType<GripChanged>(), "왼소매도 막혀야 한다");
+        }
+
         // ---- 교차잡기 롤링 타이머 ----
 
         [Test]

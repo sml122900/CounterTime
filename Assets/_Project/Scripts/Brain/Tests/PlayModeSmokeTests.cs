@@ -371,6 +371,82 @@ namespace CounterTime.Brain.Tests
         /// 갈라놓지 못하는 것도 그대로다. 이 실측이 보는 것은 B 의 흔들기 선행이
         /// 수치에 미치는 영향 하나뿐이다.
         /// </summary>
+        /// §2b v4.2 후속 확인(2026-08-14 밤 5차) — B 습관 브레인이 그립 매트릭스
+        /// 아래서 실제로 경기를 성립시킬 수 있는지 조사 전용, 임시. 튜닝 없음, 숫자
+        /// 판정 안 함 — "예외 없이 도는가" + "B 의 그립 시도가 실제로 매트릭스를
+        /// 타는가"만 본다.
+        [Test]
+        public void GripRevisionGateOn_HabitBrainStillCompletesAMatch()
+        {
+            var profiles = new (string name, Func<int, TurnChoice> commit)[]
+            {
+                ("반복", _ => Same),
+                ("변주", t => Varied[t % Varied.Length]),
+                ("현실적", t => Realistic[t % Realistic.Length]),
+            };
+
+            foreach (var (name, commit) in profiles)
+            {
+                var cfg = new MatchRulesConfig { ThresholdJitter = 0, GripRevisionGate = true };
+                var rng = new SystemRandomSource(1234);
+                var engine = new MatchEngine(cfg, RefereeProfile.Standard, rng);
+                var opponent = Jindoyun.Create(cfg);
+                var state = new HabitState(opponent);
+                var ledger = new ObservationLedger();
+                var window = new TendencyWindow();
+                var resolver = new LiveReadResolver(ledger, window);
+                var ctx = new MatchBrainContext(engine, FighterId.B);
+                var brain = new HabitBrainCommitSource(FighterId.B, state, ctx, ctx, rng);
+
+                int bGripChanged = 0, bGripFailed = 0, bSolidified = 0, bCrossTicks = 0, bCrossExpired = 0;
+                int aGripChanged = 0, aGripFailed = 0;
+
+                Assert.DoesNotThrow(() =>
+                {
+                    for (int turn = 0; turn < Exchanges && !engine.Board.IsFinished; turn++)
+                    {
+                        var a = commit(turn);
+                        brain.TryNext(out _, out var b);
+                        var brainTechnique = brain.LastTechnique;
+                        var brainDecision = brain.LastDecision;
+                        resolver.NoteOpponentHabit(brainDecision);
+
+                        bool bAttacks = brainTechnique != null;
+                        var attacker = bAttacks ? FighterId.B : FighterId.A;
+                        var technique = bAttacks ? brainTechnique
+                            : new TechniqueSpec("밭다리", ActionCost.BigThrow, TechniqueClass.Standard);
+                        var read = resolver.For(attacker, a, b);
+
+                        var events = engine.ResolveExchange(a, b, new ExchangeScript
+                        { Attacker = attacker, Technique = technique, Read = read });
+
+                        foreach (var e in events)
+                        {
+                            if (e is GripChanged gc) { if (gc.Who == FighterId.B) bGripChanged++; else aGripChanged++; }
+                            if (e is GripAttemptFailed gf) { if (gf.Who == FighterId.B) bGripFailed++; else aGripFailed++; }
+                            if (e is GripSolidified && ((GripSolidified)e).Who == FighterId.B) bSolidified++;
+                            if (e is CrossGripTimerTicked ct && ct.Who == FighterId.B)
+                            { bCrossTicks++; if (ct.Expired) bCrossExpired++; }
+                        }
+
+                        while (engine.Osaekomi.Active && !engine.Board.IsFinished)
+                            engine.ResolveOsaekomiExchange(OsaekomiDefenderChoice.Escape, OsaekomiHolderChoice.Follow);
+
+                        ctx.ObserveExchange(events);
+                        ledger.Record(brainDecision);
+                        window.Record(a);
+                    }
+                }, $"프로필 '{name}' — GripRevisionGate on 에서 예외 없이 끝까지 돌아야 한다");
+
+                Console.WriteLine($"=== GripRevisionGate on — {name} ===");
+                Console.WriteLine($"  B: grabbed={bGripChanged} failed={bGripFailed} solidified={bSolidified}"
+                    + $" crossTicks={bCrossTicks} crossExpired(지도)={bCrossExpired}");
+                Console.WriteLine($"  A: grabbed={aGripChanged} failed={aGripFailed}");
+                Console.WriteLine($"  final grip A={engine.Grip.EffectiveGrip(FighterId.A)} B={engine.Grip.EffectiveGrip(FighterId.B)}"
+                    + $"  finished={engine.Board.IsFinished}");
+            }
+        }
+
         [Test]
         public void SetupOffVsOn_SixProfileMeasurements()
         {

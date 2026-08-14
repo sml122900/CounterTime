@@ -202,6 +202,11 @@ namespace CounterTime.Brain.Tests
             Assert.IsTrue(commit.IsExtremeDefense, "세 축이 다 서야 §6.1 +3 rung 이다");
             Assert.IsNull(Habit(FreshMatch(), HabitId.TurtleWhenTired).Action.Technique,
                 "틀어박히는 턴에 기술을 내면 안 된다");
+
+            // §2b v4.2 최소 적응 — 존이 없으면 GripRevisionGate 아래서 이 회피가
+            // 아무것도 못 막는다(IsZoneDefended 는 null 존을 항상 false로 읽는다).
+            Assert.AreEqual(DefenseZone.LeftSleeve, commit.EvadeZoneLeft);
+            Assert.AreEqual(DefenseZone.RightSleeve, commit.EvadeZoneRight);
         }
 
         // ── §4.2 폐기와 교체 ────────────────────────────────────────────────────

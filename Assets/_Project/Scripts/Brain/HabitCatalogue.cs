@@ -55,7 +55,13 @@ namespace CounterTime.Brain
                         ctx => ctx.OwnStamina < cfg.StaminaBonusTiredThreshold
                             && ctx.OwnStamina < ctx.OpponentStamina,
                         new HabitAction(
-                            new TurnChoice(HandTarget.Evade, CoreStance.Defensive, LegAction.Defend)),
+                            // §2b v4.2 최소 적응 — GripRevisionGate 아래서 회피가 실제로
+                            // 뭔가를 막으려면 존이 있어야 한다(없으면 IsZoneDefended 가
+                            // 항상 false). "똑똑한" 존 선택 로직은 범위 밖(행동 품질 개선
+                            // 아님) — 가장 기초적인 방어인 양소매를 기본값으로 굳힌다.
+                            // 게이트 off 일 땐 그냥 안 읽히는 필드라 §2a 동작은 무변화.
+                            new TurnChoice(HandTarget.Evade, CoreStance.Defensive, LegAction.Defend,
+                                Hand.Right, DefenseZone.LeftSleeve, DefenseZone.RightSleeve)),
                         fireProbability,
                         isReserve: true);
 
@@ -119,7 +125,9 @@ namespace CounterTime.Brain
                     return new HabitDefinition(id,
                         ctx => ctx.OwnBalance >= cfg.BalanceOnsetThreshold,
                         new HabitAction(
-                            new TurnChoice(HandTarget.Evade, CoreStance.Defensive, LegAction.Defend)),
+                            // §2b v4.2 최소 적응 — TurtleWhenTired와 같은 이유·같은 기본값.
+                            new TurnChoice(HandTarget.Evade, CoreStance.Defensive, LegAction.Defend,
+                                Hand.Right, DefenseZone.LeftSleeve, DefenseZone.RightSleeve)),
                         fireProbability);
 
                 // 4강 임준철 H1 — 그립 우세 시 어깨 매치기 or 발뒤축걸기 "번갈아"
