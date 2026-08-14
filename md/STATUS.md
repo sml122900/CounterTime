@@ -2,6 +2,81 @@ STATUS
 
 Update this file every time a session resets. This is the ONLY copy — the root CLAUDE.md pulls it in with `@md/STATUS.md`, so it loads automatically at session start. Do not create a second copy anywhere. Check "Current State" and "Next Up" before starting work.
 
+Current State (last updated: 2026-08-14 밤 4차, 잡기 개편 1차 후속 — 커밋 + 손 휠 UI 완료)
+**결정 1(즉시 커밋) 완료** — 3차 세션 종료 상태(Core 완료, GripRevisionGate off,
+하니스 290/290, 지문 IDENTICAL, MATCH_RULES v4.2)를 커밋 `b361dac`로 확정.
+`NotoSansKR SDF.asset`은 그때는 무관한 변경이라 제외했다(세션 시작 전부터
+있던 변경, 이번 잡기 개편과 무관).
+**결정 2(손 휠 UI) 완료.** 종착점(최상위 4항목: 왼손/오른손/회피/뜯기[2차])
+기준으로 설계·구현·Play 실측까지 마쳤다.
+**스테이지1 안전 아크 — 후보 각도가 실측에서 화면 밖으로 잘렸다, 재조정 후
+재실측으로 확정.** 지시받은 후보(108°/144°/216°/252°, 반지름 70 재사용)를
+그대로 넣고 `GetWorldCorners`로 직접 측정한 결과 **왼손·회피가 각 38.6px
+화면 왼쪽 밖으로 잘렸다** — 트리거가 TriggerX=55(화면 왼쪽 끝에서 55px)에
+있어 버튼 반폭(37px)을 빼면 왼쪽으로 쓸 여유가 18px뿐인데, 코사인이 −1에
+가까운(180° 근처) 각도는 그 여유를 몇 배 넘어선다는 걸 실측으로 확인 — "90°/
+270°(코사인 0)에 가까울수록 안전, 180°(코사인 −1)에 가까울수록 위험"이라는
+관계 자체가 후보 각도표와 반대로 짜여 있었다(108/252는 비교적 안전했는데
+144/216이 최악이었다). 전용 상수(`HandTopRadius=40`)와 각도 재배치(오른손
+95°/회피 180°/왼손 265°)로 재실측 — 오른손·왼손은 클립 0(xMin=14.51), 회피만
+22px 클립 받아들임(74px 폭의 30%, 이 UI가 이미 A 겹침 최대 145px를 딤 처리로
+받아들인 전례보다 훨씬 작아 판단해 채택 — 강행 아니라 재측정 후 최선 대안
+채택, 지시의 "조작감·가독 문제 시 보고" 조건에 해당할 만큼 심각하진 않다고
+판단). 셋 다 서로 안 겹침, A와도 안 겹침(A 캔버스-x 범위 111.6~786.0을
+`ArenaStageCamera.WorldToScreenPoint`+RT→캔버스 배율로 이번 세션이 직접
+재측정 — 기존 문서값과 근사 일치, 재확인 목적) 확인. **뜯기(2차, 아직 화면
+없음)의 각도(137°, 표에 자리만)는 미검증** — 실제 구현 시 세 자리와 함께
+재실측 필요, 코드 주석에 TODO로 남김.
+**나머지 화면 작업(1차 지시서 §1) 구현 + Play 실측**: `LiveMatchPanel`에
+`HandWheelStage` 상태기계(PickHandOrEvade→PickTarget | →PickEvadeZoneLeft→
+PickEvadeZoneRight) 신규 — `GripRevisionGate` off일 때의 기존 흐름
+(`_handStageTarget` bool)은 완전히 별도 분기로 안 건드림. 빈 손 스테이지2는
+`HandOptionsRevised` 사용 + 교차 대상 노란 표기(`RebuildAxisOptions`에
+`tintOverride` 선택 인자 신규 추가, 기존 4개 호출부는 인자 안 넘겨 무수정) —
+Play 실측으로 6개 대상 전부 정확한 정/교차 판정 확인(오른소매/오른가슴깃/
+틀어잡기=노랑, 왼소매/왼가슴깃/등싸잡기=회색, `LiveAssembler.IsCrossOrientation`
+정적 헬퍼 신규 재사용). 회피는 손별 4존(`EvadeZoneOptions`, LegsRadius=100
+재사용, 겹침 없음 실측) + "중복 불가"(오른손 목록에서 왼손이 고른 존
+제외) — Play 실측으로 **공유 존(왼가슴깃)을 왼손이 고르면 오른손 목록에서
+실제로 빠지는 것 확인**(가장 중요한 테스트 케이스, 성공). 손별 그립 상태
+HUD(`FighterStatus`에 `[대상·정/교차·견고]` 양측 + 교차 타이머 잔여, `BalanceGate`
+흔들기 표시줄과 같은 패턴으로 `GripRevisionGate` 게이트) + 새 이벤트 3종
+(`GripAttemptFailed`/`GripSolidified`/`CrossGripTimerTicked`) 중 실패·견고화
+2종을 `EventSummary`에 연결. `Confirm()`이 회피일 때 `BuildEvade`(신규,
+zone 2개를 싣는 전용 빌더)로 분기하도록 배선 — Play 실측으로 손 요약 텍스트
+"회피 · 왼소매/오른상단" 정확 렌더 + 확정 버튼까지 예외 없이 완주 확인(스태미나
+읽기로 `SubmitA`가 실제로 실행됐음을 재확인).
+**세션 중 발견해 즉시 고친 버그 1건 — `GripKind` 컴파일 에러.** 3차 세션이
+`Lapel=2`/`Dominant=2`처럼 값이 겹치는 두 이름을 넣어뒀는데, 이번 세션에서
+HUD 문구용 switch 식을 처음 짜자 `CS8510`(패턴 도달 불가)으로 즉시 걸렸다 —
+같은 값의 서로 다른 이름은 switch/패턴 매칭에서 사실상 하나로 취급된다는 걸
+실제로 컴파일해보고 알았다. `GripKind` 전 항목을 별개 서수로(0/1/2/3/4)
+바꾸고, "몇 점인가"는 별도 `GripSystem.PointValue(GripKind)` 조회 테이블로
+분리 — 옛 경로(Normal=1/Dominant=2)는 여전히 같은 숫자를 내므로(캐스팅
+대신 조회로 계산 방식만 바뀜) 지문·테스트 전부 무변화로 재확인.
+**세션 중 겪은 것(제품 결함 아님) — RunCommand 로 여러 클릭을 한 프레임 안에
+몰아넣으면 `Destroy()` 지연 때문에 드롭다운 자식이 일시적으로 배로 보인다.**
+기존에 이미 기록된 현상(2026-08-12) 재확인 — 이번엔 별도 RunCommand 호출
+사이에도 실제 프레임이 안 낀 것으로 보여(에디터가 포커스 없이 백그라운드
+상태) 더 자주 걸렸다. `Object.DestroyImmediate`로 테스트 스크립트 안에서
+직접 정리해 우회(프로덕션 코드는 무수정 — 실제 사용자 클릭은 항상 프레임이
+끼어서 이 문제 자체가 없다).
+**검증**: Unity MCP 컴파일 0 에러(전 과정 재확인, `Image`/`System.Reflection`
+류 네임스페이스 충돌은 기존에 알려진 RunCommand 샌드박스 특성 그대로 재확인
+— 완전정규화로 우회). 하니스 `dotnet run -- --check` **290/290 그린 + 42노드
+지문 IDENTICAL**(GripKind 서수 변경 후 재확인 — 옛 경로 숫자 무변화 검증).
+`sh tools/stamp.sh --check md/*.md` exit 0. `MATCH_RULES.md` §8 항목4를
+"완료"로 갱신. `git status --short`로 의도한 파일(Core 3개 재수정, Game
+Editor/Match 3개, MATCH_RULES.md, `NotoSansKR SDF.asset`[이번엔 새 한글
+UI 문구의 실제 부수효과라 포함])만 바뀌었음을 확인.
+**남은 판단 사항(정하지 않고 목록)**:
+1. 회피(180°) 22px 클립이 실제 플레이 느낌에서 거슬리는지 — 숫자로는 작지만
+   사람이 직접 봐야 최종 판단 가능.
+2. 뜯기(2차) 정확한 배치는 실제 구현 시점에 세 자리(95/180/265)와 함께
+   다시 실측해서 정할 것 — 137°는 자리만 잡아둔 미검증 값.
+3. §2b §8 항목1(가슴깃 노림 vs 중립)·항목3(틀어잡기 좌우 배정)은 여전히
+   구현 세션의 판단(⚙)이라 실플레이 튜닝 대상.
+
 Current State (last updated: 2026-08-14 밤 3차, 잡기 개편 1차 — Core 완료, UI 미착수)
 **MATCH_RULES v4.2 §2b(잡기 개편 1차) — Core 엔진·`LiveAssembler`·테스트 완료,
 `LiveMatchPanel` 화면(선택 UI·HUD)은 착수 전.** 작업 지시 그대로 `md/IMPACT_grip-
@@ -669,11 +744,13 @@ Full detail, including the exact 현실적 A osaekomi-entry-shortfall breakdown 
   Unity Editor + MCP 브리지가 밤새 연결 유지(사람 없음) — 매 작업 후 AssetDatabase.Refresh() + GetConsoleLogs 로 0 에러/0 경고 재확인, RunCommand 안에서 짧은 이름(CompilationPipeline 등)이 Unity.AI.Assistant.* 네임스페이스와 충돌하는 기존 함정 재확인(전체 경로로 우회)
 
 Next Up (in priority order)
-**가장 최근 — 잡기 개편 1차(MATCH_RULES v4.2 §2b): Core+LiveAssembler 완료,
-`LiveMatchPanel` 화면 미착수.** 상세는 위 Current State 항목 참조. **다음 —
-판단 필요 #1(손 휠 최상위 3택 배치)을 사람이 Play로 보고 정해야 화면 작업 착수
-가능** — 나머지 4개(가슴깃 중립 판정/틀어잡기 좌우 배정/견고화·잠김 용어 구분/
-⚙ 4개)는 이미 합리적 기본값으로 구현돼 있어 착수를 막지 않는다.
+**가장 최근 — 잡기 개편 1차 완료(MATCH_RULES v4.2 §2b): Core+LiveAssembler+
+`LiveMatchPanel` 화면까지 전부 구현·Play 실측·커밋.** 상세는 위 Current State
+항목 참조. `GripRevisionGate` 기본 off — 실제로 켜서 대회에 쓸지는 사람 판단
+(§2b §8의 남은 ⚙ 항목들과 함께 실플레이 튜닝 대상). **다음 — 별도 지시 없으면
+이 클러스터는 종료, 다른 §H 우선순위(아래 항목들)로 복귀 가능.**
+**가장 최근 (그 앞) — 잡기 개편 1차(MATCH_RULES v4.2 §2b): Core+LiveAssembler
+완료, `LiveMatchPanel` 화면 미착수(이후 완료됨, 위 참조).**
 **가장 최근 (그 앞) — 잡정리(위생 2건) + 소극 3인(문준배·서도현·오재훈) 차별화 조사.**
 상세는 위 Current State 항목 및 `docs/overnight-2026-08-14.md` 참조. **다음 —
 `plan-passive-differentiation.md`의 판단 필요 5개 중 최소 1번(상대별 선택지)이

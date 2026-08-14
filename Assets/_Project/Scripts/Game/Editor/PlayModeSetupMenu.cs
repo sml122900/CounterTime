@@ -86,6 +86,8 @@ namespace CounterTime.Game.Editor
 
             var runnerSo = new SerializedObject(go.GetComponent<LiveMatchRunner>());
             runnerSo.FindProperty("setupEnabled").boolValue = true;
+            // §2b v4.2 — on for Play verification of the new hand-wheel flow.
+            runnerSo.FindProperty("gripRevisionEnabled").boolValue = true;
             runnerSo.ApplyModifiedPropertiesWithoutUndo();
 
             var stageSo = new SerializedObject(go.GetComponent<ArenaStageView>());

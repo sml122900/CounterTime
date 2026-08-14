@@ -1,4 +1,4 @@
-<!-- v4.2 | body:1e0afaa -->
+<!-- v4.2 | body:fd87572 -->
 # MATCH_RULES.md — COUNTER TIME judo match system (v4.2)
 
 Single source of truth for match logic. `CounterTime.Core` implements THIS file;
@@ -546,11 +546,13 @@ it implicit in the animation.
      the pre-v4.2 model — v4.2 assigns them Right/Left respectively (for 정/교차
      and defended-zone purposes) as an implementation judgment call, not a spec
      answer.
-  4. **선택 UI (`LiveMatchPanel`) 미착수.** The Core engine (`MatchEngine`,
-     `GripSystem`) and `LiveAssembler`'s option-listing API are implemented and
-     tested; the actual radial-wheel screen is not — see STATUS.md for why (a real
-     geometric conflict with the existing hand-wheel's confirmed layout that needs
-     Play-mode verification this session couldn't do blind).
+  4. **선택 UI (`LiveMatchPanel`) — 완료 (후속 세션).** 손 축 스테이지1(오른손/왼손/
+     회피/뜯기[2차 예약])은 새 고정 각도표(안전 반원 90°~270°, 전용 반지름
+     `HandTopRadius=40`)로 구현·Play 실측 확인(A 겹침 0, 자체 클립은 회피
+     하나뿐 22px — 근거는 `LiveMatchPanel.cs`의 `HandTopSlots` 주석 참조). 회피
+     2존 선택(손별 1존, 중복 제외)·정/교차 노란 표기·손별 그립 상태+교차 타이머
+     HUD 전부 구현·Play 실측 확인(GetWorldCorners 직접 측정, Confirm()까지
+     예외 없이 완주 확인).
 
 ## 9. Osaekomi — entry & escape (굳히기)
 

@@ -40,6 +40,8 @@ namespace CounterTime.Game.Match
         [SerializeField] RefereeProfile refereeProfile = RefereeProfile.Standard;
         [SerializeField] int randomSeed = 12345;
         [SerializeField] bool setupEnabled = false;
+        // §2b v4.2 — same on/off pattern as setupEnabled/BalanceGate above.
+        [SerializeField] bool gripRevisionEnabled = false;
 
         MatchRulesConfig _cfg;
         SystemRandomSource _rng;
@@ -103,7 +105,7 @@ namespace CounterTime.Game.Match
 
         public void Build()
         {
-            _cfg = new MatchRulesConfig { BalanceGate = setupEnabled };
+            _cfg = new MatchRulesConfig { BalanceGate = setupEnabled, GripRevisionGate = gripRevisionEnabled };
             _rng = new SystemRandomSource(randomSeed);
             Engine = new MatchEngine(_cfg, refereeProfile, _rng);
             A = new LiveAssembler(Engine, _cfg, FighterId.A);

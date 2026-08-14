@@ -110,6 +110,11 @@ namespace CounterTime.Core
         /// v4.2 flow needs the per-hand answer ("이미 잡은 손 선택").
         public bool Holds(FighterId who, Hand hand) => _holding[(int)who, Ix(hand)] != GripKind.None;
 
+        /// §2 v4.2 — what this hand currently holds (None if nothing). HUD read only —
+        /// judgment/stamina never consume this directly, they go through GripScore/
+        /// EffectiveGrip.
+        public GripKind Held(FighterId who, Hand hand) => _holding[(int)who, Ix(hand)];
+
         /// §2 v4.2 — true if `hand` currently holds a 교차잡기(cross-side) grip: my
         /// hand and the targeted side are the same (Hand.Left/Right doubles as both
         /// "which of my hands" and "which side was targeted" — see MatchEngine's
@@ -120,6 +125,23 @@ namespace CounterTime.Core
         /// mirror/cross distinction did not exist before v4.2.
         public bool IsCrossOrientation(FighterId who, Hand hand) =>
             _holding[(int)who, Ix(hand)] != GripKind.None && _target[(int)who, Ix(hand)] == hand;
+
+        /// §2 v4.2 — is `target` (a grab target) on the same side as `ownHand`?
+        /// Static and stateless, so the UI can label 정/교차 before a grab is even
+        /// attempted (the instance method above needs an actual held grip). Kept as a
+        /// small duplicate of MatchEngine's private TargetSideOf rather than a shared
+        /// reference — same "duplicate small mappings across the seam" choice already
+        /// made for the Setup/Tear handling split in MatchEngine.
+        public static bool IsCrossOrientation(Hand ownHand, HandTarget target)
+        {
+            Hand side = target switch
+            {
+                HandTarget.RightSleeve or HandTarget.RightLapel or HandTarget.TwistGrip => Hand.Right,
+                HandTarget.LeftSleeve or HandTarget.LeftLapel or HandTarget.BackGrab => Hand.Left,
+                _ => Hand.None,
+            };
+            return side != Hand.None && side == ownHand;
+        }
 
         /// §3.2 — `who` tries to tear the opponent's grip off their own `hand`.
         /// Pure read-based in v1: no RNG.
@@ -150,8 +172,22 @@ namespace CounterTime.Core
         }
 
         int Value(FighterId who) =>
-            (int)_holding[(int)who, Ix(Hand.Left)] + (int)_holding[(int)who, Ix(Hand.Right)]
+            PointValue(_holding[(int)who, Ix(Hand.Left)]) + PointValue(_holding[(int)who, Ix(Hand.Right)])
             + (_solid[(int)who, Ix(Hand.Left)] ? 1 : 0) + (_solid[(int)who, Ix(Hand.Right)] ? 1 : 0);
+
+        /// §2/§2b point table — the ordinal in <see cref="GripKind"/> is just an
+        /// identity now (each member distinct, so switch/pattern-matching elsewhere
+        /// never collides); this is where "worth how much" actually lives. Old path
+        /// (Normal=1/Dominant=2) is untouched — same numbers as before the enum was
+        /// forced to distinct ordinals, just looked up instead of cast.
+        static int PointValue(GripKind k) => k switch
+        {
+            GripKind.Normal => 1,
+            GripKind.Dominant => 2,
+            GripKind.Lapel => 2,
+            GripKind.BackGrip => 3,
+            _ => 0,
+        };
 
         /// Drop whichever opponent hand was gripping `victim`'s `hand`.
         void ReleaseGripOn(FighterId victim, Hand hand)

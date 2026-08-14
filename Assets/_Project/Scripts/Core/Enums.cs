@@ -8,13 +8,13 @@ namespace CounterTime.Core
                              Solidify /*견고화, §2 v4.2 — 이미 잡은 손을 강화*/ }
     public enum CoreStance { Aggressive, Neutral, Defensive }
     public enum LegAction  { Attack, Neutral, Defend, CounterReady }
-    // value 0/1/2/2/3. Lapel and Dominant share the value 2 on purpose — Dominant is
-    // the OLD (pre-v4.2) conversion tier (틀어잡기/등싸잡기 via CanUseConversion) and
-    // Lapel is the NEW (§2 v4.2) 가슴깃 tier; they never appear on the same code path
-    // (Dominant only from MatchEngine.ResolveGrip's old switch, Lapel only from the
-    // v4.2 matrix behind GripRevisionGate) so the numeric coincidence is harmless —
-    // GripSystem.Value() only ever sums whichever one a given path actually stores.
-    public enum GripKind   { None = 0, Normal = 1, Dominant = 2, Lapel = 2, BackGrip = 3 }
+    // Each member has its OWN distinct ordinal (tried sharing Dominant/Lapel's old
+    // §2a/§2b point value of 2 first — CS8510 "unreachable switch arm" the moment any
+    // code pattern-matches on GripKind, since two enum members with the same
+    // underlying int are the same value to a switch. GripSystem.PointValue(GripKind)
+    // is the actual §2/§2b point table now — the ordinal here is just an identity,
+    // not a score.
+    public enum GripKind   { None, Normal, Dominant, Lapel, BackGrip }
     public enum GripLock   { Free, Held, Locked }
     // §2 v4.2 — the six zones a defending hand can guard (Evade). Left/RightSleeve and
     // Left/RightLapel mirror the grab-target names above; Left/RightUpper are new —

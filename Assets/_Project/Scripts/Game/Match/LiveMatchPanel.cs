@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using CounterTime.Brain;
 using CounterTime.Core;
 using TMPro;
@@ -65,6 +66,58 @@ namespace CounterTime.Game.Match
         Hand _ownHand = Hand.Right;
         Hand _pendingOwnHand = Hand.Right;
         bool _handStageTarget;
+
+        // §2b v4.2 — GripRevisionGate 켜졌을 때만 쓰는 손 축 상태기계. off일 때의
+        // 흐름(_handStageTarget 기반, 위)은 손 안 댔다 — 완전히 별도 분기.
+        // 종착점은 4항목(오른손/왼손/회피/뜯기[2차 예약, 숨김)이라 손 자체가
+        // 아니라 "무엇을 할지" 최상위 선택이 됐다(회피가 손 하나가 아니라 양손을
+        // 동시에 쓰는 별도 개념이라 §A.1의 손 목록 안에 못 넣는다 — IMPACT_grip-
+        // revision.md 참조). PickHandOrEvade→(PickTarget | PickEvadeZoneLeft→
+        // PickEvadeZoneRight) 순서.
+        enum HandWheelStage { PickHandOrEvade, PickTarget, PickEvadeZoneLeft, PickEvadeZoneRight }
+        HandWheelStage _handStage = HandWheelStage.PickHandOrEvade;
+        DefenseZone _evadeZoneLeft, _evadeZoneRight;
+
+        enum HandTopChoice { Right, Left, Evade, Tear }
+        // 손 축 스테이지1 전용 고정 각도표 + 전용 반지름. A는 화면 오른쪽(각도 0°
+        // 부근)에 있으므로 cosθ≤0인 반원(90°~270°)만 쓴다는 원칙은 사용자 확정
+        // 그대로 — 다만 **후보 각도(108/144/216/252, 반지름 70 재사용)는 Play
+        // 실측 결과 화면 왼쪽 밖으로 잘렸다(왼손·회피 각 38.6px 클립, GetWorldCorners
+        // 직접 측정)**: 트리거 자체가 TriggerX=55(화면 왼쪽 끝에서 55px)에 있어서
+        // 버튼 절반폭(37px)을 빼면 애초에 왼쪽으로 쓸 수 있는 여유가 18px뿐이고,
+        // cosθ가 -1에 가까운(180° 근처) 각도는 그 여유를 훨씬 넘는다 — 반지름을
+        // 키우면 더 심해지고, 반지름을 겹침 없는 수준까지 줄이면(≤~18) 버튼끼리
+        // 겹친다(74×36 버튼이 그 거리에선 서로 못 들어간다). **90°/270°(코사인=0)에
+        // 가까울수록 안전하고 180°(코사인=-1)에 가까울수록 위험**하다는 걸 이번
+        // 실측으로 확인 — 후보 각도표는 이 관계가 뒤집혀 있었다(108/252 는 비교적
+        // 안전했지만 144/216 이 최악이었다).
+        //
+        // 재조정(반지름 40, 90°/180°/270° 축): 오른손 95°·왼손 265°(0°에 거의
+        // 붙어 클립 없음, GetWorldCorners 로 xMin≈14.5 확인) / 회피 180°(가장
+        // 안전한 방향이 아니라 셋 중 가장 위험한 자리지만, 겹침 없이 넣을 세 번째
+        // 자리가 여기뿐이라 클립을 22px 받아들였다 — 74px 폭 중 30%, 이 UI 가 이미
+        // A 겹침 최대 145px 를 딤 처리로 받아들인 전례보다 훨씬 작다. 세 버튼
+        // 서로 안 겹침도 같은 측정으로 확인). **뜯기(2차, 아직 화면에 안 뜸)의
+        // 각도는 이 표에 자리만 잡아뒀을 뿐 실측하지 않았다** — 지금 세 자리
+        // (95/180/265) 옆에 네 번째를 끼워 넣으면 회피(180°)와 붙어 겹칠 가능성이
+        // 높아서, 뜯기가 실제로 구현될 때 이 세 자리를 포함해 다시 재보고 정할
+        // 것(우선 137°로 자리만 잡아둠 — 미검증, TODO).
+        const float HandTopRadius = 40f;
+        static readonly (HandTopChoice choice, float angleDeg)[] HandTopSlots =
+        {
+            (HandTopChoice.Right, 95f),
+            (HandTopChoice.Evade, 180f),
+            (HandTopChoice.Left, 265f),
+            (HandTopChoice.Tear, 137f),   // 예약 — 뜯기는 2차, 각도 미검증, 지금은 안 그림
+        };
+        static string HandTopLabel(HandTopChoice c) => c switch
+        {
+            HandTopChoice.Right => "오른손",
+            HandTopChoice.Left => "왼손",
+            HandTopChoice.Evade => "회피",
+            HandTopChoice.Tear => "뜯기",
+            _ => "—",
+        };
 
         // 2026-08-12 실전 UI 개편 — 손·코어·하체 상시 노출 3열 폐지 → 캐릭터 옆
         // 트리거+드롭다운(주체 기준=전부 A 옆, 화면 고정 위치=본 추적 안 함) →
@@ -261,6 +314,8 @@ namespace CounterTime.Game.Match
             _ownHand = Hand.Right;
             _pendingOwnHand = Hand.Right;
             _handStageTarget = false;
+            _handStage = HandWheelStage.PickHandOrEvade;
+            _evadeZoneLeft = _evadeZoneRight = default;
             _handChosen = _coreChosen = _legsChosen = false;
             _techniqueId = null;
             _techniqueChosen = false;
@@ -294,7 +349,50 @@ namespace CounterTime.Game.Match
             // 손 축은 2단 선택(§A.1, v4.0) — 스테이지1(손 고르기)은 고른 즉시 닫지 않고
             // (closeOnPick: false) 스테이지2(타겟 고르기)로 넘어간다. 스테이지2에서 타겟을
             // 고르면 그제서야 _ownHand 가 확정되고 휠이 닫힌다(기본 closeOnPick: true).
-            if (_handStageTarget)
+            //
+            // §2b v4.2 — GripRevisionGate 켜지면 완전히 다른 상태기계(HandWheelStage,
+            // 위 필드 선언부 참조)를 쓴다. off일 때의 흐름은 아래 그대로 무수정.
+            if (_runner.A.RevisedFlowActive)
+            {
+                switch (_handStage)
+                {
+                    case HandWheelStage.PickHandOrEvade:
+                        RebuildHandTopStage();
+                        break;
+
+                    case HandWheelStage.PickTarget:
+                        // §2b — 대상 목록은 기존 반원 공식(HandRadius=130) 그대로 쓴다.
+                        // 안전 아크 재배치는 스테이지1 전용(사용자 지시 "손 축 스테이지1에
+                        // 한해"). 교차 방향 대상은 노란 표기(사용자 지시) — Idle/Selected
+                        // 2색 체계 위에 tintOverride 로 얹는다, 새 색 상수 없이 기존
+                        // ShidoYellow 재사용.
+                        RebuildAxisOptions(_handDropdown, HandRadius, _runner.A.HandOptionsRevised(_pendingOwnHand),
+                            HandLabel, o => _hand.Equals(o),
+                            o => { _hand = (HandTarget)o; _ownHand = _pendingOwnHand; _handChosen = true;
+                                   RebuildStandingColumns(); RefreshExposure(); RefreshConfirmButton(); },
+                            tintOverride: t => CounterTime.Core.GripSystem.IsCrossOrientation(_pendingOwnHand, t)
+                                ? (Color?)ShidoYellow : null);
+                        break;
+
+                    case HandWheelStage.PickEvadeZoneLeft:
+                        RebuildAxisOptions(_handDropdown, LegsRadius, _runner.A.EvadeZoneOptions(Hand.Left),
+                            DefenseZoneLabel, o => false,
+                            o => { _evadeZoneLeft = (DefenseZone)o; _handStage = HandWheelStage.PickEvadeZoneRight;
+                                   RebuildStandingColumns(); },
+                            closeOnPick: false);
+                        break;
+
+                    case HandWheelStage.PickEvadeZoneRight:
+                        // §2b — "중복 불가": 왼손이 이미 고른 존은 오른손 목록에서 뺀다.
+                        var rightZones = _runner.A.EvadeZoneOptions(Hand.Right)
+                            .Where(z => z != _evadeZoneLeft).ToList();
+                        RebuildAxisOptions(_handDropdown, LegsRadius, rightZones, DefenseZoneLabel, o => false,
+                            o => { _evadeZoneRight = (DefenseZone)o; _hand = HandTarget.Evade; _handChosen = true;
+                                   RebuildStandingColumns(); RefreshExposure(); RefreshConfirmButton(); });
+                        break;
+                }
+            }
+            else if (_handStageTarget)
             {
                 RebuildAxisOptions(_handDropdown, HandRadius, _runner.A.HandOptions(_pendingOwnHand), HandLabel,
                     o => _hand.Equals(o),
@@ -345,10 +443,56 @@ namespace CounterTime.Game.Match
             // 반영한다(2026-08-12 방사형 개편 — 트리거 자체는 축 이름만 표시하는
             // 작은 버튼이라 선택 내용은 별도 줄로 뺐다. 여전히 "닫힌 상태에서도
             // 트리거 쪽만 보면 축이 다 읽힌다"는 요구는 만족한다).
-            _handSummary.text = _handChosen ? $"{HandSideLabel(_ownHand)} · {HandLabel(_hand)}" : "—";
+            _handSummary.text = !_handChosen ? "—"
+                : _hand == HandTarget.Evade && _runner.A.RevisedFlowActive
+                    ? $"회피 · {DefenseZoneLabel(_evadeZoneLeft)}/{DefenseZoneLabel(_evadeZoneRight)}"
+                    : $"{HandSideLabel(_ownHand)} · {HandLabel(_hand)}";
             _coreSummary.text = CoreLabel(_core);
             _legsSummary.text = LegsLabel(_legs);
             _techniqueSummary.text = _techniqueChosen ? TechniqueRegistry.Get(_techniqueId).DisplayName : "—";
+        }
+
+        /// §2b v4.2 — 손 축 스테이지1, 고정 각도표(<see cref="HandTopSlots"/>) 전용
+        /// 렌더러. 일반 <see cref="RebuildAxisOptions{T}"/>(항목 수 기준 균등분배)를
+        /// 안 쓴다 — 그 공식은 항목이 2개일 때만 A를 피하고 3개부터는 가운데가 A
+        /// 쪽으로 돌출한다(위 HandTopSlots 주석 참조). closeOnPick 개념은 없다 —
+        /// PickHandTop 자체가 CloseAllWheels 를 안 부르므로 자연히 안 닫힌다(스테이지2
+        /// 로 이어짐, 기존 stage1→stage2 관행과 동일).
+        void RebuildHandTopStage()
+        {
+            for (int i = _handDropdown.childCount - 1; i >= 0; i--)
+                Destroy(_handDropdown.GetChild(i).gameObject);
+
+            foreach (var (choice, angleDeg) in HandTopSlots)
+            {
+                if (choice == HandTopChoice.Tear) continue;   // 예약 — 뜯기는 2차, 안 그림
+
+                var captured = choice;
+                float rad = angleDeg * Mathf.Deg2Rad;
+                var pos = new Vector2(HandTopRadius * Mathf.Cos(rad), HandTopRadius * Mathf.Sin(rad));
+
+                var btn = MakeButton(_handDropdown, HandTopLabel(choice), () => PickHandTop(captured));
+                var brt = (RectTransform)btn.transform;
+                brt.anchorMin = brt.anchorMax = new Vector2(0.5f, 0.5f);
+                brt.pivot = new Vector2(0.5f, 0.5f);
+                brt.anchoredPosition = pos;
+                brt.sizeDelta = new Vector2(74, 36);
+                btn.GetComponent<Image>().color = Idle;
+            }
+        }
+
+        void PickHandTop(HandTopChoice choice)
+        {
+            if (choice == HandTopChoice.Evade)
+            {
+                _handStage = HandWheelStage.PickEvadeZoneLeft;
+            }
+            else
+            {
+                _pendingOwnHand = choice == HandTopChoice.Right ? Hand.Right : Hand.Left;
+                _handStage = HandWheelStage.PickTarget;
+            }
+            RebuildStandingColumns();
         }
 
         /// §H 2b — 기술을 지정한 턴은 손·코어 입력이 없다(§A.2). 손·코어 트리거를
@@ -367,11 +511,19 @@ namespace CounterTime.Game.Match
 
         void Confirm()
         {
+            bool evading = _hand == HandTarget.Evade && _runner.A.RevisedFlowActive;
             string myChoiceLabel = _techniqueChosen
                 ? $"기술: {TechniqueRegistry.Get(_techniqueId).DisplayName}"
-                : $"{HandSideLabel(_ownHand)} · {HandLabel(_hand)} · {CoreLabel(_core)} · {LegsLabel(_legs)}";
+                : evading
+                    ? $"회피 · {DefenseZoneLabel(_evadeZoneLeft)}/{DefenseZoneLabel(_evadeZoneRight)} · {CoreLabel(_core)} · {LegsLabel(_legs)}"
+                    : $"{HandSideLabel(_ownHand)} · {HandLabel(_hand)} · {CoreLabel(_core)} · {LegsLabel(_legs)}";
             BeginPending();
-            var choice = _runner.A.Build(_hand, _core, _legs, _ownHand);
+            // §2b v4.2 — 회피는 손 하나가 아니라 손별 존 2개를 동시에 싣는다(§2b).
+            // Build()의 단일 hand/ownHand 시그니처로는 존을 못 실어서 BuildEvade 를
+            // 따로 쓴다.
+            var choice = evading
+                ? _runner.A.BuildEvade(_evadeZoneLeft, _evadeZoneRight, _core, _legs)
+                : _runner.A.Build(_hand, _core, _legs, _ownHand);
             _runner.SubmitA(choice, _techniqueId);
             string outcome = BuildOutcome();
             bool matte = _pendingEvents.Exists(e => e is MatteCalled);
@@ -418,9 +570,14 @@ namespace CounterTime.Game.Match
         /// <paramref name="closeOnPick"/> 이 false 면 고른 뒤에도 휠을 안 닫는다 — 손 축
         /// 스테이지1(손 고르기)이 스테이지2(타겟 고르기)로 이어지는 데 쓴다. 기본값
         /// true 는 기존 동작(고르면 즉시 닫힘) 그대로다.
+        /// <paramref name="tintOverride"/> — §2b v4.2 추가, 순수 선택 사항(기본 null).
+        /// 선택되지 않은 항목의 기본 Idle 색 대신 다른 색을 주고 싶을 때만 쓴다(예:
+        /// 교차 방향 대상의 노란 표기). null 을 반환하면 기존 Idle 그대로라 나머지
+        /// 4개 호출부(코어/하체/기술/기존 손 흐름)는 이 인자를 아예 안 넘겨도 무수정.
         void RebuildAxisOptions<T>(Transform dropdown, float radius, IReadOnlyList<T> options,
                                    System.Func<T, string> label, System.Func<object, bool> isSelected,
-                                   System.Action<object> onPick, bool closeOnPick = true)
+                                   System.Action<object> onPick, bool closeOnPick = true,
+                                   System.Func<T, Color?> tintOverride = null)
         {
             for (int i = dropdown.childCount - 1; i >= 0; i--)
                 Destroy(dropdown.GetChild(i).gameObject);   // 확정 전 재구성뿐이라 즉시 파괴로 충분
@@ -441,7 +598,7 @@ namespace CounterTime.Game.Match
                 brt.sizeDelta = new Vector2(74, 36);
 
                 var img = btn.GetComponent<Image>();
-                img.color = isSelected(captured) ? Selected : Idle;
+                img.color = isSelected(captured) ? Selected : (tintOverride?.Invoke(captured) ?? Idle);
             }
         }
 
@@ -457,6 +614,18 @@ namespace CounterTime.Game.Match
             HandTarget.Tear => "뜯기",
             HandTarget.MaintainGrip => "잡기 유지",
             HandTarget.Setup => "흔들기",
+            HandTarget.Solidify => "견고화",
+            _ => "—",
+        };
+
+        static string DefenseZoneLabel(DefenseZone z) => z switch
+        {
+            DefenseZone.LeftSleeve => "왼소매",
+            DefenseZone.RightSleeve => "오른소매",
+            DefenseZone.LeftLapel => "왼가슴깃",
+            DefenseZone.RightLapel => "오른가슴깃",
+            DefenseZone.LeftUpper => "왼상단",
+            DefenseZone.RightUpper => "오른상단",
             _ => "—",
         };
 
@@ -528,6 +697,8 @@ namespace CounterTime.Game.Match
             CounterReadyApplied cr => $"{FighterLabel(cr.Who)} 카운터 준비 적중 — 상대 읽기 하락",
             OsaekomiEscapeResolved er => er.EscapeCredited ? "이탈 성공" : "눌림 유지 — 이탈 실패",
             GripChanged g => $"{FighterLabel(g.Who)} {HandLabel(g.Part)} 확보",
+            GripAttemptFailed gf => $"{FighterLabel(gf.Who)} {HandLabel(gf.Target)} 시도 실패",
+            GripSolidified gs => $"{FighterLabel(gs.Who)} {(gs.Hand == Hand.Left ? "왼손" : "오른손")} 견고화",
             // §S/§H 3단계 후속 — 한 교환에 여러 개가 뜰 수 있어도(예: 그쳐 시 A·B 둘 다)
             // BuildOutcome 의 "발생한 이벤트 중 뜻이 있는 첫 번째" 관행 그대로 첫 것만
             // 보여준다 — 다른 이벤트들과 같은 한계(GripChanged 등도 동일).
@@ -655,8 +826,34 @@ namespace CounterTime.Game.Match
             string setup = _runner.Config.BalanceGate
                 ? $"  흔들기 {(eng.IsSetupActive(who) ? "유효" : "없음")}"
                 : "";
+            // §2b v4.2 — 손별 그립 상태(대상·정/교차·견고) 양측 + 교차 타이머 잔여.
+            // BalanceGate 흔들기 표시줄과 같은 패턴 — 게이트가 꺼져 있으면 이 개념
+            // 자체가 없으므로(§2a 그대로) 아예 안 붙인다.
+            string gripDetail = _runner.Config.GripRevisionGate
+                ? $"  [{GripHandDetail(eng, who, Hand.Left)} / {GripHandDetail(eng, who, Hand.Right)}]" +
+                  (eng.CrossGripTimerRemaining(who) > 0 ? $" 교차타이머 {eng.CrossGripTimerRemaining(who)}턴" : "")
+                : "";
             return $"{FighterLabel(who)}  체력 {stamina}  그립 {grip:+0;-0;0}  밸런스 {BalanceText(eng, who)}  " +
-                   $"왼손 {left} 오른손 {right}{setup}";
+                   $"왼손 {left} 오른손 {right}{setup}{gripDetail}";
+        }
+
+        /// §2b v4.2 — 한 손의 상태를 "대상·정/교차·견고" 한 조각으로. 아무것도 안
+        /// 잡았으면 "—"만.
+        static string GripHandDetail(MatchEngine eng, FighterId who, Hand hand)
+        {
+            var tier = eng.Grip.Held(who, hand);
+            if (tier == GripKind.None) return "—";
+            string target = tier switch
+            {
+                GripKind.Normal => "소매",
+                GripKind.Lapel => "가슴깃",
+                GripKind.BackGrip => "틀어잡기",
+                GripKind.Dominant => "전환",   // §2a 구식 경로 표시용(게이트 off일 땐 이 줄 자체가 안 뜬다)
+                _ => "?",
+            };
+            string orientation = eng.Grip.IsCrossOrientation(who, hand) ? "교차" : "정";
+            string solid = eng.Grip.IsSolid(who, hand) ? "·견고" : "";
+            return $"{target}·{orientation}{solid}";
         }
 
         /// §S — 밸런스는 확정 수치라 체력·그립과 같은 급으로 상시 노출한다(예비동작과
@@ -1025,7 +1222,8 @@ namespace CounterTime.Game.Match
             // 고른다(§A.1, v4.0. 안 하면 닫혀 있던 동안 유지된 드롭다운 내용이 그대로
             // 남아 스테이지2가 먼저 뜬다).
             (_handTrigger, _handDropdown, _handSummary) = BuildAxisControl(go.transform, "손", new Vector2(TriggerX, 509),
-                onOpening: () => { _handStageTarget = false; RebuildStandingColumns(); });
+                onOpening: () => { _handStageTarget = false; _handStage = HandWheelStage.PickHandOrEvade;
+                                    RebuildStandingColumns(); });
             (_techniqueTrigger, _techniqueDropdown, _techniqueSummary) =
                 BuildAxisControl(go.transform, "기술", new Vector2(TriggerX, 591));
             (_coreTrigger, _coreDropdown, _coreSummary) = BuildAxisControl(go.transform, "코어", new Vector2(TriggerX, 672));

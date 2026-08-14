@@ -109,6 +109,10 @@ namespace CounterTime.Core
         /// `_setupActive`'s own comment for why the flag still exists).
         public bool IsSetupActive(FighterId who) => _setupActive[(int)who];
 
+        /// §2 v4.2 — HUD read of the 교차잡기 rolling timer's remaining turns (0 = no
+        /// active timer). GripRevisionGate-only concept; stays 0 when the gate is off.
+        public int CrossGripTimerRemaining(FighterId who) => _crossGripTimer[(int)who];
+
         public IReadOnlyList<MatchEvent> ResolveExchange(TurnChoice a, TurnChoice b, ExchangeScript script)
         {
             // §9 — a standing exchange cannot land while a hold is open. Left unguarded,
