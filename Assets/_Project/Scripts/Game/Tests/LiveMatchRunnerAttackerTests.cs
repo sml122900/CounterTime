@@ -139,5 +139,21 @@ namespace CounterTime.Game.Tests
             Assert.AreEqual(beforeNeutral + 1, _runner.Tendency.Count,
                 "기술 턴이 아닌 보통 턴은 그대로 기록돼야 한다 — 제외 규칙이 전체를 막은 게 아니라 기술 턴만 막은 것인지 확인");
         }
+
+        /// 2026-08-14 밤 7차 — 교환 시간 라이브 전용 ⚙(기본 8초) 확인. 스크립트
+        /// 경로(42노드, ExchangeSec=3)는 이 값을 참조조차 안 하므로 지문과 무관 —
+        /// 이 테스트는 라이브 전용이라 애초에 하니스 대상도 아니다.
+        [Test]
+        public void ExchangeAdvancesClockByLiveExchangeSec_NotTheScriptedThreeSeconds()
+        {
+            Assert.AreEqual(8, _runner.Config.LiveExchangeSec, "기본값 확인");
+
+            int before = _runner.Engine.Clock.RemainingSeconds;
+            _runner.SubmitA(TurnChoice.Neutral);
+            int after = _runner.Engine.Clock.RemainingSeconds;
+
+            Assert.AreEqual(_runner.Config.LiveExchangeSec, before - after,
+                "라이브 교환은 §2 스크립트 경로의 ExchangeSec(3)이 아니라 LiveExchangeSec(8)만큼 시계를 깎아야 한다");
+        }
     }
 }

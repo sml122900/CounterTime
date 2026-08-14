@@ -2,6 +2,60 @@ STATUS
 
 Update this file every time a session resets. This is the ONLY copy — the root CLAUDE.md pulls it in with `@md/STATUS.md`, so it loads automatically at session start. Do not create a second copy anywhere. Check "Current State" and "Next Up" before starting work.
 
+Current State (last updated: 2026-08-14 밤 7차, 확인·수정 2건 — 교환 시간 8초 구현 + 자동 공격 조사(재현 실패, 보고만))
+**1. 교환 시간 8초 — 미반영이었다, 이번에 구현.** 확인 결과 "라이브 전용 ⚙(기본
+8초)" 자체가 존재하지 않았다 — `LiveMatchRunner.SubmitA`는 `ExchangeScript`를
+`Duration` 필드 없이 생성해 클래스 기본값(`DurationA=3, DurationB=3`,
+`MatchEngine.cs`)을 그대로 썼다. 즉 지금까지 라이브도 스크립트 경로와 똑같이
+3초였다. `MatchRulesConfig`에 `LiveExchangeSec=8`(⚙, 라이브 전용, 기존
+`GripTurnSec`/`ExchangeSec`/`TearSec`와 완전 별개) 추가 + `SubmitA`의
+`ExchangeScript` 생성에 `DurationA/B = _cfg.LiveExchangeSec` 배선. 스크립트
+경로(`ScriptedAssembler`/`MatchRunner`, 42노드)는 이 필드를 참조조차 안 해서
+무관 — 지문 재확인으로 검증.
+**라이브 실측**(Unity MCP, `LiveMatchRunner` 직접 구동): (1) A 완전 방관(중립
+반복) — 4교환 만에 B 승리, 42초 소요(교환 8초×4=32초 + 굳히기 진입 1틱 10초).
+(2) A 가 잡기·수비·카운터 준비를 순환하는 좀 더 현실적인 입력 — **정확히 30
+교환에 정규시간(240초, 4분) 도달**(30×8=240, 딱 맞아떨어짐 — 8초 배선이
+정확히 작동한다는 직접 증거). 신규 Unity 전용 회귀 테스트
+`LiveMatchRunnerAttackerTests.ExchangeAdvancesClockByLiveExchangeSec_
+NotTheScriptedThreeSeconds` 추가(RunCommand 로 같은 값 재확인 — PASS).
+**2. 플레이어 자동 공격 — 코드 근거로 재현 시도, 재현 실패.** 의심 경로부터
+확인: `LiveMatchRunner.SubmitA`의 `aAttacks = liveTechnique != null`이고
+`liveTechnique = BuildLiveTechnique(techniqueId)`, `TechniqueRegistry.Get(null)`
+은 명시적으로 `id != null && ...` 가드가 있어 항상 null을 반환한다
+(`TechniqueRegistry.cs:13-14`) — 즉 **A가 공격자가 되려면 `liveTechnique`가
+non-null이어야 하고, 그건 `techniqueId`가 유효한 레지스트리 키일 때뿐이다.
+`a.Legs==Attack`만으로는(기술 미지정) 이 경로에 진입조차 안 한다.** 이미
+이 정확한 시나리오를 고정하는 Unity 전용 테스트(`LegsAttack_
+WithoutTechniqueId_NeverCommitsAnAttackForA`, §H 2단계에서 이미 작성돼
+있었음)가 있는데, "Unity Test Runner 전용" 표시라 실제로 사람이 돌려본
+적이 있는지 확인 불가 — 그래서 이번에 Unity MCP로 **직접 두 가지 방식으로
+재현 시도**: (a) `SubmitA(legs=공격, techniqueId=null)`를 엔진 레벨에서
+직접 호출(15회 재시도 루프, B 선점 안 된 교환에서 A 스태미나 무변화 확인 —
+자동 공격 없음) (b) 실제 `LiveMatchPanel` UI를 손으로 조작(하체=공격 선택,
+기술 탭은 절대 안 건드림) 후 확정 클릭 — 역시 스태미나·판정 무변화. **양쪽
+다 재현 실패** — 현재 코드에서 이 버그를 못 찾았다. 관련 경로(코어 축·B
+습관·되치기·MetaFlowController 의 Space/Enter 훈련 전용 핸들러)도 확인했으나
+전투 화면과 무관하거나 이미 가드돼 있음을 재확인. **수정 안 함** — 없는
+버그를 지어내지 않기 위해서다. 가능성: (1) §H 2단계(공격자 판정 통일,
+"PlaceholderATechnique 밭다리 고정" 제거)가 이미 고친 것을 사용자가 그
+전 빌드에서 본 기억일 수 있음 (2) 재현 못 한 더 구체적인 조건(정확한 클릭
+순서·GripRevisionGate on/off 등)이 있을 수 있음 — 재현 스텝을 더 구체적으로
+받으면 재조사 가능.
+**검증**: 하니스 292/292 그린(무변화, 두 작업 모두 Game 계층이라 하니스 대상
+아님) + 42노드 지문 IDENTICAL(스크립트 경로가 `LiveExchangeSec` 자체를
+안 읽으므로 당연한 결과 — 재확인 목적). Unity MCP 컴파일 0 에러. `git status
+--short`로 `MatchRulesConfig.cs`/`LiveMatchRunner.cs`/
+`LiveMatchRunnerAttackerTests.cs` 3개만 바뀌었음을 확인(Task 2 는 코드
+변경 없음).
+**사람 확인 필요**: `LegsAttack_WithoutTechniqueId_NeverCommitsAnAttackForA`
+외 3개(`LegsAttack_WithValidTechniqueId_...`/`LegsAttack_UnknownTechniqueId_...`/
+신규 `ExchangeAdvancesClockByLiveExchangeSec_...`)는 Unity Test Runner 전용이라
+이 세션은 MCP 로 같은 로직만 수동 재현했다 — Window > General > Test Runner >
+EditMode > Run All 로 공식 확인 필요. 자동 공격 재현 실패는 "버그 없음"의
+증거가 아니라 "이 세션이 시도한 경로에서는 못 찾음"이다 — 실제로 겪은
+정확한 재현 스텝(클릭 순서, 게이트 on/off 여부)을 알려주면 이어서 조사.
+
 Current State (last updated: 2026-08-14 밤 6차, 잡기 개편 1차 소수정 — B 잡기 손 매핑을 정잡기 기본으로)
 **배경 확인**: 5차 세션이 "B 의 잡기가 전부 교차, 1차 지시서 예시와 반대"라고
 보고한 것을 사용자가 검토 — 지시서 예시가 작성 오류였고(지적이 맞음), 설계
@@ -850,12 +904,17 @@ Full detail, including the exact 현실적 A osaekomi-entry-shortfall breakdown 
   Unity Editor + MCP 브리지가 밤새 연결 유지(사람 없음) — 매 작업 후 AssetDatabase.Refresh() + GetConsoleLogs 로 0 에러/0 경고 재확인, RunCommand 안에서 짧은 이름(CompilationPipeline 등)이 Unity.AI.Assistant.* 네임스페이스와 충돌하는 기존 함정 재확인(전체 경로로 우회)
 
 Next Up (in priority order)
-**가장 최근 — 잡기 개편 1차 소수정: B 잡기 손을 정잡기 기본으로 정정.** 상세는
-위 Current State 항목 참조. B 의 그립이 이제 100% 정(mirror) — 재측정으로
-확인, 교차잡기 타이머 지도 부수효과도 함께 사라짐(예상된 결과). **다음 —
-별도 지시 없으면 이 클러스터는 종료, 다른 §H 우선순위(아래 항목들)로 복귀
-가능.** 남은 판단 사항(B 의 의도적 교차 사용/가슴깃·틀어잡기·견고화를 B 에게
-언제 열지)은 행동 품질 개선 범주(3차 이월)라 착수 전 방향 필요.
+**가장 최근 — 확인·수정 2건: 교환 시간 8초(구현 완료) + 자동 공격 조사(재현
+실패, 코드 무수정).** 상세는 위 Current State 항목 참조. **다음 — 자동 공격
+버그를 실제로 겪은 정확한 재현 스텝(클릭 순서·GripRevisionGate on/off)을
+받으면 재조사**, 안 주어지면 이 항목은 "현재 코드에서 못 찾음"으로 보류.
+`LiveMatchRunnerAttackerTests.cs`의 Unity 전용 테스트 4개(기존 3+신규 1)는
+사람이 Test Runner로 공식 확인 필요.
+**가장 최근 (그 앞) — 잡기 개편 1차 소수정: B 잡기 손을 정잡기 기본으로 정정.**
+B 의 그립이 이제 100% 정(mirror) — 재측정으로 확인, 교차잡기 타이머 지도
+부수효과도 함께 사라짐(예상된 결과). 남은 판단 사항(B 의 의도적 교차 사용/
+가슴깃·틀어잡기·견고화를 B 에게 언제 열지)은 행동 품질 개선 범주(3차 이월)라
+착수 전 방향 필요.
 **가장 최근 (그 앞) — 잡기 개편 1차 확인 세션: B 브레인 최소 적응 조사 + 회피 존
 결손 1건 수정.** B 는 새 체계로 실제 경기를 성립시킬 수 있는 상태(스모크
 3프로필×50교환 예외 없이 완주 확인) — 그립 매트릭스·교차 타이머는 처음부터

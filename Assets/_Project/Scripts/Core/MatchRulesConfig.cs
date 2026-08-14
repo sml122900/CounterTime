@@ -8,8 +8,14 @@ namespace CounterTime.Core
         public int RegulationSeconds = 240;
         public int OsaekomiYukoSec = 5, OsaekomiWazaAriSec = 10, OsaekomiIpponSec = 20;
         public int ShidoLimit = 3;
-        // §2 time costs
+        // §2 time costs — scripted/habit path only (42노드 지문이 이 세 값에 묶여
+        // 있다, 절대 안 건드림).
         public int GripTurnSec = 5, ExchangeSec = 3, TearSec = 3;
+        // 라이브 전용 ⚙ — 사람이 입력을 고르는 데 걸리는 실제 체감 시간을 반영해
+        // 교환당 시간을 하나로 통일한다(잡기/기술/뜯기 구분 없음). ExchangeSec 등
+        // 위 셋과 완전히 별개 — LiveMatchRunner 만 읽고, ScriptedAssembler/
+        // MatchRunner(42노드)는 이 필드를 참조조차 안 한다.
+        public int LiveExchangeSec = 8;
         // §4 judgment
         public int StaminaBonusTiredThreshold = 50;     // <50 → +2
         public int StaminaBonusExhaustedThreshold = 25; // <25 → +3

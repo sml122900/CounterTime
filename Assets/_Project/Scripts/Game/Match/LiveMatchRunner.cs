@@ -170,7 +170,14 @@ namespace CounterTime.Game.Match
 
             ReadLevel read = attacker.HasValue ? _resolver.For(attacker.Value, a, b) : ReadLevel.Neutral;
 
-            var script = new ExchangeScript { Attacker = attacker, Technique = technique, Read = read };
+            // 교환 시간 — 라이브 전용 ⚙(MatchRulesConfig.LiveExchangeSec, 기본 8초).
+            // §2의 잡기(5)/기술(3)/뜯기(3) 구분은 스크립트 경로 전용(지문에 묶임) —
+            // 여기서는 안 읽는다, 라이브는 행동 종류와 무관하게 하나로 통일.
+            var script = new ExchangeScript
+            {
+                Attacker = attacker, Technique = technique, Read = read,
+                DurationA = _cfg.LiveExchangeSec, DurationB = _cfg.LiveExchangeSec,
+            };
             IReadOnlyList<MatchEvent> events = Engine.ResolveExchange(a, b, script);
 
             foreach (var e in events)
