@@ -586,6 +586,12 @@ namespace CounterTime.Game.Match
         const float PolarButtonHeight = 36f;
         const float PolarMinWidth = 56f, PolarMaxWidth = 150f, PolarGapDeg = 4f;
         const float CanvasRefWidth = 1920f, CanvasRefHeight = 1080f, SafeMargin = 10f;
+        // 트리거 버튼 크기(BuildAxisControl 의 sizeDelta(74,36))의 절반 — 모든 축이
+        // 공유하는 값이라 상수로 뺐다. 휠이 열린 동안 "자기 축"의 트리거는 계속 화면에
+        // 남는다(OpenWheel 이 숨기는 건 "다른" 축뿐) — 항목이 원점(=트리거 중심)에
+        // 너무 가까우면 트리거 라벨을 가린다. 2026-08-14 밤 9차, 손 스테이지1의
+        // "왼손"이 "손" 트리거를 가린 실측 재발견 이후 세이프 영역 검사에 추가.
+        const float TriggerHalfWidth = 37f, TriggerHalfHeight = 18f;
 
         /// <see cref="LocalPositions"/> — origin(트리거) 기준 상대 오프셋(anchoredPosition
         /// 에 그대로 쓴다). 대부분의 경로에서 전 항목이 같은 반지름을 공유하지만,
@@ -615,44 +621,110 @@ namespace CounterTime.Game.Match
         }
 
         /// 반지름 <paramref name="radius"/>에서 라벨 폭 <paramref name="widths"/>을
-        /// 겹치지 않게(항목 간 <see cref="PolarGapDeg"/> 여유 포함) 아크
+        /// 겹치지 않게(항목 간 최소 <see cref="PolarGapDeg"/> 여유 포함) 아크
         /// [<paramref name="arcStartDeg"/>, +<paramref name="arcSpanDeg"/>] 안에 순서대로
         /// 채워 넣는다. 폭을 반지름에서의 반각으로 정확히 환산(짧은 각도 근사 아님,
         /// atan2)하므로 반지름이 작아도 정확하다. 다 안 들어가면 null.
+        ///
+        /// 2026-08-14 밤 9차 — 옛 방식(남는 여유를 전부 아크 양끝 여백으로 몰아 항목을
+        /// 중앙 한 곳에 뭉치는 것)은 폭 합이 아크보다 훨씬 작은 소항목 축(손 스테이지1의
+        /// 3개: 오른손/왼손/회피)을 아크 중앙(θ=180)에 뭉치게 했다 — 실측 결과 그 중앙
+        /// 방향이 바로 <b>트리거 자신이 놓인 원점 방향</b>이라(반지름을 아무리 늘려도
+        /// 화면 왼쪽 끝 세이프 마진이 반지름을 17px 정도로 강제 — 트리거 반폭 37px보다
+        /// 작다), 중앙에 모인 항목은 반지름을 얼마로 잡든 트리거와 겹칠 수밖에 없었다
+        /// (기하학적으로 회피 불가능한 충돌 — 아래 <see cref="AllWithinSafeArea"/> 의
+        /// 트리거 검사가 이걸 실제로 걸러낸다).
+        ///
+        /// 그래서 "남는 여유를 사이 간격에 분배"가 아니라 <b>아크 양 끝에서 안쪽으로
+        /// 각각 절반씩 앵커링</b>하는 방식으로 바꿨다 — 앞 절반(입력 순서 앞쪽,
+        /// ⌈n/2⌉개)은 <paramref name="arcStartDeg"/> 에서 시작해 안쪽으로, 뒤 절반은
+        /// 반대쪽 끝에서 시작해 안쪽으로 촘촘히 채운다. 항목이 적어 여유가 많으면
+        /// 그 여유가 자동으로 두 절반 사이(아크 중앙, 손 스테이지1이라면 트리거 방향)
+        /// 에 빈 공간으로 남는다 — 정확히 위험한 방향을 비워두는 효과. 항목이 많아
+        /// 폭 합이 아크를 거의 채우는 기술 휠(8개, 이 축은 아크가 A/열린 캔버스 쪽을
+        /// 향해 있어 중앙이 애초에 안전하다)에서는 두 절반이 맞닿아 옛 결과와 사실상
+        /// 같다.
         static float[] TryPackAngles(float[] widths, float radius, float arcStartDeg, float arcSpanDeg)
         {
             int n = widths.Length;
             var halfAnglesDeg = new float[n];
-            float total = 0f;
             for (int i = 0; i < n; i++)
-            {
                 halfAnglesDeg[i] = Mathf.Atan2(widths[i] / 2f, radius) * Mathf.Rad2Deg;
-                total += halfAnglesDeg[i] * 2f;
-            }
-            total += PolarGapDeg * Mathf.Max(0, n - 1);
-            if (total > arcSpanDeg) return null;
 
-            float cursor = arcStartDeg + (arcSpanDeg - total) / 2f;   // 남는 여유는 아크 중앙에 배분
+            if (n == 1)
+            {
+                if (halfAnglesDeg[0] * 2f > arcSpanDeg) return null;
+                return new[] { arcStartDeg + arcSpanDeg / 2f };
+            }
+
+            int nStart = (n + 1) / 2;   // 앞쪽이 홀수 나머지를 가져간다(무의미한 임의값)
+            float startExtent = PolarGapDeg * Mathf.Max(0, nStart - 1);
+            for (int i = 0; i < nStart; i++) startExtent += halfAnglesDeg[i] * 2f;
+
+            int nEnd = n - nStart;
+            float endExtent = PolarGapDeg * Mathf.Max(0, nEnd - 1);
+            for (int i = nStart; i < n; i++) endExtent += halfAnglesDeg[i] * 2f;
+
+            if (startExtent > arcSpanDeg || endExtent > arcSpanDeg) return null;
+
+            float arcEndDeg = arcStartDeg + arcSpanDeg;
+            if (arcStartDeg + startExtent > arcEndDeg - endExtent) return null;   // 두 절반이 겹친다
+
             var angles = new float[n];
-            for (int i = 0; i < n; i++)
+            float cursor = arcStartDeg;
+            for (int i = 0; i < nStart; i++)
             {
                 cursor += halfAnglesDeg[i];
                 angles[i] = cursor;
                 cursor += halfAnglesDeg[i] + PolarGapDeg;
             }
+
+            cursor = arcEndDeg;
+            for (int i = n - 1; i >= nStart; i--)
+            {
+                cursor -= halfAnglesDeg[i];
+                angles[i] = cursor;
+                cursor -= halfAnglesDeg[i] + PolarGapDeg;
+            }
             return angles;
         }
 
+        /// 2026-08-14 밤 9차 재발견 — 각도 간격(<see cref="PolarGapDeg"/>)만으로는 인접
+        /// 항목의 AABB(축 정렬 사각형) 비겹침을 보장 못 한다: 그 간격은 원둘레를 따라
+        /// 잰 호 길이 여유일 뿐, 접선 방향이 화면 x/y 축과 안 맞으면(예: 45° 부근)
+        /// 유클리드 거리로 환산됐을 때 실제 사각형 간 간격이 그보다 작아질 수 있다
+        /// (하체 4항목의 "공격"↔"중립" 5px 겹침으로 실측 확인 — 손 스테이지1 때와
+        /// 달리 트리거가 아니라 항목끼리였다). 그래서 항목 간 실제 AABB 겹침도 이
+        /// 안전 게이트에 직접 넣는다 — 실패하면 바깥 루프가 반지름을 키우거나 폭을
+        /// 줄여 재시도한다(트리거 검사와 같은 계약).
         bool AllWithinSafeArea(Vector2 origin, float radius, float[] anglesDeg, float[] widths)
         {
-            for (int i = 0; i < anglesDeg.Length; i++)
+            int n = anglesDeg.Length;
+            var centers = new Vector2[n];
+            for (int i = 0; i < n; i++)
             {
                 float rad = anglesDeg[i] * Mathf.Deg2Rad;
-                var center = origin + new Vector2(radius * Mathf.Cos(rad), radius * Mathf.Sin(rad));
+                var offset = new Vector2(radius * Mathf.Cos(rad), radius * Mathf.Sin(rad));
+                centers[i] = origin + offset;
                 float halfW = widths[i] / 2f, halfH = PolarButtonHeight / 2f;
-                if (center.x - halfW < SafeMargin || center.x + halfW > CanvasRefWidth - SafeMargin) return false;
-                if (center.y - halfH < SafeMargin || center.y + halfH > CanvasRefHeight - SafeMargin) return false;
+                if (centers[i].x - halfW < SafeMargin || centers[i].x + halfW > CanvasRefWidth - SafeMargin) return false;
+                if (centers[i].y - halfH < SafeMargin || centers[i].y + halfH > CanvasRefHeight - SafeMargin) return false;
+
+                // 트리거 자체(원점 중심, TriggerHalfWidth/Height)와의 겹침도 검사한다 —
+                // 분리축 판정(둘 중 한 축이라도 안 겹치면 사각형 전체가 안 겹친다).
+                bool clearsTriggerX = Mathf.Abs(offset.x) > TriggerHalfWidth + halfW;
+                bool clearsTriggerY = Mathf.Abs(offset.y) > TriggerHalfHeight + halfH;
+                if (!clearsTriggerX && !clearsTriggerY) return false;
             }
+
+            for (int i = 0; i < n; i++)
+                for (int j = i + 1; j < n; j++)
+                {
+                    float halfWi = widths[i] / 2f, halfWj = widths[j] / 2f, halfH = PolarButtonHeight / 2f;
+                    bool clearsX = Mathf.Abs(centers[i].x - centers[j].x) > halfWi + halfWj;
+                    bool clearsY = Mathf.Abs(centers[i].y - centers[j].y) > halfH + halfH;
+                    if (!clearsX && !clearsY) return false;
+                }
             return true;
         }
 
@@ -697,28 +769,65 @@ namespace CounterTime.Game.Match
                 }
             }
 
-            // 마지막 방어선 — 최소 폭으로도 못 맞춘 극단적 경우(이 앱의 실제 항목
-            // 수에서는 실측상 도달하지 않았다, 아래 검증 참조). 최대 반지름에서
-            // 채워보고(그래도 각도가 안 맞으면 균등분배로 폴백), 항목마다 개별로
-            // 세이프 영역 안으로 강제 클램프한다 — 이 경로는 항목별 반지름이 서로
-            // 달라질 수 있어 위치를 직접 저장하는 LocalPositions 구조가 필요했던
-            // 이유이기도 하다(공유 스칼라 반지름 하나로는 표현 못 함).
-            var fallbackWidths = new float[n];
-            for (int i = 0; i < n; i++)
-                fallbackWidths[i] = Mathf.Clamp(MeasureLabelWidth(labels[i], fontSize) + 18f, PolarMinWidth, PolarMinWidth);
-            var fallbackAngles = TryPackAngles(fallbackWidths, maxRadius, arcStartDeg, arcSpanDeg)
-                ?? UniformAngles(n, arcStartDeg, arcSpanDeg);
+            // 마지막 방어선 — 원형 부채꼴로는 못 맞춘 극단적 경우. 2026-08-14 밤 9차
+            // 재발견: "실측상 도달하지 않는다"던 옛 가정이 틀렸다 — 손 스테이지1
+            // (TriggerX=55, 화면 왼쪽 끝까지 45px뿐)은 실제로 이 경로에 거의 항상
+            // 떨어진다(반지름을 조금만 키워도 θ=90/270 에서 몇 도만 벗어나도 왼쪽
+            // 세이프 마진을 넘는다 — 실측·계산으로 확인). 옛 방어선은 "이상적인
+            // 각도 위치를 구하고 항목마다 개별로 화면 안쪽으로 당긴다"였는데, 그
+            // 개별 클램프가 트리거는커녕 항목끼리도 서로 안 본다 — 여러 항목이 같은
+            // 클램프 목표(예: 세이프 마진에 붙은 x)로 동시에 밀리면 겹친다(이번에
+            // 실측으로 확인된 바로 그 버그). 원형을 포기하고 트리거 위/아래 두 세로
+            // 밴드에 항목을 나눠 쌓는 방식으로 교체했다 — 세로 방향은 캔버스가
+            // 넉넉해서(1080px) 겹침 없이 흩뿌릴 공간이 항상 있고, 트리거 자신의 세로
+            // 밴드를 밴드 경계에서 아예 빼뒀으니 트리거와도 구조적으로 안 겹친다.
+            return FallbackStackedLayout(origin, labels);
+        }
 
-            var positions = ToLocalPositions(maxRadius, fallbackAngles);
+        /// 세로 스택 방어선 — <see cref="SolvePolarLayout"/> 이 원형 배치를 못 찾았을
+        /// 때만 쓴다. 항목을 입력 순서 앞쪽 절반은 트리거 위 밴드에, 뒤쪽 절반은
+        /// 트리거 아래 밴드에 나눠 각 밴드 안에서 균등 간격으로 세로로 쌓는다 —
+        /// 밴드 자체가 트리거의 세로 범위(±<see cref="TriggerHalfHeight"/>)를 제외하고
+        /// 시작하므로 트리거와 겹칠 수 없고(Y 축만으로 이미 분리), 같은 밴드 안
+        /// 항목끼리는 균등 간격이 겹침을 막는다(밴드 폭 ≫ 필요 폭이라 항상 성립 —
+        /// 이 앱의 실제 항목 수(최대 8)에서 밴드 하나당 최대 4개, 각 위상 최소
+        /// 100px 이상 여유가 실측으로 확인됨).
+        PolarLayoutResult FallbackStackedLayout(Vector2 origin, string[] labels)
+        {
+            int n = labels.Length;
+            var widths = new float[n];
             for (int i = 0; i < n; i++)
+                widths[i] = Mathf.Clamp(MeasureLabelWidth(labels[i], fontSize) + 18f, PolarMinWidth, PolarMinWidth);
+            float maxHalfW = 0f;
+            for (int i = 0; i < n; i++) maxHalfW = Mathf.Max(maxHalfW, widths[i] / 2f);
+            float x = Mathf.Clamp(origin.x, SafeMargin + maxHalfW, CanvasRefWidth - SafeMargin - maxHalfW);
+
+            int nStart = (n + 1) / 2;
+            int nEnd = n - nStart;
+            float halfH = PolarButtonHeight / 2f;
+
+            var positions = new Vector2[n];
+            StackBand(positions, 0, nStart, x,
+                origin.y + TriggerHalfHeight + halfH, CanvasRefHeight - SafeMargin - halfH, origin);
+            StackBand(positions, nStart, nEnd, x,
+                SafeMargin + halfH, origin.y - TriggerHalfHeight - halfH, origin);
+
+            return new PolarLayoutResult { LocalPositions = positions, Widths = widths };
+        }
+
+        /// [<paramref name="startIdx"/>, +<paramref name="count"/>) 항목을 y ∈ [lo,hi] 안에
+        /// 균등 간격으로 세로 배치한다(x 는 고정). count==1 이면 밴드 중앙에.
+        static void StackBand(Vector2[] positions, int startIdx, int count, float x, float lo, float hi, Vector2 origin)
+        {
+            if (count <= 0) return;
+            if (count == 1)
             {
-                var worldPos = origin + positions[i];
-                float halfW = fallbackWidths[i] / 2f, halfH = PolarButtonHeight / 2f;
-                float clampedX = Mathf.Clamp(worldPos.x, SafeMargin + halfW, CanvasRefWidth - SafeMargin - halfW);
-                float clampedY = Mathf.Clamp(worldPos.y, SafeMargin + halfH, CanvasRefHeight - SafeMargin - halfH);
-                positions[i] = new Vector2(clampedX, clampedY) - origin;
+                positions[startIdx] = new Vector2(x, (lo + hi) / 2f) - origin;
+                return;
             }
-            return new PolarLayoutResult { LocalPositions = positions, Widths = fallbackWidths };
+            float step = (hi - lo) / (count - 1);
+            for (int k = 0; k < count; k++)
+                positions[startIdx + k] = new Vector2(x, lo + step * k) - origin;
         }
 
         static Vector2[] ToLocalPositions(float radius, float[] anglesDeg)
@@ -730,14 +839,6 @@ namespace CounterTime.Game.Match
                 positions[i] = new Vector2(radius * Mathf.Cos(rad), radius * Mathf.Sin(rad));
             }
             return positions;
-        }
-
-        static float[] UniformAngles(int n, float arcStartDeg, float arcSpanDeg)
-        {
-            var angles = new float[n];
-            for (int i = 0; i < n; i++)
-                angles[i] = n > 1 ? arcStartDeg + i * (arcSpanDeg / (n - 1)) : arcStartDeg + arcSpanDeg / 2f;
-            return angles;
         }
 
         static string HandLabel(HandTarget t) => t switch
