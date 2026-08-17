@@ -592,6 +592,13 @@ namespace CounterTime.Game.Match
         // 너무 가까우면 트리거 라벨을 가린다. 2026-08-14 밤 9차, 손 스테이지1의
         // "왼손"이 "손" 트리거를 가린 실측 재발견 이후 세이프 영역 검사에 추가.
         const float TriggerHalfWidth = 37f, TriggerHalfHeight = 18f;
+        // 2026-08-17 — 세로 스택 방어선(FallbackStackedLayout, 아래) 전용 안전 구간.
+        // <see cref="BuildFloatingControls"/> 가 네 트리거를 배치할 때 이미 실측으로
+        // 확정해둔 값(ConfirmRow 상단=308 / NarrationLog 하단=792) 그대로 재사용 —
+        // 이 구간 밖(위로는 NarrationLog, 아래로는 ScoreboardRow)은 휠이 열려도 안
+        // 숨는 상시 노출 패널이라, 스택 항목이 거기 놓이면 그 패널의 텍스트와 겹쳐
+        // "글자 깨짐"으로 보인다(실측으로 확인 — 아래 FallbackStackedLayout 주석 참조).
+        const float FloatingSafeBandBottom = 308f, FloatingSafeBandTop = 792f;
 
         /// <see cref="LocalPositions"/> — origin(트리거) 기준 상대 오프셋(anchoredPosition
         /// 에 그대로 쓴다). 대부분의 경로에서 전 항목이 같은 반지름을 공유하지만,
@@ -784,20 +791,41 @@ namespace CounterTime.Game.Match
             return FallbackStackedLayout(origin, labels);
         }
 
+        /// 2026-08-17 재발견 — 세로 스택 밴드가 "캔버스 세로 전체가 비어 있다"고
+        /// 가정했지만 거짓이었다. 좌측 열(트리거가 놓인 x=<see cref="TriggerX"/> 열)에는
+        /// 상시 노출되는 두 불투명 패널이 있다 — <c>NarrationLog</c>(y∈[792,1072],
+        /// 최근 교환 서술·로그 텍스트로 항상 채워져 있음)와 <c>ScoreboardRow</c>
+        /// (y∈[8,252], 점수판 배경). 이 두 패널은 휠이 열려도 안 숨는다(트리거·요약만
+        /// <see cref="OpenWheel"/> 이 숨긴다) — 그래서 밴드가 그 영역까지 뻗으면
+        /// 항목 버튼이 그 패널 "위에" 그려지고, 특히 NarrationLog 는 항상 텍스트가
+        /// 차 있어 항목 라벨과 로그 텍스트가 같은 픽셀에 겹쳐 그려져 "글자가 깨졌다"로
+        /// 보인다(손 스테이지1의 "왼손"이 y=1034~1070, 즉 NarrationLog 내부에 렌더돼
+        /// 로그 텍스트와 겹친 것을 실측으로 확인 — 라벨 문자열 자체는 온전했다, 겹쳐
+        /// 그려진 두 텍스트가 뒤섞여 보였을 뿐). 하체(다리) 축도 같은 경로로 "중립"이
+        /// NarrationLog 에, "수비"가 ScoreboardRow 에 겹치는 것도 함께 확인했다.
+        ///
+        /// 수정: 밴드 상/하한을 캔버스 전체가 아니라 <see cref="FloatingSafeBandBottom"/>/
+        /// <see cref="FloatingSafeBandTop"/>(트리거 네 개를 배치할 때 이미 실측으로 확정해둔
+        /// "두 패널 사이의 진짜 빈 구간", <see cref="BuildFloatingControls"/> 참조)로 좁힌다
+        /// — 이 구간은 NarrationLog·ScoreboardRow 어느 쪽과도 안 겹치는 걸로 이미
+        /// 검증된 값이라 새로 재기 아닌 재사용이다. 다른 세 축의 트리거·요약은 휠이
+        /// 열리는 동안 숨겨지므로(<see cref="OpenWheel"/>) 이 구간 안에 있어도 걱정할
+        /// 대상이 아니다.
+        ///
         /// 세로 스택 방어선 — <see cref="SolvePolarLayout"/> 이 원형 배치를 못 찾았을
         /// 때만 쓴다. 항목을 입력 순서 앞쪽 절반은 트리거 위 밴드에, 뒤쪽 절반은
         /// 트리거 아래 밴드에 나눠 각 밴드 안에서 균등 간격으로 세로로 쌓는다 —
         /// 밴드 자체가 트리거의 세로 범위(±<see cref="TriggerHalfHeight"/>)를 제외하고
         /// 시작하므로 트리거와 겹칠 수 없고(Y 축만으로 이미 분리), 같은 밴드 안
-        /// 항목끼리는 균등 간격이 겹침을 막는다(밴드 폭 ≫ 필요 폭이라 항상 성립 —
-        /// 이 앱의 실제 항목 수(최대 8)에서 밴드 하나당 최대 4개, 각 위상 최소
-        /// 100px 이상 여유가 실측으로 확인됨).
+        /// 항목끼리는 균등 간격이 겹침을 막는다(이 앱의 실제 항목 수(최대 8, 밴드당
+        /// 최대 2~4개)에서 축소된 밴드 안에서도 여유가 남는 것을 실측으로 확인 —
+        /// 아래 검증 참조).
         PolarLayoutResult FallbackStackedLayout(Vector2 origin, string[] labels)
         {
             int n = labels.Length;
             var widths = new float[n];
             for (int i = 0; i < n; i++)
-                widths[i] = Mathf.Clamp(MeasureLabelWidth(labels[i], fontSize) + 18f, PolarMinWidth, PolarMinWidth);
+                widths[i] = Mathf.Clamp(MeasureLabelWidth(labels[i], fontSize) + 18f, PolarMinWidth, PolarMaxWidth);
             float maxHalfW = 0f;
             for (int i = 0; i < n; i++) maxHalfW = Mathf.Max(maxHalfW, widths[i] / 2f);
             float x = Mathf.Clamp(origin.x, SafeMargin + maxHalfW, CanvasRefWidth - SafeMargin - maxHalfW);
@@ -808,9 +836,9 @@ namespace CounterTime.Game.Match
 
             var positions = new Vector2[n];
             StackBand(positions, 0, nStart, x,
-                origin.y + TriggerHalfHeight + halfH, CanvasRefHeight - SafeMargin - halfH, origin);
+                origin.y + TriggerHalfHeight + halfH, FloatingSafeBandTop - halfH, origin);
             StackBand(positions, nStart, nEnd, x,
-                SafeMargin + halfH, origin.y - TriggerHalfHeight - halfH, origin);
+                FloatingSafeBandBottom + halfH, origin.y - TriggerHalfHeight - halfH, origin);
 
             return new PolarLayoutResult { LocalPositions = positions, Widths = widths };
         }
