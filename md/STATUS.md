@@ -2,6 +2,56 @@ STATUS
 
 Update this file every time a session resets. This is the ONLY copy — the root CLAUDE.md pulls it in with `@md/STATUS.md`, so it loads automatically at session start. Do not create a second copy anywhere. Check "Current State" and "Next Up" before starting work.
 
+Current State (last updated: 2026-08-18 2차, 손 스테이지2를 스펙대로 — 대상 3택(소매/가슴깃/틀어잡기) → 정잡기/교차잡기 2단)
+**증상(사용자 스크린샷)**: 손 스테이지2가 좌우 존 명칭이 그대로 드러나는 평면
+목록(오른소매/왼소매/왼가슴/오른가슴/틀어잡기/등싸잡기)으로 구현돼 있었다.
+MATCH_RULES §2b가 명시한 "대상(소매/가슴깃/틀어잡기) 3종 × 정/교차" 2단 흐름이
+UI 에 미반영 — 잡기 개편이 애초에 없애려던 "내 기준/상대 기준 좌우 혼동"이
+화면에 그대로 되살아난 상태였다.
+**수정**: `HandWheelStage`에 `PickGripTier`(대상 3택)→`PickOrientation`(정/교차
+2택) 2단을 넣었다. `GripTier{Sleeve,Lapel,Twist}` enum 신규 + `ResolveGripTarget
+(tier, ownHand, orientation)`이 `GripSystem.IsCrossOrientation`의 side 매핑을
+그대로 뒤집어 구체적인 `HandTarget`(예: LeftSleeve)으로 기계적 환산한다 — 좌우
+존 이름은 이 환산의 출력일 뿐, 화면 어디에도 직접 노출하지 않는다(사용자 지시
+그대로). 교차잡기만 노란 표기(정잡기는 Idle) — 이전처럼 대상마다 개별 판정해
+노란색을 매기던 방식(9차 세션이 하던 방식) 대신, 이 축 자체가 교차 선택지라는
+사실만 표시한다. 견고화·흔들기는 급 개념이 없는 독립 선택지라 스테이지2 목록에
+같이 섞이지만(`HandOptionsRevised`가 이미 계산해둔 조건부 포함을 그대로 재사용
+— `Contains(HandTarget.Solidify/Setup)`로 판별, `LiveAssembler`/Core 무수정),
+고르면 스테이지3 없이 그 자리에서 바로 확정된다(`PickGripStage2`가 `choice is
+GripTier`/`choice is HandTarget`로 분기).
+**요약 표기 통합**: 트리거 아래 요약 텍스트와 확정 로그가 각자 따로 조립하던
+문자열을 `HandChoiceSummary()` 하나로 합쳐 "왼손 · 가슴깃 정잡기" 형식(사용자
+지시 그대로)을 냈다 — `GripTierLabelFor(_hand)`가 null 이 아닐 때(§2b 흐름의
+소매/가슴깃/틀어잡기 대상)만 이 새 형식을 쓰고, 회피·견고화·흔들기·게이트 off
+구식 흐름(같은 HandTarget 값을 그대로 재사용)은 기존 형식을 그대로 유지한다 —
+이 조건이 게이트 off 흐름을 실수로 같이 바꾸지 않게 막는 안전장치다.
+**"등싸잡기"(BackGrab) 조사 결과(사용자 지시 #5, 제거 전 보고)**: 스펙에 없는
+구 체계 잔재가 **아니었다** — MATCH_RULES §2b가 "틀어잡기(뒷깃, 조지아그립)"
+1개 급으로 명명한 것의 반대손 변형이고, `GripSystem`/`MatchEngine`의 핵심 판정
+로직(그립값 계산·존 방어 매핑 등)이 실제로 참조하는 1급 개념이다. 그래서 Core의
+`HandTarget.BackGrab` 자체는 무수정으로 남겼다(`HandLabel`의 BackGrab 매핑도
+이벤트 서술·상태 HUD·게이트 off 흐름에 여전히 쓰여 무수정) — 이번 수정이 없앤
+것은 "등싸잡기"라는 이름을 스테이지2에 **독립 항목으로 직접 노출**하던 것뿐이다,
+새 2단 흐름이 그 개념을 "틀어잡기 + 정/교차"로 정확히 대체한다.
+**Play 실측**: Unity MCP로 실제 씬을 열어 스테이지2(3택)·스테이지3(2택, 교차만
+노랑) 흐름을 확인. 정잡기/교차잡기 양쪽 케이스 모두 실측 — (1) 오른손+가슴깃+
+교차잡기 → 요약 "오른손 · 가슴깃 교차잡기" (2) 왼손+소매+정잡기 → 요약 "왼손 ·
+소매 정잡기". 실제 그립 턴 하나를 제출해(왼손 소매 정잡기) A의 왼손이 그립을
+쥔 상태를 만든 뒤 손 축을 다시 열어 **견고화가 스테이지2에 실제로 나타나는 것**
+과 **클릭 시 스테이지3을 건너뛰고 즉시 확정(휠 닫힘)되는 것**을 확인.
+**배치 불변식 유지**: 스테이지2(5항목: 소매/가슴깃/틀어잡기/견고화/흔들기)·
+스테이지3(2항목: 정잡기/교차잡기) 각각 항목 간 겹침 0·화면 이탈 0·NarrationLog/
+ScoreboardRow 겹침 0·원형 배치(폴백 미발동, `xSpread` 실측으로 확인) 유지 —
+8차 세션(2026-08-18 1차)의 재설계가 이번에도 그대로 작동함을 재확인.
+**검증**: Unity MCP 컴파일 0 에러(Play 진입 전후 재확인). 하니스 `dotnet run --
+check` 292/292 그린(무변화) + 42노드 지문 IDENTICAL(Game/UI 계층만 수정, Core/
+Brain·`LiveAssembler` 무수정). `git status --short`로 `LiveMatchPanel.cs` 1개만
+커밋 대상임을 확인(`Mobile_RPAsset.asset`은 여러 세션에 걸친 에디터 자동
+마이그레이션, 무관해 제외). 커밋 `35c2be1`.
+**남은 판단 사항**: 없음 — 스펙(§2b)이 명시한 흐름을 그대로 구현했고, 좌우 존
+이름 비노출·교차만 노랑·요약 형식 전부 사용자 결정 그대로 반영했다.
+
 Current State (last updated: 2026-08-18, 휠 배치 재설계 — 트리거 킵아웃을 θ=180 원뿔로, 기술 외 전 축이 세로 스택 폴백에 떨어지던 것 수정)
 **증상(사용자 스크린샷 4장)**: 기술 휠(8항목)만 정상 방사형, 나머지(손1/코어/하체)는
 전부 이상 배치 — 손1은 왼손이 화면 최상단으로 튀고 오른손이 트리거에 밀착, 코어는
