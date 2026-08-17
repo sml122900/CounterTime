@@ -1209,23 +1209,30 @@ namespace CounterTime.Game.Match
             string setup = _runner.Config.BalanceGate
                 ? $"  흔들기 {(eng.IsSetupActive(who) ? "유효" : "없음")}"
                 : "";
-            // §2b v4.2 — 손별 그립 상태(대상·정/교차·견고) 양측 + 교차 타이머 잔여.
+            // §2b v4.2 — 손별 그립 상태(부위·정/교차·견고) 양측 + 교차 타이머 잔여.
             // BalanceGate 흔들기 표시줄과 같은 패턴 — 게이트가 꺼져 있으면 이 개념
-            // 자체가 없으므로(§2a 그대로) 아예 안 붙인다.
+            // 자체가 없으므로(§2a 그대로) 아예 안 붙인다. 2026-08-18 — "왼손: 가슴깃
+            // 정잡기" 형식(사용자 지시)으로 재작성, 좌우 존 명칭이 아니라 휠과 동일한
+            // 정잡기/교차잡기 어휘를 쓴다(직전 지시 3항과 같은 원칙). 교차 손은
+            // ShidoYellow 로 강조 — 휠의 노란 표기(교차잡기 버튼)와 일관, TMP 리치
+            // 텍스트로 그 손 조각만 색을 입힌다(BuildOutcome 의 폴백 서술이 이미
+            // 쓰는 <color=#..> 패턴 재사용, 새 메커니즘 아님).
             string gripDetail = _runner.Config.GripRevisionGate
-                ? $"  [{GripHandDetail(eng, who, Hand.Left)} / {GripHandDetail(eng, who, Hand.Right)}]" +
-                  (eng.CrossGripTimerRemaining(who) > 0 ? $" 교차타이머 {eng.CrossGripTimerRemaining(who)}턴" : "")
+                ? $"  {GripHandLine(eng, who, Hand.Left)}  {GripHandLine(eng, who, Hand.Right)}" +
+                  (eng.CrossGripTimerRemaining(who) > 0 ? $"  교차타이머 {eng.CrossGripTimerRemaining(who)}턴" : "")
                 : "";
             return $"{FighterLabel(who)}  체력 {stamina}  그립 {grip:+0;-0;0}  밸런스 {BalanceText(eng, who)}  " +
                    $"왼손 {left} 오른손 {right}{setup}{gripDetail}";
         }
 
-        /// §2b v4.2 — 한 손의 상태를 "대상·정/교차·견고" 한 조각으로. 아무것도 안
-        /// 잡았으면 "—"만.
-        static string GripHandDetail(MatchEngine eng, FighterId who, Hand hand)
+        /// §2b v4.2 — 한 손의 그립 상태를 "왼손: 가슴깃 정잡기 (견고)" 한 줄로.
+        /// 아무것도 안 잡았으면 "왼손: —". 교차 그립이면 줄 전체를 노란색으로 감싼다.
+        string GripHandLine(MatchEngine eng, FighterId who, Hand hand)
         {
+            string sideLabel = hand == Hand.Left ? "왼손" : "오른손";
             var tier = eng.Grip.Held(who, hand);
-            if (tier == GripKind.None) return "—";
+            if (tier == GripKind.None) return $"{sideLabel}: —";
+
             string target = tier switch
             {
                 GripKind.Normal => "소매",
@@ -1234,9 +1241,11 @@ namespace CounterTime.Game.Match
                 GripKind.Dominant => "전환",   // §2a 구식 경로 표시용(게이트 off일 땐 이 줄 자체가 안 뜬다)
                 _ => "?",
             };
-            string orientation = eng.Grip.IsCrossOrientation(who, hand) ? "교차" : "정";
-            string solid = eng.Grip.IsSolid(who, hand) ? "·견고" : "";
-            return $"{target}·{orientation}{solid}";
+            bool cross = eng.Grip.IsCrossOrientation(who, hand);
+            string orientation = cross ? "교차잡기" : "정잡기";
+            string solid = eng.Grip.IsSolid(who, hand) ? " (견고)" : "";
+            string line = $"{sideLabel}: {target} {orientation}{solid}";
+            return cross ? $"<color=#{ColorUtility.ToHtmlStringRGB(ShidoYellow)}>{line}</color>" : line;
         }
 
         /// §S — 밸런스는 확정 수치라 체력·그립과 같은 급으로 상시 노출한다(예비동작과
