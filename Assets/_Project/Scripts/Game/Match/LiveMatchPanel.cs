@@ -83,11 +83,17 @@ namespace CounterTime.Game.Match
         // 스크린샷으로 "회피"가 화면 왼쪽 끝에서 잘린다는 신고를 받아 확인한 결과,
         // 지난 세션이 받아들인 22px 클립이 실제 체감상 불가 판정 — 겹침 0·화면
         // 이탈 0을 항목 수와 무관하게 보장하는 실측 기반 배치(아래 §"극좌표 배치")
-        // 로 교체했다. 손 축 스테이지1도 이제 다른 모든 축과 같은
-        // <see cref="RebuildAxisOptions{T}"/> 를 그대로 쓴다(arcStartDeg=90 만
-        // 다르게 줘서 A 반대편 안전 반원을 유지) — 고정 각도표 자체가 필요 없어졌다:
-        // 새 알고리즘이 항목이 3개든(지금) 4개든(뜯기 2차 추가 후) 실측 라벨 폭으로
-        // 매번 다시 계산하므로 "항목 수 무관 불변식"이 저절로 성립한다.
+        // 로 교체했다. 손 축 스테이지1도 이제 다른 모든 축과 완전히 같은
+        // <see cref="RebuildAxisOptions{T}"/> 를 그대로 쓴다 — 고정 각도표 자체가
+        // 필요 없어졌다: 새 알고리즘이 항목이 3개든(지금) 4개든(뜯기 2차 추가 후)
+        // 실측 라벨 폭으로 매번 다시 계산하므로 "항목 수 무관 불변식"이 저절로
+        // 성립한다. 2026-08-18 — 전용 아크(옛 arcStartDeg=90, "A 반대편 안전 반원")
+        // 특례도 제거했다: A 겹침은 이미 딤 처리로 전 축 공통 허용된 상태라 손
+        // 스테이지1만 따로 A 를 피할 이유가 없었고, 오히려 이 특례가 트리거의
+        // 화면 왼쪽 끝 방향(θ=180)을 아크 한가운데 놓아 세이프 마진과 정면충돌하는
+        // 원인이었다(9차 세션이 결국 이 축만 세로 스택으로 떨어뜨린 이유). 지금은
+        // 모든 축이 <see cref="SolvePolarLayout"/> 하나가 관리하는 "θ=180 원뿔만
+        // 비우는 원형 배치"를 공유한다.
         const float HandTopBaseRadius = 40f;
         static string HandTopLabel(HandTopChoice c) => c switch
         {
@@ -341,7 +347,7 @@ namespace CounterTime.Game.Match
                         RebuildAxisOptions(_handDropdown, HandTopBaseRadius,
                             new[] { HandTopChoice.Right, HandTopChoice.Left, HandTopChoice.Evade },
                             HandTopLabel, o => false, o => PickHandTop((HandTopChoice)o),
-                            closeOnPick: false, arcStartDeg: 90f);
+                            closeOnPick: false);
                         break;
 
                     case HandWheelStage.PickTarget:
@@ -438,8 +444,8 @@ namespace CounterTime.Game.Match
 
         /// §2b v4.2 — 손 축 스테이지1 선택 처리. closeOnPick 개념은 없다 — 이 메서드
         /// 자체가 CloseAllWheels 를 안 부르므로 자연히 안 닫힌다(스테이지2로 이어짐,
-        /// 기존 stage1→stage2 관행과 동일). 배치 자체는 이제 다른 모든 축과 같은
-        /// <see cref="RebuildAxisOptions{T}"/>(위 호출부, arcStartDeg=90)가 맡는다.
+        /// 기존 stage1→stage2 관행과 동일). 배치 자체는 이제 다른 모든 축과 완전히
+        /// 같은 <see cref="RebuildAxisOptions{T}"/>(위 호출부)가 맡는다.
         void PickHandTop(HandTopChoice choice)
         {
             if (choice == HandTopChoice.Evade)
@@ -519,9 +525,9 @@ namespace CounterTime.Game.Match
             _confirmButton.GetComponent<Image>().color = allChosen ? ShidoYellow : Idle;
         }
 
-        /// 항목을 반지름 <paramref name="radius"/> 짜리 부채꼴(기본 −90°~+90°, 트리거
-        /// 중심 기준. <paramref name="arcStartDeg"/> 로 다른 아크도 쓸 수 있다 — 손 축
-        /// 스테이지1은 90 을 줘서 A 반대편 안전 반원을 쓴다)에 배치한다.
+        /// 항목을 반지름 <paramref name="radius"/> 짜리 원(트리거 중심)에 배치한다 —
+        /// 트리거 자신이 놓인 방향(θ=180, 화면 왼쪽 끝)만 원뿔 모양으로 비우고
+        /// 나머지 거의 전체 원을 쓴다. 자세한 알고리즘은 <see cref="SolvePolarLayout"/>.
         ///
         /// 2026-08-14 밤 8차 — 항목 수 기준 균등분배(옛 <c>-90+idx*(180/(n-1))</c>)를
         /// 실측 라벨 폭 기반 배치로 교체했다. 균등분배는 항목마다 라벨 길이가 달라도
@@ -545,7 +551,7 @@ namespace CounterTime.Game.Match
         void RebuildAxisOptions<T>(Transform dropdown, float radius, IReadOnlyList<T> options,
                                    System.Func<T, string> label, System.Func<object, bool> isSelected,
                                    System.Action<object> onPick, bool closeOnPick = true,
-                                   System.Func<T, Color?> tintOverride = null, float arcStartDeg = -90f)
+                                   System.Func<T, Color?> tintOverride = null)
         {
             for (int i = dropdown.childCount - 1; i >= 0; i--)
                 Destroy(dropdown.GetChild(i).gameObject);   // 확정 전 재구성뿐이라 즉시 파괴로 충분
@@ -559,7 +565,7 @@ namespace CounterTime.Game.Match
             // 전체를 덮는 anchorMin=0/anchorMax=1 이라, 그 anchoredPosition 이 곧 캔버스
             // 절대좌표(화면 픽셀, 좌하단 원점) — 세이프 영역 검사에 그대로 쓸 수 있다.
             var origin = ((RectTransform)dropdown.parent).anchoredPosition;
-            var layout = SolvePolarLayout(origin, radius, arcStartDeg, 180f, labels);
+            var layout = SolvePolarLayout(origin, radius, labels);
 
             for (int idx = 0; idx < n; idx++)
             {
@@ -627,73 +633,73 @@ namespace CounterTime.Game.Match
             return _measureScratch.GetPreferredValues(text, 10000f, 0f).x;
         }
 
-        /// 반지름 <paramref name="radius"/>에서 라벨 폭 <paramref name="widths"/>을
-        /// 겹치지 않게(항목 간 최소 <see cref="PolarGapDeg"/> 여유 포함) 아크
-        /// [<paramref name="arcStartDeg"/>, +<paramref name="arcSpanDeg"/>] 안에 순서대로
-        /// 채워 넣는다. 폭을 반지름에서의 반각으로 정확히 환산(짧은 각도 근사 아님,
-        /// atan2)하므로 반지름이 작아도 정확하다. 다 안 들어가면 null.
+        /// 2026-08-18 재설계 — 트리거 킵아웃을 "이 축은 반원만 쓴다"는 사전 제약이
+        /// 아니라 원 위의 <b>θ=180(화면 왼쪽 끝, 트리거 자신이 놓인 방향) 부근 금지
+        /// 원뿔</b>로 명시한다. 옛 <c>TryPackAngles</c>(9차 세션, 이제 삭제)는
+        /// 아크를 항상 −90°~+90° 반원(또는 손 스테이지1만 90°~270°)으로 미리 고정해두고
+        /// 그 안에서 "양 끝 앵커링"으로 남는 여유를 중앙에 몰았다 — 손 스테이지1처럼
+        /// 아크의 중앙이 θ=180 인 축에서는 이게 우연히 안전했지만, 나머지 축(중앙이
+        /// θ=0, 가장 안전한 정면 방향)에서는 항목을 하필 가장 위험한 양끝(±90°, 트리거
+        /// 바로 옆)에 몰아넣고 가장 안전한 정면을 텅 비워 "두 뭉치로 갈라진" 모양이
+        /// 됐다(2026-08-18 재신고 — 기술 휠만 정상, 나머지는 트리거에 밀착되거나 화면
+        /// 끝으로 튐). 이번엔 축마다 다른 아크를 안 고르고, <b>모든 축이 같은 규칙</b>
+        /// (θ=180 원뿔만 비우고 나머지 거의 전체 원을 슬랙 균등분배로 채운다)을 쓴다 —
+        /// 원뿔 자체가 이미 위험 방향을 피하므로 8차 세션의 원안(여유를 모든 간격에
+        /// 고르게 분배, 중앙을 특별 취급 안 함)으로 되돌아가도 안전하다.
         ///
-        /// 2026-08-14 밤 9차 — 옛 방식(남는 여유를 전부 아크 양끝 여백으로 몰아 항목을
-        /// 중앙 한 곳에 뭉치는 것)은 폭 합이 아크보다 훨씬 작은 소항목 축(손 스테이지1의
-        /// 3개: 오른손/왼손/회피)을 아크 중앙(θ=180)에 뭉치게 했다 — 실측 결과 그 중앙
-        /// 방향이 바로 <b>트리거 자신이 놓인 원점 방향</b>이라(반지름을 아무리 늘려도
-        /// 화면 왼쪽 끝 세이프 마진이 반지름을 17px 정도로 강제 — 트리거 반폭 37px보다
-        /// 작다), 중앙에 모인 항목은 반지름을 얼마로 잡든 트리거와 겹칠 수밖에 없었다
-        /// (기하학적으로 회피 불가능한 충돌 — 아래 <see cref="AllWithinSafeArea"/> 의
-        /// 트리거 검사가 이걸 실제로 걸러낸다).
-        ///
-        /// 그래서 "남는 여유를 사이 간격에 분배"가 아니라 <b>아크 양 끝에서 안쪽으로
-        /// 각각 절반씩 앵커링</b>하는 방식으로 바꿨다 — 앞 절반(입력 순서 앞쪽,
-        /// ⌈n/2⌉개)은 <paramref name="arcStartDeg"/> 에서 시작해 안쪽으로, 뒤 절반은
-        /// 반대쪽 끝에서 시작해 안쪽으로 촘촘히 채운다. 항목이 적어 여유가 많으면
-        /// 그 여유가 자동으로 두 절반 사이(아크 중앙, 손 스테이지1이라면 트리거 방향)
-        /// 에 빈 공간으로 남는다 — 정확히 위험한 방향을 비워두는 효과. 항목이 많아
-        /// 폭 합이 아크를 거의 채우는 기술 휠(8개, 이 축은 아크가 A/열린 캔버스 쪽을
-        /// 향해 있어 중앙이 애초에 안전하다)에서는 두 절반이 맞닿아 옛 결과와 사실상
-        /// 같다.
-        static float[] TryPackAngles(float[] widths, float radius, float arcStartDeg, float arcSpanDeg)
+        /// <paramref name="keepoutHalfDeg"/> 는 이 반지름에서 θ=180 부근 얼마나 넓게
+        /// 비워야 화면 왼쪽 끝 세이프 마진을 넘지 않는지 <see cref="ComputeKeepoutHalfDeg"/>
+        /// 가 미리 계산해 넘겨준다 — 이 함수는 그 값을 그대로 신뢰하고 각도만 채운다.
+        /// 반지름이 작아도 정확하도록 폭을 반각으로 atan2 환산한다. 다 안 들어가면 null.
+        static float[] TryPackAroundKeepout(float[] widths, float radius, float keepoutHalfDeg)
         {
             int n = widths.Length;
             var halfAnglesDeg = new float[n];
             for (int i = 0; i < n; i++)
                 halfAnglesDeg[i] = Mathf.Atan2(widths[i] / 2f, radius) * Mathf.Rad2Deg;
 
-            if (n == 1)
-            {
-                if (halfAnglesDeg[0] * 2f > arcSpanDeg) return null;
-                return new[] { arcStartDeg + arcSpanDeg / 2f };
-            }
+            // 항목 하나뿐이면 원뿔과 정반대인 θ=0(가장 안전한 정면)에 그대로 둔다.
+            if (n == 1) return new[] { 0f };
 
-            int nStart = (n + 1) / 2;   // 앞쪽이 홀수 나머지를 가져간다(무의미한 임의값)
-            float startExtent = PolarGapDeg * Mathf.Max(0, nStart - 1);
-            for (int i = 0; i < nStart; i++) startExtent += halfAnglesDeg[i] * 2f;
+            float arcStartDeg = 180f + keepoutHalfDeg;   // 원뿔 한쪽 경계(아래쪽)에서 출발
+            float arcSpanDeg = 360f - 2f * keepoutHalfDeg;   // θ=180 원뿔만 뺀 나머지 전체
+            if (arcSpanDeg <= 0f) return null;
 
-            int nEnd = n - nStart;
-            float endExtent = PolarGapDeg * Mathf.Max(0, nEnd - 1);
-            for (int i = nStart; i < n; i++) endExtent += halfAnglesDeg[i] * 2f;
+            float needed = PolarGapDeg * (n - 1);
+            for (int i = 0; i < n; i++) needed += halfAnglesDeg[i] * 2f;
+            if (needed > arcSpanDeg) return null;
 
-            if (startExtent > arcSpanDeg || endExtent > arcSpanDeg) return null;
-
-            float arcEndDeg = arcStartDeg + arcSpanDeg;
-            if (arcStartDeg + startExtent > arcEndDeg - endExtent) return null;   // 두 절반이 겹친다
+            // 8차 세션 원안대로 슬랙을 모든 간격에 고르게 나눈다 — 정면(θ=0)이 특별
+            // 취급 없이 자연스럽게 채워지므로, 항목이 적을 때도 "두 뭉치+빈 중앙"이
+            // 아니라 원뿔 한쪽에서 반대쪽까지 고르게 이어진 부채꼴이 나온다.
+            float gapBonus = (arcSpanDeg - needed) / (n - 1);
 
             var angles = new float[n];
             float cursor = arcStartDeg;
-            for (int i = 0; i < nStart; i++)
+            for (int i = 0; i < n; i++)
             {
                 cursor += halfAnglesDeg[i];
                 angles[i] = cursor;
-                cursor += halfAnglesDeg[i] + PolarGapDeg;
-            }
-
-            cursor = arcEndDeg;
-            for (int i = n - 1; i >= nStart; i--)
-            {
-                cursor -= halfAnglesDeg[i];
-                angles[i] = cursor;
-                cursor -= halfAnglesDeg[i] + PolarGapDeg;
+                cursor += halfAnglesDeg[i] + PolarGapDeg + gapBonus;
             }
             return angles;
+        }
+
+        /// <paramref name="radius"/>에서 θ=180 부근 얼마나 넓게 비워야 화면 왼쪽 끝
+        /// 세이프 마진(<see cref="SafeMargin"/>)을 넘지 않는지 계산한다. 트리거 중심
+        /// (<paramref name="originX"/>)에서 왼쪽으로 허용된 최대 거리는
+        /// <c>maxLeftReach = originX − SafeMargin − maxHalfWidth</c>(항목 중 가장 넓은
+        /// 것 기준 — 좁은 항목이 원뿔 경계 쪽에 배정돼도 안전하도록 보수적으로 잡는다).
+        /// 위험 조건은 <c>radius·cosθ &lt; −maxLeftReach</c> — 이 경계각 θᵦ 를 역코사인으로
+        /// 구하면 원뿔 반각은 <c>180−θᵦ</c>. maxLeftReach 가 음수(항목이 원점만으로도
+        /// 이미 세이프 마진을 넘길 만큼 넓음)여도 식은 그대로 성립(θᵦ 가 90° 밑으로
+        /// 내려가 원뿔이 반원보다 넓어질 뿐) — 별도 분기 불필요, Clamp 로 정의역만 보장.
+        static float ComputeKeepoutHalfDeg(float originX, float radius, float maxHalfWidth)
+        {
+            float maxLeftReach = originX - SafeMargin - maxHalfWidth;
+            float cosBoundary = Mathf.Clamp(-maxLeftReach / radius, -1f, 1f);
+            float thetaB = Mathf.Acos(cosBoundary) * Mathf.Rad2Deg;
+            return 180f - thetaB;
         }
 
         /// 2026-08-14 밤 9차 재발견 — 각도 간격(<see cref="PolarGapDeg"/>)만으로는 인접
@@ -735,27 +741,30 @@ namespace CounterTime.Game.Match
             return true;
         }
 
-        /// §2b v4.2 후속(2026-08-14 밤 8차) — 실측 기반 극좌표 배치의 핵심.
-        /// 우선순위 고정: (1) 화면 세이프 영역 이탈 0(절대 원칙, 손 축 스테이지1의
-        /// "회피" 클립 신고로 확정) (2) 항목 간 겹침 0(라벨 폭을 줄여서라도 지킨다)
-        /// (3) 그 안에서 최대한 읽기 좋은 폭.
+        /// §2b v4.2 후속(2026-08-14 밤 8차, 2026-08-18 재설계) — 실측 기반 극좌표
+        /// 배치의 핵심. 우선순위 고정: (1) 화면 세이프 영역 이탈 0(절대 원칙) (2) 항목
+        /// 간(트리거 포함) 겹침 0(라벨 폭을 줄여서라도 지킨다) (3) 방사형으로 보일 것
+        /// (트리거 방향 θ=180 원뿔만 비우고 나머지는 고르게 채운다, 폴백은 최후 수단)
+        /// (4) 그 안에서 최대한 읽기 좋은 폭.
         ///
         /// 알고리즘: 라벨 폭 상한을 넓은 값에서 좁은 값으로 단계적으로 낮춰가며(폭이
         /// 좁아지면 TMP autosize 가 폰트를 자동으로 줄인다 — MakeText 가 이미
         /// enableAutoSizing 을 켜둔다, 새로 켜는 게 아니다), 각 상한에서 반지름을
-        /// <paramref name="baseRadius"/> 부터 키워가며 "각도가 다 들어가는 첫 반지름"을
-        /// 찾고, 그 반지름이 세이프 영역 안이면 채택한다. 세이프 영역을 벗어나면(각도는
-        /// 됐지만 화면 밖) 반지름을 더 키워도 더 벗어날 뿐이므로 즉시 다음(더 좁은)
-        /// 폭 상한으로 넘어간다 — 반지름 확대와 폭 축소를 번갈지 않고 폭을 먼저
-        /// 확정하는 이유다(반지름 확대는 "각도 겹침"엔 약이지만 "화면 이탈"엔 독이라
-        /// 동시에 최적화할 수 없다).
+        /// <paramref name="baseRadius"/> 부터 키워간다. 반지름마다 <see cref="ComputeKeepoutHalfDeg"/>
+        /// 로 그 반지름에서 필요한 θ=180 원뿔 폭을 다시 계산하고(반지름이 커질수록
+        /// 원뿔도 넓어진다 — 고정 아님), <see cref="TryPackAroundKeepout"/> 로 그 원뿔만
+        /// 뺀 나머지 원에 항목을 채워본다. 각도가 나오면 <see cref="AllWithinSafeArea"/>
+        /// 로 최종 검증(트리거 근접 등 원뿔 계산이 못 잡는 잔여 위험도 여기서 걸린다) —
+        /// 통과하면 채택, 실패하면 반지름을 계속 키운다(원뿔 모델에서는 반지름이 커져도
+        /// 항상 나빠지기만 하는 게 아니라서 — 트리거 자신과의 근접 실패는 반지름이
+        /// 커지면 오히려 풀린다 — 9차 세션의 "실패하면 즉시 다음 폭으로" 단축은 더 이상
+        /// 안전하지 않아 걷어냈다).
         ///
-        /// 최소 폭에서도 못 맞추는 극단적 경우(마지막 방어선) — 최소 폭 그대로 최대
-        /// 반지름을 강제하고, 그래도 남는 개별 이탈은 항목별로 안쪽으로 당겨 세이프
-        /// 영역만은 반드시 지킨다(겹침이 아주 드물게 남을 수 있는 유일한 경로 —
-        /// 이 앱의 실제 항목 수(최대 8)에서는 실측상 도달하지 않았다, 아래 검증 참조).
-        PolarLayoutResult SolvePolarLayout(Vector2 origin, float baseRadius, float arcStartDeg, float arcSpanDeg,
-                                            string[] labels)
+        /// 최소 폭 · 최대 반지름에서도 원 위에 못 앉히는 극단적 경우에만 최후 수단으로
+        /// <see cref="FallbackStackedLayout"/>(세로 스택)로 넘어간다 — 이 경로가 실제로
+        /// 밟히면 방사형으로 안 보이므로, 밟히는지 자체를 Play 실측으로 확인해야 한다
+        /// (2026-08-18 재설계의 목적이 바로 이 경로를 정상 화면에서 없애는 것).
+        PolarLayoutResult SolvePolarLayout(Vector2 origin, float baseRadius, string[] labels)
         {
             int n = labels.Length;
             const float maxRadius = 500f;
@@ -763,31 +772,25 @@ namespace CounterTime.Game.Match
             for (float widthCap = PolarMaxWidth; widthCap >= PolarMinWidth; widthCap -= 10f)
             {
                 var widths = new float[n];
+                float maxHalfWidth = 0f;
                 for (int i = 0; i < n; i++)
+                {
                     widths[i] = Mathf.Clamp(MeasureLabelWidth(labels[i], fontSize) + 18f, PolarMinWidth, widthCap);
+                    maxHalfWidth = Mathf.Max(maxHalfWidth, widths[i] / 2f);
+                }
 
                 for (float radius = baseRadius; radius <= maxRadius; radius *= 1.08f)
                 {
-                    var angles = TryPackAngles(widths, radius, arcStartDeg, arcSpanDeg);
+                    float keepoutHalfDeg = ComputeKeepoutHalfDeg(origin.x, radius, maxHalfWidth);
+                    var angles = TryPackAroundKeepout(widths, radius, keepoutHalfDeg);
                     if (angles == null) continue;
                     if (AllWithinSafeArea(origin, radius, angles, widths))
                         return new PolarLayoutResult { LocalPositions = ToLocalPositions(radius, angles), Widths = widths };
-                    break;   // 각도는 됐지만 화면 밖 — 반지름을 더 키워도 소용없다
                 }
             }
 
-            // 마지막 방어선 — 원형 부채꼴로는 못 맞춘 극단적 경우. 2026-08-14 밤 9차
-            // 재발견: "실측상 도달하지 않는다"던 옛 가정이 틀렸다 — 손 스테이지1
-            // (TriggerX=55, 화면 왼쪽 끝까지 45px뿐)은 실제로 이 경로에 거의 항상
-            // 떨어진다(반지름을 조금만 키워도 θ=90/270 에서 몇 도만 벗어나도 왼쪽
-            // 세이프 마진을 넘는다 — 실측·계산으로 확인). 옛 방어선은 "이상적인
-            // 각도 위치를 구하고 항목마다 개별로 화면 안쪽으로 당긴다"였는데, 그
-            // 개별 클램프가 트리거는커녕 항목끼리도 서로 안 본다 — 여러 항목이 같은
-            // 클램프 목표(예: 세이프 마진에 붙은 x)로 동시에 밀리면 겹친다(이번에
-            // 실측으로 확인된 바로 그 버그). 원형을 포기하고 트리거 위/아래 두 세로
-            // 밴드에 항목을 나눠 쌓는 방식으로 교체했다 — 세로 방향은 캔버스가
-            // 넉넉해서(1080px) 겹침 없이 흩뿌릴 공간이 항상 있고, 트리거 자신의 세로
-            // 밴드를 밴드 경계에서 아예 빼뒀으니 트리거와도 구조적으로 안 겹친다.
+            // 마지막 방어선 — 원형으로는 못 맞춘 진짜 극단적 경우에만(2026-08-18 재설계
+            // 이후 정상 화면에서는 도달하지 않아야 한다 — Play 실측으로 확인할 것).
             return FallbackStackedLayout(origin, labels);
         }
 
