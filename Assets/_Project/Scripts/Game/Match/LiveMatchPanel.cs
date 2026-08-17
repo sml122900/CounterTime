@@ -72,11 +72,27 @@ namespace CounterTime.Game.Match
         // 종착점은 4항목(오른손/왼손/회피/뜯기[2차 예약, 숨김)이라 손 자체가
         // 아니라 "무엇을 할지" 최상위 선택이 됐다(회피가 손 하나가 아니라 양손을
         // 동시에 쓰는 별도 개념이라 §A.1의 손 목록 안에 못 넣는다 — IMPACT_grip-
-        // revision.md 참조). PickHandOrEvade→(PickTarget | PickEvadeZoneLeft→
-        // PickEvadeZoneRight) 순서.
-        enum HandWheelStage { PickHandOrEvade, PickTarget, PickEvadeZoneLeft, PickEvadeZoneRight }
+        // revision.md 참조).
+        //
+        // 2026-08-18 — PickTarget(대상 6종 평면 목록)을 PickGripTier(대상 3종)→
+        // PickOrientation(정/교차 2종)으로 쪼갰다. MATCH_RULES §2b 가 "소매/가슴깃/
+        // 틀어잡기 3종 × 정/교차"라고 명시한 그 2단 구조를 그대로 따른 것 — 이전
+        // 구현은 이 6개를 좌우 존 이름이 그대로 드러나는 평면 목록으로 냈는데, 그게
+        // 애초에 잡기 개편이 없애려던 "내 기준/상대 기준 좌우 혼동"을 화면에 그대로
+        // 되살렸다(사용자 신고). PickHandOrEvade→(PickGripTier→PickOrientation |
+        // PickEvadeZoneLeft→PickEvadeZoneRight) 순서.
+        enum HandWheelStage { PickHandOrEvade, PickGripTier, PickOrientation, PickEvadeZoneLeft, PickEvadeZoneRight }
         HandWheelStage _handStage = HandWheelStage.PickHandOrEvade;
         DefenseZone _evadeZoneLeft, _evadeZoneRight;
+
+        // 2026-08-18 — MATCH_RULES §2b "대상 3종"(소매/가슴깃/틀어잡기). 스테이지2가
+        // 이 중 하나를 고르면 스테이지3(정/교차)로 넘어가고, 그때 비로소
+        // <see cref="ResolveGripTarget"/> 이 구체적인 <see cref="HandTarget"/>(예:
+        // LeftSleeve)으로 기계적 환산한다 — 좌우 존 이름은 그 환산의 출력일 뿐,
+        // 화면 어디에도 직접 노출하지 않는다(사용자 지시).
+        enum GripTier { Sleeve, Lapel, Twist }
+        GripTier _pendingGripTier;
+        enum GripOrientation { Mirror, Cross }
 
         enum HandTopChoice { Right, Left, Evade, Tear }
         // 2026-08-14 밤 8차 — 고정 각도표(95°/180°/265°, 반지름 40) 폐기. 실플레이
@@ -300,6 +316,7 @@ namespace CounterTime.Game.Match
             _pendingOwnHand = Hand.Right;
             _handStageTarget = false;
             _handStage = HandWheelStage.PickHandOrEvade;
+            _pendingGripTier = default;
             _evadeZoneLeft = _evadeZoneRight = default;
             _handChosen = _coreChosen = _legsChosen = false;
             _techniqueId = null;
@@ -329,6 +346,48 @@ namespace CounterTime.Game.Match
         static readonly Hand[] HandSideOptions = { Hand.Left, Hand.Right };
         static string HandSideLabel(Hand h) => h == Hand.Left ? "왼손" : "오른손";
 
+        // 2026-08-18 — MATCH_RULES §2b "대상 3종 × 정/교차" 2단 선택의 라벨·환산.
+        static string GripTierLabelOf(GripTier t) => t switch
+        {
+            GripTier.Sleeve => "소매",
+            GripTier.Lapel => "가슴깃",
+            GripTier.Twist => "틀어잡기",
+            _ => "—",
+        };
+
+        static string GripOrientationLabel(GripOrientation o) =>
+            o == GripOrientation.Cross ? "교차잡기" : "정잡기";
+
+        /// <paramref name="tier"/>+<paramref name="ownHand"/>+<paramref name="orientation"/>
+        /// → 구체적인 <see cref="HandTarget"/>(예: LeftSleeve). <see cref="CounterTime.
+        /// Core.GripSystem.IsCrossOrientation(Hand,HandTarget)"/> 의 side 매핑을 그대로
+        /// 뒤집어 쓴다 — 정잡기(내 오른손→상대 왼쪽) = mirror, 교차잡기(같은측) = cross
+        /// (§2b 원문 그대로, GripSystem 의 static 헬퍼가 이미 검증해둔 매핑).
+        /// GripSystem.Other 는 private 라 못 재사용한다 — 이 파일의 다른 작은 매핑들
+        /// (예: HandLabel)과 같은 이유로 한 줄 중복을 그대로 둔다.
+        static HandTarget ResolveGripTarget(GripTier tier, Hand ownHand, GripOrientation orientation)
+        {
+            bool cross = orientation == GripOrientation.Cross;
+            Hand targetSide = cross ? ownHand : (ownHand == Hand.Left ? Hand.Right : Hand.Left);
+            return tier switch
+            {
+                GripTier.Sleeve => targetSide == Hand.Right ? HandTarget.RightSleeve : HandTarget.LeftSleeve,
+                GripTier.Lapel => targetSide == Hand.Right ? HandTarget.RightLapel : HandTarget.LeftLapel,
+                GripTier.Twist => targetSide == Hand.Right ? HandTarget.TwistGrip : HandTarget.BackGrab,
+                _ => HandTarget.None,
+            };
+        }
+
+        /// 역방향 — 이미 확정된 <see cref="HandTarget"/> 에서 요약 표기용 대상 급 이름을
+        /// 되짚는다(§2b 흐름 전용, 견고화·흔들기·회피는 null — 그쪽은 급 개념이 없다).
+        static string GripTierLabelFor(HandTarget t) => t switch
+        {
+            HandTarget.RightSleeve or HandTarget.LeftSleeve => "소매",
+            HandTarget.RightLapel or HandTarget.LeftLapel => "가슴깃",
+            HandTarget.TwistGrip or HandTarget.BackGrab => "틀어잡기",
+            _ => null,
+        };
+
         void RebuildStandingColumns()
         {
             // 손 축은 2단 선택(§A.1, v4.0) — 스테이지1(손 고르기)은 고른 즉시 닫지 않고
@@ -350,18 +409,34 @@ namespace CounterTime.Game.Match
                             closeOnPick: false);
                         break;
 
-                    case HandWheelStage.PickTarget:
-                        // §2b — 대상 목록은 기존 반원 공식(HandRadius=130) 그대로 쓴다.
-                        // 안전 아크 재배치는 스테이지1 전용(사용자 지시 "손 축 스테이지1에
-                        // 한해"). 교차 방향 대상은 노란 표기(사용자 지시) — Idle/Selected
-                        // 2색 체계 위에 tintOverride 로 얹는다, 새 색 상수 없이 기존
-                        // ShidoYellow 재사용.
-                        RebuildAxisOptions(_handDropdown, HandRadius, _runner.A.HandOptionsRevised(_pendingOwnHand),
-                            HandLabel, o => _hand.Equals(o),
-                            o => { _hand = (HandTarget)o; _ownHand = _pendingOwnHand; _handChosen = true;
+                    case HandWheelStage.PickGripTier:
+                        // 2026-08-18 — §2b "대상 3종"만 낸다(좌우 존 이름은 화면에 안
+                        // 낸다, 사용자 지시). 견고화·흔들기는 급 개념이 없는 독립 선택지라
+                        // 같은 목록에 섞이지만, 고르면 스테이지3(정/교차)으로 안 넘어가고
+                        // 그 자리에서 바로 확정된다 — 급 선택(closeOnPick:false, 아래
+                        // 목록 전체에 적용)과 독립 선택(즉시 닫힘)이 한 목록에 섞여 있어
+                        // RebuildAxisOptions 의 균일한 closeOnPick 하나로는 표현이 안 돼,
+                        // PickGripStage2 가 독립 선택 분기에서 직접 CloseAllWheels 를 부른다.
+                        var revisedOptions = _runner.A.HandOptionsRevised(_pendingOwnHand);
+                        var stage2Items = new List<object> { GripTier.Sleeve, GripTier.Lapel, GripTier.Twist };
+                        if (revisedOptions.Contains(HandTarget.Solidify)) stage2Items.Add(HandTarget.Solidify);
+                        if (revisedOptions.Contains(HandTarget.Setup)) stage2Items.Add(HandTarget.Setup);
+                        RebuildAxisOptions(_handDropdown, HandRadius, stage2Items,
+                            o => o is GripTier gt ? GripTierLabelOf(gt) : HandLabel((HandTarget)o),
+                            o => false, PickGripStage2, closeOnPick: false);
+                        break;
+
+                    case HandWheelStage.PickOrientation:
+                        // 정/교차 2택 — 교차만 노란 표기(사용자 지시, "존별로 노랑"이던
+                        // 옛 방식 대신 이 축 자체가 교차인지만 표시). ResolveGripTarget 이
+                        // 여기서 비로소 구체적인 HandTarget(예: LeftSleeve)으로 환산한다.
+                        RebuildAxisOptions(_handDropdown, HandSideRadius,
+                            new[] { GripOrientation.Mirror, GripOrientation.Cross },
+                            GripOrientationLabel, o => false,
+                            o => { _hand = ResolveGripTarget(_pendingGripTier, _pendingOwnHand, (GripOrientation)o);
+                                   _ownHand = _pendingOwnHand; _handChosen = true;
                                    RebuildStandingColumns(); RefreshExposure(); RefreshConfirmButton(); },
-                            tintOverride: t => CounterTime.Core.GripSystem.IsCrossOrientation(_pendingOwnHand, t)
-                                ? (Color?)ShidoYellow : null);
+                            tintOverride: o => o == GripOrientation.Cross ? (Color?)ShidoYellow : null);
                         break;
 
                     case HandWheelStage.PickEvadeZoneLeft:
@@ -433,13 +508,29 @@ namespace CounterTime.Game.Match
             // 반영한다(2026-08-12 방사형 개편 — 트리거 자체는 축 이름만 표시하는
             // 작은 버튼이라 선택 내용은 별도 줄로 뺐다. 여전히 "닫힌 상태에서도
             // 트리거 쪽만 보면 축이 다 읽힌다"는 요구는 만족한다).
-            _handSummary.text = !_handChosen ? "—"
-                : _hand == HandTarget.Evade && _runner.A.RevisedFlowActive
-                    ? $"회피 · {DefenseZoneLabel(_evadeZoneLeft)}/{DefenseZoneLabel(_evadeZoneRight)}"
-                    : $"{HandSideLabel(_ownHand)} · {HandLabel(_hand)}";
+            _handSummary.text = !_handChosen ? "—" : HandChoiceSummary();
             _coreSummary.text = CoreLabel(_core);
             _legsSummary.text = LegsLabel(_legs);
             _techniqueSummary.text = _techniqueChosen ? TechniqueRegistry.Get(_techniqueId).DisplayName : "—";
+        }
+
+        /// 손 축 확정 표기 — 요약 텍스트·확정 로그가 공유한다(출처 하나, 2026-08-18
+        /// 사용자 지시 "왼손 · 가슴깃 정잡기" 형식). §2b 흐름의 소매/가슴깃/틀어잡기
+        /// 대상만 급+정/교차 형식을 쓰고(<see cref="GripTierLabelFor"/> 가 null 이 아닐
+        /// 때만), 회피·견고화·흔들기·게이트 off 구식 흐름은 기존 형식 그대로 — 이
+        /// 조건이 게이트 off 흐름(같은 HandTarget 값들을 그대로 재사용)을 실수로
+        /// 같이 바꾸지 않게 막는다.
+        string HandChoiceSummary()
+        {
+            if (_hand == HandTarget.Evade && _runner.A.RevisedFlowActive)
+                return $"회피 · {DefenseZoneLabel(_evadeZoneLeft)}/{DefenseZoneLabel(_evadeZoneRight)}";
+            string tier = _runner.A.RevisedFlowActive ? GripTierLabelFor(_hand) : null;
+            if (tier != null)
+            {
+                bool cross = CounterTime.Core.GripSystem.IsCrossOrientation(_ownHand, _hand);
+                return $"{HandSideLabel(_ownHand)} · {tier} {(cross ? "교차잡기" : "정잡기")}";
+            }
+            return $"{HandSideLabel(_ownHand)} · {HandLabel(_hand)}";
         }
 
         /// §2b v4.2 — 손 축 스테이지1 선택 처리. closeOnPick 개념은 없다 — 이 메서드
@@ -455,9 +546,33 @@ namespace CounterTime.Game.Match
             else
             {
                 _pendingOwnHand = choice == HandTopChoice.Right ? Hand.Right : Hand.Left;
-                _handStage = HandWheelStage.PickTarget;
+                _handStage = HandWheelStage.PickGripTier;
             }
             RebuildStandingColumns();
+        }
+
+        /// §2b 스테이지2(<see cref="HandWheelStage.PickGripTier"/>) 선택 처리 — 목록에
+        /// 급(<see cref="GripTier"/>)과 독립 선택지(견고화·흔들기)가 섞여 있어 분기한다.
+        /// 급을 고르면 스테이지3(정/교차)으로 넘어가고(휠 안 닫힘), 독립 선택지는 그
+        /// 자리에서 바로 확정하고 닫는다.
+        void PickGripStage2(object choice)
+        {
+            if (choice is GripTier tier)
+            {
+                _pendingGripTier = tier;
+                _handStage = HandWheelStage.PickOrientation;
+                RebuildStandingColumns();
+            }
+            else if (choice is HandTarget standalone)
+            {
+                _hand = standalone;
+                _ownHand = _pendingOwnHand;
+                _handChosen = true;
+                RebuildStandingColumns();
+                RefreshExposure();
+                RefreshConfirmButton();
+                CloseAllWheels();
+            }
         }
 
         /// §H 2b — 기술을 지정한 턴은 손·코어 입력이 없다(§A.2). 손·코어 트리거를
@@ -479,9 +594,7 @@ namespace CounterTime.Game.Match
             bool evading = _hand == HandTarget.Evade && _runner.A.RevisedFlowActive;
             string myChoiceLabel = _techniqueChosen
                 ? $"기술: {TechniqueRegistry.Get(_techniqueId).DisplayName}"
-                : evading
-                    ? $"회피 · {DefenseZoneLabel(_evadeZoneLeft)}/{DefenseZoneLabel(_evadeZoneRight)} · {CoreLabel(_core)} · {LegsLabel(_legs)}"
-                    : $"{HandSideLabel(_ownHand)} · {HandLabel(_hand)} · {CoreLabel(_core)} · {LegsLabel(_legs)}";
+                : $"{HandChoiceSummary()} · {CoreLabel(_core)} · {LegsLabel(_legs)}";
             BeginPending();
             // §2b v4.2 — 회피는 손 하나가 아니라 손별 존 2개를 동시에 싣는다(§2b).
             // Build()의 단일 hand/ownHand 시그니처로는 존을 못 실어서 BuildEvade 를
