@@ -2,6 +2,57 @@ STATUS
 
 Update this file every time a session resets. This is the ONLY copy — the root CLAUDE.md pulls it in with `@md/STATUS.md`, so it loads automatically at session start. Do not create a second copy anywhere. Check "Current State" and "Next Up" before starting work.
 
+Current State (last updated: 2026-08-17, 손 스테이지1 라벨 글자 깨짐 수정 — 세로 스택 방어선이 상시 노출 패널 위에 항목을 올리던 것)
+**증상**: 손 스테이지1(오른손/왼손/회피)에서 "왼손" 라벨이 글자가 깨진 것처럼 보인다는
+Play 스크린샷 신고. **진단(추측 금지, 실측)**: Unity MCP로 실제 씬에서 손 트리거를
+클릭해 휠을 열고 각 항목의 `GetPreferredValues`/`GetWorldCorners`를 직접 재봤다 —
+라벨 문자열 자체는 온전(`왼손`, 잘림·생략 없음), `MakeText`의 TMP autosize(최소
+폰트 8pt)도 정상 작동해 글리프 소실은 없었다. 진짜 원인은
+`FallbackStackedLayout`(9차 세션이 만든 세로 스택 방어선)이 스택 밴드를 "캔버스
+세로 전체(1080px)가 비어 있다"고 가정한 것 — 실제로는 좌측 열(트리거 x=55)에
+`NarrationLog`(y∈[792,1072], 최근 교환 서술·로그가 상시 텍스트로 차 있음)와
+`ScoreboardRow`(y∈[8,252], 점수판 배경)가 항상 떠 있고, 휠이 열려도 이 두 패널은
+안 숨는다(트리거·요약만 `OpenWheel`이 숨긴다). 항목이 적어(3개) 밴드가 넓게
+벌어지자 "왼손"이 정확히 NarrationLog 내부(y=1034~1070)에 렌더돼 로그 텍스트와
+겹쳐 그려진 것이 "글자 깨짐"으로 보인 것 — 겹쳐진 두 텍스트가 뒤섞여 보였을 뿐,
+라벨 자체는 매번 온전했다. 같은 경로로 하체(다리) 축도 "중립"이 NarrationLog에,
+"수비"가 ScoreboardRow에 겹치는 것을 실측으로 추가 확인(전 항목 수 4개인 축도
+동일 결함).
+**수정**: `FallbackStackedLayout`의 밴드 상/하한을 캔버스 전체가 아니라 이미
+확정돼 있던 안전 구간(`FloatingSafeBandBottom=308`/`FloatingSafeBandTop=792`,
+`BuildFloatingControls`가 트리거 4개를 배치할 때 이미 실측으로 확정해둔 값 —
+"NarrationLog 하단=792 / ConfirmRow 상단=308" 그대로 재사용, 새로 잰 값 아님)로
+좁혔다. 부수 발견 1건: 같은 함수의 폭 클램프가 `Clamp(x, PolarMinWidth,
+PolarMinWidth)`(상한이 항상 하한과 같은 자기모순)라 넓은 라벨도 무조건 최소폭까지
+욱여넣고 있었다 — 이번 세션의 세 라벨(오른손/왼손/회피)은 전부 자연폭이 56px
+밑이라 실제 증상엔 영향 없었지만(실측으로 확인: 최소 폭에서도 autosize 축소가
+아예 발동 안 함), 상한을 `PolarMaxWidth`로 정정(`Clamp(x, min, max)`, 메인
+루프와 같은 패턴).
+**Play 실측(수정 후, 전 스테이지)**: Unity MCP로 실제 씬에서 각 축을 열어 좌표·
+텍스트를 직접 재확인(`Object.DestroyImmediate`로 매 단계 사이 잔여 자식을
+강제 정리해 테스트 아티팩트를 배제 — RunCommand 로 클릭을 몰아넣으면 `Destroy()`
+지연으로 이전 스테이지 자식이 안 지워진 채 섞이는 기존에 알려진 현상, 실제
+사용자 클릭엔 프레임이 껴서 없다).
+| 스테이지 | 항목 수 | 겹침(항목간) | NarrationLog 겹침 | ScoreboardRow 겹침 | 화면 이탈 | 라벨 전체 렌더 |
+|---|---|---|---|---|---|---|
+| 손 스테이지1(오른손/왼손/회피) | 3 | 0 | 0 | 0 | 0 | 확인 |
+| 손 스테이지2(오른손 예시, 6개 대상) | 6 | 0 | 0 | 0 | 0 | 확인 |
+| 회피 존(왼손) | 4 | 0 | 0 | 0 | 0 | 확인 |
+| 회피 존(오른손, 중복 제외 후) | 4 | 0 | 0 | 0 | 0 | 확인 |
+| 코어 | 3 | 0 | 0 | 0 | 0 | 확인 |
+| 하체 | 4 | 0 | 0 | 0 | 0 | 확인(이전엔 "중립"·"수비"가 각각 두 패널에 겹쳤던 것 해소) |
+| 기술 | 8 | 0 | 0 | 0 | 0 | 확인(원형 배치라 애초에 무관, 재확인 목적) |
+**검증**: Unity MCP 컴파일 0 에러(Play 진입 전후 재확인). 하니스
+`dotnet run -- --check` 292/292 그린(무변화) + 42노드 지문 IDENTICAL(Game/UI
+계층만 수정, Core/Brain 무수정 — 재확인 목적). `git status --short`로
+`LiveMatchPanel.cs` 1개만 커밋 대상임을 확인(`Assets/Settings/
+Mobile_RPAsset.asset`은 여러 세션에 걸쳐 반복 관찰된 에디터 자동 마이그레이션,
+이번 세션과 무관해 제외). 커밋 `59ef820`.
+**남은 판단 사항 없음** — 재발 방지책(안전 구간 재사용)이 이미 확정된 값을 그대로
+가져다 쓴 것이라 별도 튜닝 여지가 없다. 다만 이 안전 구간(308~792)은 트리거
+4개 배치 전용으로 계산됐던 값이라, 향후 NarrationLog/ScoreboardRow 자체의 크기나
+위치가 바뀌면 이 상수도 함께 재확인해야 한다는 점만 코드 주석에 남겨뒀다.
+
 Current State (last updated: 2026-08-14 밤 9차, 손 스테이지1 재배치 — 트리거 겹침·항목 간 AABB 겹침 근본 수정)
 **배경**: 8차가 "겹침 0·이탈 0"을 달성했다고 보고했지만, 검사 대상에 축 트리거
 라벨이 빠져 있었다 — 실제로는 손 스테이지1(오른손/왼손/회피, 3항목)에서 "왼손"
