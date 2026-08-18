@@ -1204,29 +1204,72 @@ namespace CounterTime.Game.Match
         {
             int stamina = eng.Stamina.Get(who);
             int grip = eng.Grip.EffectiveGrip(who);
-            string left = GripLockLabel(eng.Grip.LockState(who, Hand.Left));
-            string right = GripLockLabel(eng.Grip.LockState(who, Hand.Right));
             string setup = _runner.Config.BalanceGate
                 ? $"  흔들기 {(eng.IsSetupActive(who) ? "유효" : "없음")}"
                 : "";
-            // §2b v4.2 — 손별 그립 상태(부위·정/교차·견고) 양측 + 교차 타이머 잔여.
-            // BalanceGate 흔들기 표시줄과 같은 패턴 — 게이트가 꺼져 있으면 이 개념
-            // 자체가 없으므로(§2a 그대로) 아예 안 붙인다. 2026-08-18 — "왼손: 가슴깃
-            // 정잡기" 형식(사용자 지시)으로 재작성, 좌우 존 명칭이 아니라 휠과 동일한
-            // 정잡기/교차잡기 어휘를 쓴다(직전 지시 3항과 같은 원칙). 교차 손은
-            // ShidoYellow 로 강조 — 휠의 노란 표기(교차잡기 버튼)와 일관, TMP 리치
-            // 텍스트로 그 손 조각만 색을 입힌다(BuildOutcome 의 폴백 서술이 이미
-            // 쓰는 <color=#..> 패턴 재사용, 새 메커니즘 아님).
-            string gripDetail = _runner.Config.GripRevisionGate
-                ? $"  {GripHandLine(eng, who, Hand.Left)}  {GripHandLine(eng, who, Hand.Right)}" +
-                  (eng.CrossGripTimerRemaining(who) > 0 ? $"  교차타이머 {eng.CrossGripTimerRemaining(who)}턴" : "")
-                : "";
-            return $"{FighterLabel(who)}  체력 {stamina}  그립 {grip:+0;-0;0}  밸런스 {BalanceText(eng, who)}  " +
-                   $"왼손 {left} 오른손 {right}{setup}{gripDetail}";
+            string baseline = $"{FighterLabel(who)}  체력 {stamina}  그립 {grip:+0;-0;0}  밸런스 {BalanceText(eng, who)}{setup}";
+
+            if (!_runner.Config.GripRevisionGate)
+            {
+                // §2a 구식 경로 — 손 안 댐, 기존 형식 그대로.
+                string left = GripLockLabel(eng.Grip.LockState(who, Hand.Left));
+                string right = GripLockLabel(eng.Grip.LockState(who, Hand.Right));
+                return $"{baseline}  왼손 {left} 오른손 {right}";
+            }
+
+            // §2b v4.2 — 잡힘(수동)/잡음(능동) 분리 표기(사용자 지시, 2026-08-18 3차) —
+            // 옛 "왼손 잡힘/잠김/놓임" per-hand 2상태 표기(GripLockLabel, 게이트 off
+            // 분기가 여전히 쓴다)를 이 경로에서는 완전히 대체한다. 잡힘은 상대의
+            // "잡음"을 이쪽에서 다시 읽은 것과 정확히 같다(아래 GripPassiveLine 참조) —
+            // 새 GripSystem 상태 없이 기존 Held/IsCrossOrientation/IsSolid 조합만으로
+            // 유도된다.
+            string passive = GripPassiveLine(eng, who);
+            string active = $"잡음: {GripHandLine(eng, who, Hand.Left)}  {GripHandLine(eng, who, Hand.Right)}" +
+                (eng.CrossGripTimerRemaining(who) > 0 ? $"  교차타이머 {eng.CrossGripTimerRemaining(who)}턴" : "");
+            return $"{baseline}\n  {passive}\n  {active}";
         }
 
-        /// §2b v4.2 — 한 손의 그립 상태를 "왼손: 가슴깃 정잡기 (견고)" 한 줄로.
-        /// 아무것도 안 잡았으면 "왼손: —". 교차 그립이면 줄 전체를 노란색으로 감싼다.
+        /// §2 v4.2 HUD 전용 — GripKind(tier)+target side → 정확한 6존 HandTarget 역산.
+        /// MatchEngine.TierOf/TargetSideOf(private)의 역함수를 Game 쪽에 작게 복제 —
+        /// ResolveGripTarget/GripTierLabelFor와 같은 이유로 한 줄 중복을 그대로 둔다.
+        /// GripRevisionGate on일 때만 유효(그 경로에서만 side 정보가 항상 채워진다 —
+        /// ApplyGrabResult 가 모든 타겟에 TargetSideOf 를 넣지 Hand.None 을 안 넣는다).
+        static HandTarget? ZoneHeldBy(GripKind tier, Hand side) => (tier, side) switch
+        {
+            (GripKind.Normal, Hand.Right) => HandTarget.RightSleeve,
+            (GripKind.Normal, Hand.Left) => HandTarget.LeftSleeve,
+            (GripKind.Lapel, Hand.Right) => HandTarget.RightLapel,
+            (GripKind.Lapel, Hand.Left) => HandTarget.LeftLapel,
+            (GripKind.BackGrip, Hand.Right) => HandTarget.TwistGrip,
+            (GripKind.BackGrip, Hand.Left) => HandTarget.BackGrab,
+            _ => null,
+        };
+
+        /// MatchEngine.ZoneOf(private)의 작은 복제 — 같은 매핑.
+        static DefenseZone ZoneOf(HandTarget t) => t switch
+        {
+            HandTarget.RightSleeve => DefenseZone.RightSleeve,
+            HandTarget.LeftSleeve => DefenseZone.LeftSleeve,
+            HandTarget.RightLapel => DefenseZone.RightLapel,
+            HandTarget.LeftLapel => DefenseZone.LeftLapel,
+            HandTarget.TwistGrip => DefenseZone.RightUpper,
+            HandTarget.BackGrab => DefenseZone.LeftUpper,
+            _ => DefenseZone.LeftSleeve,   // 이 HUD 문맥에서는 도달 불가
+        };
+
+        /// who의 hand가 지금 쥔 정확한 6존(없으면 null). GripRevisionGate on 전용.
+        static HandTarget? HeldZoneOf(MatchEngine eng, FighterId who, Hand hand)
+        {
+            var tier = eng.Grip.Held(who, hand);
+            if (tier == GripKind.None) return null;
+            bool cross = eng.Grip.IsCrossOrientation(who, hand);
+            Hand side = cross ? hand : (hand == Hand.Left ? Hand.Right : Hand.Left);
+            return ZoneHeldBy(tier, side);
+        }
+
+        /// §2b v4.2 — 한 손의 그립 상태(잡음/능동)를 "왼손: 가슴깃 정잡기(상대
+        /// 오른가슴깃) (견고)" 한 줄로. 아무것도 안 잡았으면 "왼손: —". 교차 그립이면
+        /// 줄 전체를 노란색으로 감싼다.
         string GripHandLine(MatchEngine eng, FighterId who, Hand hand)
         {
             string sideLabel = hand == Hand.Left ? "왼손" : "오른손";
@@ -1244,8 +1287,29 @@ namespace CounterTime.Game.Match
             bool cross = eng.Grip.IsCrossOrientation(who, hand);
             string orientation = cross ? "교차잡기" : "정잡기";
             string solid = eng.Grip.IsSolid(who, hand) ? " (견고)" : "";
-            string line = $"{sideLabel}: {target} {orientation}{solid}";
+            var zone = HeldZoneOf(eng, who, hand);
+            string zoneNote = zone.HasValue ? $"(상대 {DefenseZoneLabel(ZoneOf(zone.Value))})" : "";
+            string line = $"{sideLabel}: {target} {orientation}{zoneNote}{solid}";
             return cross ? $"<color=#{ColorUtility.ToHtmlStringRGB(ShidoYellow)}>{line}</color>" : line;
+        }
+
+        /// §2b v4.2 — who의 "잡힘"(수동): 상대가 나의 어느 존을 쥐었는지. 압축 표기
+        /// (사용자 지시 예: "잡힘: 오른소매 ●(견고) · 왼가슴깃 ○ / 나머지 —") — ●는
+        /// 견고화된 그립, ○는 견고화 전 그립. GripPassiveLine(X) == 상대(Opp(X))의
+        /// "잡음"을 X 시점에서 다시 읽은 것과 정확히 같다(그립을 쥐는 주체가 둘뿐이라
+        /// 새 Core 상태 없이 유도된다).
+        string GripPassiveLine(MatchEngine eng, FighterId who)
+        {
+            FighterId opp = who == FighterId.A ? FighterId.B : FighterId.A;
+            var held = new List<(DefenseZone zone, bool solid)>();
+            foreach (var h in new[] { Hand.Left, Hand.Right })
+            {
+                var zone = HeldZoneOf(eng, opp, h);
+                if (zone.HasValue) held.Add((ZoneOf(zone.Value), eng.Grip.IsSolid(opp, h)));
+            }
+            if (held.Count == 0) return "잡힘: 없음";
+            var parts = held.Select(z => $"{DefenseZoneLabel(z.zone)} {(z.solid ? "●(견고)" : "○")}");
+            return $"잡힘: {string.Join(" · ", parts)} / 나머지 —";
         }
 
         /// §S — 밸런스는 확정 수치라 체력·그립과 같은 급으로 상시 노출한다(예비동작과
@@ -1454,15 +1518,24 @@ namespace CounterTime.Game.Match
             // 있다 — 팝오버가 열려 있는 동안 뒤 콘텐츠를 잠깐 덮는 것과 같은
             // 종류라 허용(닫힌 상태 겹침만 실제 문제였다).
             var le = box.GetComponent<LayoutElement>();
-            le.preferredHeight = le.minHeight = 280;
+            // 2026-08-18 3차 — 잡힘/잡음 분리로 statusA/B 가 1줄→3줄(66px)이 되며
+            // 280px 예산이 log 영역을 짓눌러(합 246+spacing16=262, log 최소60에
+            // 여유 18px뿐) 320으로 실측 후 확정(아래 Play 검증 참조) — 트리거 밴드
+            // (y=561~773)와 안 겹치는지도 그때 같이 재확인했다.
+            le.preferredHeight = le.minHeight = 320;
             le.flexibleHeight = 0;
             le.flexibleWidth = 1;
             parent.GetComponent<VerticalLayoutGroup>().childAlignment = TextAnchor.UpperLeft;
             box.gameObject.AddComponent<Image>().color = PanelBg;
 
             _phaseText = MakeFlexText(box, "", TextAlignmentOptions.TopLeft, 1, 0, minHeight: 24);
-            _statusTextA = MakeFlexText(box, "", TextAlignmentOptions.TopLeft, 1, 0, minHeight: 24);
-            _statusTextB = MakeFlexText(box, "", TextAlignmentOptions.TopLeft, 1, 0, minHeight: 24);
+            // §2b v4.2 잡힘/잡음 분리(2026-08-18 3차) — GripRevisionGate on 이면
+            // FighterStatus 가 3줄(기준선+잡힘+잡음)을 낸다. 게이트 off 는 여전히
+            // 1줄이지만 런타임에 게이트값 따라 minHeight 를 바꾸진 않는다(Awake
+            // 순서 리스크 회피, 단순함 우선) — 3줄 기준으로 넉넉히 잡는다. 실측
+            // (아래 참조)으로 66 확정.
+            _statusTextA = MakeFlexText(box, "", TextAlignmentOptions.TopLeft, 1, 0, minHeight: 66);
+            _statusTextB = MakeFlexText(box, "", TextAlignmentOptions.TopLeft, 1, 0, minHeight: 66);
             _resultText = MakeFlexText(box, "", TextAlignmentOptions.TopLeft, 1, 0, minHeight: 30,
                 fontSizeOverride: 20);
             _logText = MakeFlexText(box, "", TextAlignmentOptions.TopLeft, 1, 1, minHeight: 60);
