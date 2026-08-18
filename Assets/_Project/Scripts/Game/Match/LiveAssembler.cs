@@ -136,5 +136,83 @@ namespace CounterTime.Game.Match
 
         public TurnChoice BuildEvade(DefenseZone leftZone, DefenseZone rightZone, CoreStance core, LegAction legs) =>
             new TurnChoice(HandTarget.Evade, core, legs, Hand.Right, leftZone, rightZone);
+
+        // ================= §2b v4.3 — 뜯기(GripRevisionGate) =================
+
+        /// §2b v4.3 — 내 어느 존이 지금 상대에게 잡혀 있는지(견고 여부 포함). 틀어잡기
+        /// 존도 포함한다 — 목록엔 표시하되 비활성 처리하는 건 호출자(UI) 몫("3차"
+        /// 서브게임 범위 밖, 사용자 지시 그대로). MatchEngine의 ZoneOfTierSide/
+        /// HandHoldingZone과 같은 유도를 여기 Game 쪽에 작게 다시 쓴다 — 이 리포가
+        /// seam마다 작은 매핑을 중복해 두는 기존 관행(GripTierLabelFor/
+        /// ResolveGripTarget 등과 동일 이유).
+        public IReadOnlyList<(DefenseZone Zone, bool Solid)> TearableZones()
+        {
+            FighterId opp = _me == FighterId.A ? FighterId.B : FighterId.A;
+            var result = new List<(DefenseZone, bool)>();
+            foreach (var h in new[] { Hand.Left, Hand.Right })
+            {
+                var tier = _engine.Grip.Held(opp, h);
+                if (tier == GripKind.None) continue;
+                bool cross = _engine.Grip.IsCrossOrientation(opp, h);
+                Hand side = cross ? h : (h == Hand.Left ? Hand.Right : Hand.Left);
+                DefenseZone? zone = ZoneOfTierSide(tier, side);
+                if (zone.HasValue) result.Add((zone.Value, _engine.Grip.IsSolid(opp, h)));
+            }
+            return result;
+        }
+
+        static DefenseZone? ZoneOfTierSide(GripKind tier, Hand side) => (tier, side) switch
+        {
+            (GripKind.Normal, Hand.Right) => DefenseZone.RightSleeve,
+            (GripKind.Normal, Hand.Left) => DefenseZone.LeftSleeve,
+            (GripKind.Lapel, Hand.Right) => DefenseZone.RightLapel,
+            (GripKind.Lapel, Hand.Left) => DefenseZone.LeftLapel,
+            (GripKind.BackGrip, Hand.Right) => DefenseZone.RightUpper,
+            (GripKind.BackGrip, Hand.Left) => DefenseZone.LeftUpper,
+            _ => null,
+        };
+
+        static bool IsSleeveZone(DefenseZone z) => z == DefenseZone.LeftSleeve || z == DefenseZone.RightSleeve;
+
+        /// §2b v4.3 소결정 (a)/(b) — zone 타입과 현재 내 손 상태로 지금 고를 수 있는
+        /// 방법만 낸다. 소매: Basic·Forceful은 항상, Assisted는 반대 손 자유일 때만.
+        /// 가슴깃: Basic은 항상, Forceful·Assisted는 양손 자유일 때만. 틀어잡기 존은
+        /// 호출자가 애초에 이 메서드를 안 부르는 게 맞다(3차 서브게임 범위 밖) —
+        /// 방어적으로 Basic 하나만 반환한다.
+        public IReadOnlyList<TearMethod> TearMethodsFor(DefenseZone zone)
+        {
+            var methods = new List<TearMethod> { TearMethod.Basic };
+            if (IsSleeveZone(zone))
+            {
+                methods.Add(TearMethod.Forceful);
+                Hand nominal = zone == DefenseZone.LeftSleeve ? Hand.Left : Hand.Right;
+                Hand other = nominal == Hand.Left ? Hand.Right : Hand.Left;
+                if (!_engine.Grip.Holds(_me, other)) methods.Add(TearMethod.Assisted);
+            }
+            else if (zone == DefenseZone.LeftLapel || zone == DefenseZone.RightLapel)
+            {
+                bool bothFree = !_engine.Grip.Holds(_me, Hand.Left) && !_engine.Grip.Holds(_me, Hand.Right);
+                if (bothFree) { methods.Add(TearMethod.Forceful); methods.Add(TearMethod.Assisted); }
+            }
+            return methods;
+        }
+
+        /// §2b v4.3 [설계 판단] — 소매는 그 존의 손 자신(Basic/Forceful, "돌려서/
+        /// 팔꿈치로"는 잡힌 손 자신의 동작) 또는 반대 손(Assisted, "다른 손으로")이
+        /// 동작한다. 가슴깃은 손 매핑이 없어 존의 명목상 같은 쪽(RightLapel→Right)
+        /// 으로 고정한다 — UI가 "어느 손?"을 따로 안 물어도 되게(사용자 스펙의
+        /// 흐름도 부위→방법 2단만 말하지 손 선택 3단은 없다).
+        static Hand TearActingHand(DefenseZone zone, TearMethod method)
+        {
+            Hand nominal = (zone == DefenseZone.LeftSleeve || zone == DefenseZone.LeftLapel
+                || zone == DefenseZone.LeftUpper) ? Hand.Left : Hand.Right;
+            if (IsSleeveZone(zone) && method == TearMethod.Assisted)
+                return nominal == Hand.Left ? Hand.Right : Hand.Left;
+            return nominal;
+        }
+
+        public TurnChoice BuildTear(DefenseZone zone, TearMethod method, CoreStance core, LegAction legs) =>
+            new TurnChoice(HandTarget.Tear, core, legs, TearActingHand(zone, method),
+                tearZone: zone, tearMethodChoice: method);
     }
 }

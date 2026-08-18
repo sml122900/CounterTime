@@ -532,14 +532,10 @@ namespace CounterTime.Core
                     break;
 
                 case HandTarget.Tear:
-                    Hand holderHand = Grip.HolderHandGripping(who, mine.OwnHand);
-                    var outcome = Grip.ResolveTear(who, mine.OwnHand,
-                        theirs.Hand == HandTarget.MaintainGrip);
-                    ev.Add(new TearResolved(who, mine.OwnHand, outcome));
-                    if (outcome == TearOutcome.Freed && holderHand != Hand.None)
-                        ev.Add(new GripChanged(Opp(who), holderHand, HandTarget.None, GripKind.None));
-                    Stamina.PayAttack(who, new TechniqueSpec("tear", ActionCost.Tear,
-                        TechniqueClass.Sloppy), Grip.EffectiveGrip(who));
+                    // §2b v4.3 — the OLD §3.2 Lock/Maintain 2-choice mechanic
+                    // (still used verbatim by the non-revised switch above) is
+                    // replaced under the gate by a zone+method resolution.
+                    ResolveTearV43(who, mine, ev);
                     break;
 
                 case HandTarget.Solidify:
@@ -548,6 +544,125 @@ namespace CounterTime.Core
                     break;
             }
         }
+
+        /// §2b v4.3 — live-only 뜯기(GripRevisionGate). `mine.TearZone` names one of
+        /// MY currently-held-by-opponent zones; `mine.TearMethodChoice` picks among
+        /// Basic/Forceful/Assisted (§2b v4.3 — see <see cref="TearMethod"/>). Stamina
+        /// is paid regardless of outcome (§2 time/cost table — "그 턴의 손 액션
+        /// 1개", same convention the §2a case above already used).
+        void ResolveTearV43(FighterId who, in TurnChoice mine, List<MatchEvent> ev)
+        {
+            Stamina.PayAttack(who, new TechniqueSpec("tear", ActionCost.Tear,
+                TechniqueClass.Sloppy), Grip.EffectiveGrip(who));
+
+            TearMethod method = mine.TearMethodChoice ?? TearMethod.Basic;
+            if (!mine.TearZone.HasValue)
+            {
+                ev.Add(new GripTearAttempted(who, DefenseZone.LeftSleeve, method, TearResult.Failed));
+                return;
+            }
+            DefenseZone zone = mine.TearZone.Value;
+            FighterId holder = Opp(who);
+            Hand? holderHand = HandHoldingZone(holder, zone);
+            if (!holderHand.HasValue)
+            {
+                // 실제로 안 잡혀 있는 존을 뜯으려 함(스테일 UI 상태 등) — no-op.
+                ev.Add(new GripTearAttempted(who, zone, method, TearResult.Failed));
+                return;
+            }
+            if (!TearMethodAllowed(method, zone, who, mine.OwnHand))
+            {
+                ev.Add(new GripTearAttempted(who, zone, method, TearResult.Failed));
+                return;
+            }
+
+            bool solid = Grip.IsSolid(holder, holderHand.Value);
+            TearResult result;
+            if (!solid) result = TearResult.Success;
+            else if (method == TearMethod.Basic) result = TearResult.Failed;
+            else result = _rng.NextFloat() < _cfg.TearForcefulSuccessChance
+                ? TearResult.Success : TearResult.Unsolidified;
+
+            // GripTearAttempted 를 먼저 넣는다 — BuildOutcome(Game)은 "발생한 이벤트 중
+            // 뜻이 있는 첫 번째"만 보여주는데, 아래에서 뒤따르는 해제용 GripChanged(...,
+            // HandTarget.None, GripKind.None)는 HandLabel(None)="—"라 "B — 확보"처럼
+            // 뜻이 안 통하는 문구가 된다(Play 실측으로 발견) — 더 뜻이 분명한 이 이벤트가
+            // 먼저 와야 그게 뽑힌다. 이벤트 자체(둘 다)는 그대로 남는다, 순서만 바꿨다.
+            ev.Add(new GripTearAttempted(who, zone, method, result));
+
+            switch (result)
+            {
+                case TearResult.Success:
+                    Grip.ReleaseHold(holder, holderHand.Value);
+                    ev.Add(new GripChanged(holder, holderHand.Value, HandTarget.None, GripKind.None));
+                    if (method == TearMethod.Assisted)
+                    {
+                        // (a) 뜯으면서 잡기 — 성립 그립은 정확히 상대의 (방금까지)
+                        // 쥐던 그 손을 단순 소매잡기로 되잡는다. 정/교차는 여기서
+                        // 따로 계산하지 않는다 — Grab()이 채운 target을
+                        // IsCrossOrientation이 기존 로직 그대로 읽는다(§2b가 이미
+                        // 검증해둔 메커니즘 재사용).
+                        Hand counterHand = mine.OwnHand;
+                        HandTarget counterTarget = holderHand.Value == Hand.Right
+                            ? HandTarget.RightSleeve : HandTarget.LeftSleeve;
+                        Grip.Grab(who, counterHand, holderHand.Value, GripKind.Normal);
+                        ev.Add(new GripChanged(who, counterHand, counterTarget, GripKind.Normal));
+                    }
+                    break;
+                case TearResult.Unsolidified:
+                    Grip.Unsolidify(holder, holderHand.Value);
+                    break;
+            }
+        }
+
+        /// §2b v4.3 소결정 (a) 전제조건: 소매 Assisted=반대 손 자유, 가슴깃
+        /// Forceful/Assisted=양손 자유. 나머지(소매 Basic/Forceful, 가슴깃 Basic)는
+        /// 전제 없음.
+        bool TearMethodAllowed(TearMethod method, DefenseZone zone, FighterId who, Hand ownHand)
+        {
+            if (method == TearMethod.Basic) return true;
+            bool isSleeve = zone == DefenseZone.LeftSleeve || zone == DefenseZone.RightSleeve;
+            if (isSleeve && method == TearMethod.Forceful) return true;
+            // Assisted — `ownHand` IS already the assisting/free hand (LiveAssembler.
+            // TearActingHand sets it to Other(zone's nominal side) for exactly this
+            // method), so the precondition checks that hand itself, not its other.
+            if (isSleeve) return !Grip.Holds(who, ownHand);
+            // 가슴깃 — Forceful/Assisted 둘 다 양손 자유.
+            return !Grip.Holds(who, Hand.Left) && !Grip.Holds(who, Hand.Right);
+        }
+
+        /// §2b v4.3 — inverse of TierOf/TargetSideOf combined: given a grip's
+        /// tier+side, which DefenseZone is it holding? Used to find which of the
+        /// holder's hands currently occupies a specific target zone.
+        static DefenseZone? ZoneOfTierSide(GripKind tier, Hand side) => (tier, side) switch
+        {
+            (GripKind.Normal, Hand.Right) => DefenseZone.RightSleeve,
+            (GripKind.Normal, Hand.Left) => DefenseZone.LeftSleeve,
+            (GripKind.Lapel, Hand.Right) => DefenseZone.RightLapel,
+            (GripKind.Lapel, Hand.Left) => DefenseZone.LeftLapel,
+            (GripKind.BackGrip, Hand.Right) => DefenseZone.RightUpper,
+            (GripKind.BackGrip, Hand.Left) => DefenseZone.LeftUpper,
+            _ => null,
+        };
+
+        /// §2b v4.3 — which of `holder`'s hands currently occupies `victim`'s
+        /// `zone` (null if none). Only reliable under GripRevisionGate — that is
+        /// the only flow where <see cref="GripSystem.IsCrossOrientation(FighterId,Hand)"/>'s
+        /// side data is populated for every grab type (see ApplyGrabResult).
+        Hand? HandHoldingZone(FighterId holder, DefenseZone zone)
+        {
+            foreach (var h in new[] { Hand.Left, Hand.Right })
+            {
+                var tier = Grip.Held(holder, h);
+                if (tier == GripKind.None) continue;
+                bool cross = Grip.IsCrossOrientation(holder, h);
+                Hand side = cross ? h : OtherHand(h);
+                if (ZoneOfTierSide(tier, side) == zone) return h;
+            }
+            return null;
+        }
+
+        static Hand OtherHand(Hand h) => h == Hand.Left ? Hand.Right : Hand.Left;
 
         /// §2 v4.2 — commits a resolved grab (or its failure) to GripSystem/events.
         /// `target` is null when this fighter did not attempt a grab this exchange —

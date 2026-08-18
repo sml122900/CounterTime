@@ -158,7 +158,8 @@ namespace CounterTime.Game.Tests
                 new[] { HandTarget.RightSleeve, HandTarget.LeftSleeve, HandTarget.LeftLapel,
                         HandTarget.RightLapel, HandTarget.TwistGrip, HandTarget.BackGrab },
                 options);
-            Assert.IsFalse(options.Contains(HandTarget.Tear), "뜯기는 2차 범위 — 1차엔 안 열린다");
+            Assert.IsFalse(options.Contains(HandTarget.Tear),
+                "뜯기(§2b v4.3)는 이 목록에 안 산다 — 별도 진입점(TearableZones/BuildTear)이다");
             Assert.IsFalse(options.Contains(HandTarget.Solidify), "아무것도 안 잡았으면 견고화할 게 없다");
         }
 
@@ -225,6 +226,121 @@ namespace CounterTime.Game.Tests
             Assert.AreEqual(CoreStance.Defensive, choice.Core);
             Assert.AreEqual(LegAction.CounterReady, choice.Legs);
             Assert.AreEqual(Hand.Left, choice.OwnHand);
+        }
+
+        // ---- §2b v4.3 — 뜯기 ----
+
+        [Test]
+        public void TearableZones_WithNothingHeld_IsEmpty()
+        {
+            var cfg = new MatchRulesConfig { GripRevisionGate = true };
+            var engine = new MatchEngine(cfg, RefereeProfile.Standard, new SystemRandomSource(1));
+            var a = new LiveAssembler(engine, cfg, FighterId.A);
+
+            Assert.IsEmpty(a.TearableZones());
+        }
+
+        [Test]
+        public void TearableZones_ReflectsWhatOpponentHolds_IncludingSolidFlag()
+        {
+            var cfg = new MatchRulesConfig { GripRevisionGate = true };
+            var engine = new MatchEngine(cfg, RefereeProfile.Standard, new SystemRandomSource(1));
+            // B(상대)의 왼손이 A 의 오른소매를 견고화까지 쥔다 — 데코레이터/UI 안 거치고 직접.
+            engine.Grip.Grab(FighterId.B, Hand.Left, Hand.Right, GripKind.Normal);
+            engine.Grip.Solidify(FighterId.B, Hand.Left);
+
+            var a = new LiveAssembler(engine, cfg, FighterId.A);
+            var zones = a.TearableZones();
+
+            Assert.AreEqual(1, zones.Count);
+            Assert.AreEqual(DefenseZone.RightSleeve, zones[0].Zone);
+            Assert.IsTrue(zones[0].Solid);
+        }
+
+        [Test]
+        public void TearMethodsFor_Sleeve_BothHandsFree_OffersAllThree()
+        {
+            var cfg = new MatchRulesConfig { GripRevisionGate = true };
+            var engine = new MatchEngine(cfg, RefereeProfile.Standard, new SystemRandomSource(1));
+            var a = new LiveAssembler(engine, cfg, FighterId.A);
+
+            CollectionAssert.AreEquivalent(
+                new[] { TearMethod.Basic, TearMethod.Forceful, TearMethod.Assisted },
+                a.TearMethodsFor(DefenseZone.RightSleeve));
+        }
+
+        [Test]
+        public void TearMethodsFor_Sleeve_OtherHandOccupied_ExcludesAssisted()
+        {
+            var cfg = new MatchRulesConfig { GripRevisionGate = true };
+            var engine = new MatchEngine(cfg, RefereeProfile.Standard, new SystemRandomSource(1));
+            engine.Grip.Grab(FighterId.A, Hand.Left, Hand.Left, GripKind.Normal);   // 반대(조력) 손 점유
+            var a = new LiveAssembler(engine, cfg, FighterId.A);
+
+            var methods = a.TearMethodsFor(DefenseZone.RightSleeve);
+
+            CollectionAssert.AreEquivalent(new[] { TearMethod.Basic, TearMethod.Forceful }, methods);
+        }
+
+        [Test]
+        public void TearMethodsFor_Lapel_BothHandsFree_OffersAllThree()
+        {
+            var cfg = new MatchRulesConfig { GripRevisionGate = true };
+            var engine = new MatchEngine(cfg, RefereeProfile.Standard, new SystemRandomSource(1));
+            var a = new LiveAssembler(engine, cfg, FighterId.A);
+
+            CollectionAssert.AreEquivalent(
+                new[] { TearMethod.Basic, TearMethod.Forceful, TearMethod.Assisted },
+                a.TearMethodsFor(DefenseZone.RightLapel));
+        }
+
+        [Test]
+        public void TearMethodsFor_Lapel_OneHandOccupied_OnlyBasic()
+        {
+            var cfg = new MatchRulesConfig { GripRevisionGate = true };
+            var engine = new MatchEngine(cfg, RefereeProfile.Standard, new SystemRandomSource(1));
+            engine.Grip.Grab(FighterId.A, Hand.Right, Hand.Left, GripKind.Normal);
+            var a = new LiveAssembler(engine, cfg, FighterId.A);
+
+            CollectionAssert.AreEquivalent(new[] { TearMethod.Basic }, a.TearMethodsFor(DefenseZone.RightLapel));
+        }
+
+        [Test]
+        public void BuildTear_Sleeve_Basic_UsesTheZonesOwnHand()
+        {
+            var engine = NewEngine();
+            var a = new LiveAssembler(engine, new MatchRulesConfig(), FighterId.A);
+
+            var choice = a.BuildTear(DefenseZone.RightSleeve, TearMethod.Basic, CoreStance.Neutral, LegAction.Neutral);
+
+            Assert.AreEqual(HandTarget.Tear, choice.Hand);
+            Assert.AreEqual(DefenseZone.RightSleeve, choice.TearZone);
+            Assert.AreEqual(TearMethod.Basic, choice.TearMethodChoice);
+            Assert.AreEqual(Hand.Right, choice.OwnHand, "Basic 은 그 존의 손 자신이 동작한다");
+        }
+
+        [Test]
+        public void BuildTear_Sleeve_Assisted_FlipsToTheOtherHand()
+        {
+            var engine = NewEngine();
+            var a = new LiveAssembler(engine, new MatchRulesConfig(), FighterId.A);
+
+            var choice = a.BuildTear(DefenseZone.RightSleeve, TearMethod.Assisted, CoreStance.Neutral, LegAction.Neutral);
+
+            Assert.AreEqual(Hand.Left, choice.OwnHand, "다른 손으로 뜯기는 반대 손이 동작한다");
+        }
+
+        [Test]
+        public void BuildTear_Lapel_UsesTheZonesNominalSide_RegardlessOfMethod()
+        {
+            var engine = NewEngine();
+            var a = new LiveAssembler(engine, new MatchRulesConfig(), FighterId.A);
+
+            var basic = a.BuildTear(DefenseZone.LeftLapel, TearMethod.Basic, CoreStance.Neutral, LegAction.Neutral);
+            var assisted = a.BuildTear(DefenseZone.LeftLapel, TearMethod.Assisted, CoreStance.Neutral, LegAction.Neutral);
+
+            Assert.AreEqual(Hand.Left, basic.OwnHand);
+            Assert.AreEqual(Hand.Left, assisted.OwnHand, "가슴깃은 손 매핑이 없어 존의 명목상 같은 쪽으로 고정한다");
         }
     }
 }

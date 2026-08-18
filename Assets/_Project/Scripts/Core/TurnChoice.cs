@@ -16,10 +16,18 @@ namespace CounterTime.Core
         /// outside the GripRevisionGate path.
         public readonly DefenseZone? EvadeZoneLeft;
         public readonly DefenseZone? EvadeZoneRight;
+        /// §2b v4.3 — which of MY currently-held zones this 뜯기 targets. Null
+        /// unless Hand == Tear under GripRevisionGate — §2a's old Tear (gate off)
+        /// ignores this field entirely, keyed off OwnHand instead, unchanged.
+        public readonly DefenseZone? TearZone;
+        /// §2b v4.3 — which of the 3 methods this 뜯기 uses. Null unless Hand ==
+        /// Tear under GripRevisionGate.
+        public readonly TearMethod? TearMethodChoice;
 
         public TurnChoice(HandTarget hand, CoreStance core, LegAction legs,
                           Hand ownHand = CounterTime.Core.Hand.Right,
-                          DefenseZone? evadeZoneLeft = null, DefenseZone? evadeZoneRight = null)
+                          DefenseZone? evadeZoneLeft = null, DefenseZone? evadeZoneRight = null,
+                          DefenseZone? tearZone = null, TearMethod? tearMethodChoice = null)
         {
             Hand = hand;
             Core = core;
@@ -27,6 +35,8 @@ namespace CounterTime.Core
             OwnHand = ownHand;
             EvadeZoneLeft = evadeZoneLeft;
             EvadeZoneRight = evadeZoneRight;
+            TearZone = tearZone;
+            TearMethodChoice = tearMethodChoice;
         }
 
         /// §2 — 이 손이 <b>사건</b>을 일으키는가. 자세는 상태고 손 행동은 사건이다.

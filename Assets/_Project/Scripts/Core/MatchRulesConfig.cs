@@ -126,5 +126,12 @@ namespace CounterTime.Core
         // this many exchanges long. Any 흔들기 or technique declaration by its holder
         // resets it; if it expires untouched, that fighter gets an immediate shido.
         public int CrossGripTimerTurns = 2;
+
+        // §2b v4.3 — 뜯기(라이브 전용, GripRevisionGate). Basic=견고 시 결정론적
+        // 실패, Forceful/Assisted=견고 시 이 확률로 성공(실패면 비견고화만). B
+        // 최소 대응이 잡힌 부위 있을 때 이 확률로 기본 뜯기 시도(항상 Basic —
+        // 방법 선택 지능은 3차 이월). 둘 다 ⚙, 작업 지시가 준 제안값 그대로.
+        public float TearForcefulSuccessChance = 0.5f;
+        public float TearFallbackChance = 0.30f;
     }
 }

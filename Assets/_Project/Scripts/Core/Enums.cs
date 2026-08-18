@@ -32,6 +32,15 @@ namespace CounterTime.Core
     public enum DefenseQuality { Clean, Neutral, Pushed }      // §5.2
     public enum TearOutcome { Freed, Locked, Impossible }      // §3.2
 
+    /// §2b v4.3 — 뜯기 방법 3종(라이브 전용, GripRevisionGate). 소매/가슴깃
+    /// 목록에서 라벨은 다르지만(돌려서·팔꿈치로·다른손 / 한손·양손·양손툭툭)
+    /// 판정 구조는 존 타입에 무관하게 동일: Basic=견고 시 항상 실패,
+    /// Forceful=견고 시 50%/50%(성공/비견고화), Assisted=Forceful과 동일 판정
+    /// + 성공 시 그 손이 상대의 쥐던 손을 단순 소매잡기로 되잡는다.
+    public enum TearMethod { Basic, Forceful, Assisted }
+    /// §2b v4.3 — 뜯기 시도 1건의 결과.
+    public enum TearResult { Success, Failed, Unsolidified }
+
     // §9.3 — the defender's two escape attempts and the holder's two responses.
     public enum OsaekomiDefenderChoice { Reversal /*뒤집기*/, Escape /*빠져나가기*/ }
     public enum OsaekomiHolderChoice   { Follow /*따라가기*/, PressIn /*눌러붙기*/ }

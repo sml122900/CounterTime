@@ -51,7 +51,7 @@ namespace CounterTime.Game.Match
         HabitState _habitState;
         MatchBrainContext _bContext;
         HabitBrainCommitSource _bInner;
-        SetupPrecedingCommitSource _bSource;
+        GripTearFallbackCommitSource _bSource;
         readonly ResultNarrationTable _narration = ResultNarrationTable.CreateDefault();
 
         public MatchEngine Engine { get; private set; }
@@ -118,8 +118,13 @@ namespace CounterTime.Game.Match
             _habitState = new HabitState(opponent);
             _bContext = new MatchBrainContext(Engine, FighterId.B);
             _bInner = new HabitBrainCommitSource(FighterId.B, _habitState, _bContext, _bContext, _rng);
-            _bSource = new SetupPrecedingCommitSource(_bInner, _bContext, setupEnabled,
+            var bSetup = new SetupPrecedingCommitSource(_bInner, _bContext, setupEnabled,
                 _cfg.BalanceOnsetThreshold);
+            // §2b v4.3 — B 최소 뜯기 대응. 세팅 데코레이터 바깥에 한 겹 더 감싼다
+            // (감싸인 결정을 최종 override 하는 우선순위 — 잡혔으면 계획된 흔들기/
+            // 큰기술보다 뜯기를 먼저 시도).
+            _bSource = new GripTearFallbackCommitSource(bSetup, Engine, FighterId.B,
+                gripRevisionEnabled, _cfg.TearFallbackChance, _rng);
         }
 
         /// §H 2단계 — 레지스트리 조회로 A 의 기술을 조립한다. AuthoredClass 는

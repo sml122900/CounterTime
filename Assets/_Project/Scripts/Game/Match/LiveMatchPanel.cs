@@ -81,9 +81,18 @@ namespace CounterTime.Game.Match
         // 애초에 잡기 개편이 없애려던 "내 기준/상대 기준 좌우 혼동"을 화면에 그대로
         // 되살렸다(사용자 신고). PickHandOrEvade→(PickGripTier→PickOrientation |
         // PickEvadeZoneLeft→PickEvadeZoneRight) 순서.
-        enum HandWheelStage { PickHandOrEvade, PickGripTier, PickOrientation, PickEvadeZoneLeft, PickEvadeZoneRight }
+        // §2b v4.3 — 뜯기(예약 슬롯) 2단(PickTearZone→PickTearMethod) 추가. 진입
+        // 트리거(HandTopChoice.Tear)는 잡힌 부위가 있을 때만 목록에 나타난다
+        // (RebuildStandingColumns 참조).
+        enum HandWheelStage { PickHandOrEvade, PickGripTier, PickOrientation, PickEvadeZoneLeft, PickEvadeZoneRight,
+                              PickTearZone, PickTearMethod }
         HandWheelStage _handStage = HandWheelStage.PickHandOrEvade;
         DefenseZone _evadeZoneLeft, _evadeZoneRight;
+        // §2b v4.3 — 뜯기 2단(부위→방법). _pendingTearZone 은 스테이지 사이 임시값
+        // (Evade 의 _evadeZoneLeft/_pendingOwnHand 와 같은 관행), _tearZone/
+        // _tearMethod 는 방법까지 확정된 뒤 Confirm() 이 BuildTear 에 넘기는 값.
+        DefenseZone _pendingTearZone, _tearZone;
+        TearMethod _tearMethod;
 
         // 2026-08-18 — MATCH_RULES §2b "대상 3종"(소매/가슴깃/틀어잡기). 스테이지2가
         // 이 중 하나를 고르면 스테이지3(정/교차)로 넘어가고, 그때 비로소
@@ -318,6 +327,8 @@ namespace CounterTime.Game.Match
             _handStage = HandWheelStage.PickHandOrEvade;
             _pendingGripTier = default;
             _evadeZoneLeft = _evadeZoneRight = default;
+            _pendingTearZone = _tearZone = default;
+            _tearMethod = default;
             _handChosen = _coreChosen = _legsChosen = false;
             _techniqueId = null;
             _techniqueChosen = false;
@@ -401,12 +412,42 @@ namespace CounterTime.Game.Match
                 switch (_handStage)
                 {
                     case HandWheelStage.PickHandOrEvade:
-                        // 뜯기는 2차 예약 — 지금은 목록 자체에서 뺀다(HandTopSlots 고정
-                        // 각도표가 하던 "숨김"을 목록 필터링으로 대체, 위 필드 선언부 참조).
-                        RebuildAxisOptions(_handDropdown, HandTopBaseRadius,
-                            new[] { HandTopChoice.Right, HandTopChoice.Left, HandTopChoice.Evade },
+                        // §2b v4.3 — 뜯기는 잡힌 부위가 1곳 이상일 때만 목록에 나타난다
+                        // (예약 슬롯 활성화, 사용자 지시). 없으면 목록 자체에서 뺀다
+                        // (HandTopSlots 고정 각도표가 하던 "숨김"을 목록 필터링으로
+                        // 대체 — 항목 수가 3/4개를 오가도 SolvePolarLayout 이 매번
+                        // 다시 계산하므로 배치 불변식은 저절로 유지된다).
+                        var topChoices = new List<HandTopChoice>
+                            { HandTopChoice.Right, HandTopChoice.Left, HandTopChoice.Evade };
+                        if (_runner.A.TearableZones().Count > 0) topChoices.Add(HandTopChoice.Tear);
+                        RebuildAxisOptions(_handDropdown, HandTopBaseRadius, topChoices,
                             HandTopLabel, o => false, o => PickHandTop((HandTopChoice)o),
                             closeOnPick: false);
+                        break;
+
+                    case HandWheelStage.PickTearZone:
+                        // §2b v4.3 — 잡힌 부위 목록(동적, 견고 여부 병기). 틀어잡기 존은
+                        // 목록엔 있지만 비활성("3차" 서브게임 범위 밖, 사용자 지시).
+                        var tearZones = _runner.A.TearableZones();
+                        RebuildAxisOptions(_handDropdown, HandRadius, tearZones,
+                            z => DefenseZoneLabel(z.Zone) + (z.Solid ? "(견고)" : ""),
+                            o => false,
+                            o => { var picked = ((DefenseZone Zone, bool Solid))o;
+                                   _pendingTearZone = picked.Zone;
+                                   _handStage = HandWheelStage.PickTearMethod;
+                                   RebuildStandingColumns(); },
+                            closeOnPick: false,
+                            disabledOverride: z => z.Zone == DefenseZone.LeftUpper || z.Zone == DefenseZone.RightUpper);
+                        break;
+
+                    case HandWheelStage.PickTearMethod:
+                        RebuildAxisOptions(_handDropdown, HandSideRadius,
+                            _runner.A.TearMethodsFor(_pendingTearZone),
+                            m => TearMethodLabel(_pendingTearZone, m), o => false,
+                            o => { _tearZone = _pendingTearZone; _tearMethod = (TearMethod)o;
+                                   _hand = HandTarget.Tear; _ownHand = Hand.Right;
+                                   _handChosen = true;
+                                   RebuildStandingColumns(); RefreshExposure(); RefreshConfirmButton(); });
                         break;
 
                     case HandWheelStage.PickGripTier:
@@ -524,6 +565,8 @@ namespace CounterTime.Game.Match
         {
             if (_hand == HandTarget.Evade && _runner.A.RevisedFlowActive)
                 return $"회피 · {DefenseZoneLabel(_evadeZoneLeft)}/{DefenseZoneLabel(_evadeZoneRight)}";
+            if (_hand == HandTarget.Tear && _runner.A.RevisedFlowActive)
+                return $"뜯기 · {DefenseZoneLabel(_tearZone)} · {TearMethodLabel(_tearZone, _tearMethod)}";
             string tier = _runner.A.RevisedFlowActive ? GripTierLabelFor(_hand) : null;
             if (tier != null)
             {
@@ -542,6 +585,10 @@ namespace CounterTime.Game.Match
             if (choice == HandTopChoice.Evade)
             {
                 _handStage = HandWheelStage.PickEvadeZoneLeft;
+            }
+            else if (choice == HandTopChoice.Tear)
+            {
+                _handStage = HandWheelStage.PickTearZone;
             }
             else
             {
@@ -592,16 +639,19 @@ namespace CounterTime.Game.Match
         void Confirm()
         {
             bool evading = _hand == HandTarget.Evade && _runner.A.RevisedFlowActive;
+            bool tearing = _hand == HandTarget.Tear && _runner.A.RevisedFlowActive;
             string myChoiceLabel = _techniqueChosen
                 ? $"기술: {TechniqueRegistry.Get(_techniqueId).DisplayName}"
                 : $"{HandChoiceSummary()} · {CoreLabel(_core)} · {LegsLabel(_legs)}";
             BeginPending();
             // §2b v4.2 — 회피는 손 하나가 아니라 손별 존 2개를 동시에 싣는다(§2b).
             // Build()의 단일 hand/ownHand 시그니처로는 존을 못 실어서 BuildEvade 를
-            // 따로 쓴다.
+            // 따로 쓴다. §2b v4.3 — 뜯기도 마찬가지로 존+방법을 실어야 해서 BuildTear.
             var choice = evading
                 ? _runner.A.BuildEvade(_evadeZoneLeft, _evadeZoneRight, _core, _legs)
-                : _runner.A.Build(_hand, _core, _legs, _ownHand);
+                : tearing
+                    ? _runner.A.BuildTear(_tearZone, _tearMethod, _core, _legs)
+                    : _runner.A.Build(_hand, _core, _legs, _ownHand);
             _runner.SubmitA(choice, _techniqueId);
             string outcome = BuildOutcome();
             bool matte = _pendingEvents.Exists(e => e is MatteCalled);
@@ -664,7 +714,8 @@ namespace CounterTime.Game.Match
         void RebuildAxisOptions<T>(Transform dropdown, float radius, IReadOnlyList<T> options,
                                    System.Func<T, string> label, System.Func<object, bool> isSelected,
                                    System.Action<object> onPick, bool closeOnPick = true,
-                                   System.Func<T, Color?> tintOverride = null)
+                                   System.Func<T, Color?> tintOverride = null,
+                                   System.Func<T, bool> disabledOverride = null)
         {
             for (int i = dropdown.childCount - 1; i >= 0; i--)
                 Destroy(dropdown.GetChild(i).gameObject);   // 확정 전 재구성뿐이라 즉시 파괴로 충분
@@ -683,6 +734,11 @@ namespace CounterTime.Game.Match
             for (int idx = 0; idx < n; idx++)
             {
                 var captured = options[idx];
+                // §2b v4.3 — 틀어잡기 존을 "목록엔 표시하되 비활성"으로 내야 해서
+                // 신설(사용자 지시). 배치 슬롯(폭/각도)은 그대로 차지한다 — 항목이
+                // 하나 준 것처럼 다른 항목들이 재배치되면 오히려 매 프레임 위치가
+                // 흔들려 보인다.
+                bool disabled = disabledOverride?.Invoke(captured) ?? false;
 
                 var btn = MakeButton(dropdown, labels[idx], () => { onPick(captured); if (closeOnPick) CloseAllWheels(); });
                 var brt = (RectTransform)btn.transform;
@@ -691,8 +747,9 @@ namespace CounterTime.Game.Match
                 brt.anchoredPosition = layout.LocalPositions[idx];   // origin(트리거) 기준 상대 오프셋
                 brt.sizeDelta = new Vector2(layout.Widths[idx], PolarButtonHeight);
 
+                btn.interactable = !disabled;
                 var img = btn.GetComponent<Image>();
-                img.color = isSelected(captured) ? Selected : (tintOverride?.Invoke(captured) ?? Idle);
+                img.color = disabled ? Dim : (isSelected(captured) ? Selected : (tintOverride?.Invoke(captured) ?? Idle));
             }
         }
 
@@ -1012,6 +1069,28 @@ namespace CounterTime.Game.Match
             _ => "—",
         };
 
+        /// §2b v4.3 — 존 타입(소매/가슴깃)에 따라 같은 <see cref="TearMethod"/>도
+        /// 다른 문구를 낸다(사용자 스펙 원문 그대로).
+        static string TearMethodLabel(DefenseZone zone, TearMethod m)
+        {
+            bool sleeve = zone == DefenseZone.LeftSleeve || zone == DefenseZone.RightSleeve;
+            if (sleeve)
+                return m switch
+                {
+                    TearMethod.Basic => "돌려서 뜯기",
+                    TearMethod.Forceful => "팔꿈치로 뜯기",
+                    TearMethod.Assisted => "다른 손으로 뜯기",
+                    _ => "—",
+                };
+            return m switch
+            {
+                TearMethod.Basic => "한손 뜯기",
+                TearMethod.Forceful => "양손 뜯기",
+                TearMethod.Assisted => "양손 툭툭 내리고 뜯기",
+                _ => "—",
+            };
+        }
+
         static string CoreLabel(CoreStance c) => c switch
         {
             CoreStance.Aggressive => "공격적",
@@ -1086,6 +1165,12 @@ namespace CounterTime.Game.Match
             // BuildOutcome 의 "발생한 이벤트 중 뜻이 있는 첫 번째" 관행 그대로 첫 것만
             // 보여준다 — 다른 이벤트들과 같은 한계(GripChanged 등도 동일).
             BalanceChanged bc => $"{FighterLabel(bc.Who)} 밸런스 {bc.NewValue}",
+            // §2b v4.3 — 뜯기 결과. Assisted 성공 시 되잡기가 같은 교환에 별도
+            // GripChanged 로도 뜨지만(BuildOutcome 은 첫 것만 보여준다), 이 문구
+            // 자체에 "되잡기 성립"을 병기해 그 사실이 로그에서 안 묻히게 한다.
+            GripTearAttempted gt => $"{FighterLabel(gt.Who)} {DefenseZoneLabel(gt.Zone)} 뜯기 — " +
+                (gt.Result == TearResult.Success ? "성공" : gt.Result == TearResult.Unsolidified ? "비견고화" : "실패") +
+                (gt.Method == TearMethod.Assisted && gt.Result == TearResult.Success ? " (되잡기 성립)" : ""),
             _ => null,
         };
 

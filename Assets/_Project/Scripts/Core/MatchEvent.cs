@@ -219,6 +219,23 @@ namespace CounterTime.Core
         }
     }
 
+    /// §2b v4.3 — a 뜯기 attempt resolved (live-only, GripRevisionGate). Distinct
+    /// from the old TearResolved/TearOutcome (§2a, still emitted unchanged by the
+    /// non-revised switch) — that event carries a single Hand, but a v4.3 zone
+    /// does not always correspond to one of MY hands (a lapel zone has no such
+    /// mapping the way a sleeve zone does).
+    public sealed class GripTearAttempted : MatchEvent
+    {
+        public readonly FighterId Who;
+        public readonly DefenseZone Zone;
+        public readonly TearMethod Method;
+        public readonly TearResult Result;
+        public GripTearAttempted(FighterId who, DefenseZone zone, TearMethod method, TearResult result)
+        {
+            Who = who; Zone = zone; Method = method; Result = result;
+        }
+    }
+
     public sealed class MatchEnded : MatchEvent
     {
         public readonly FighterId? Winner;

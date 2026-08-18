@@ -162,6 +162,27 @@ namespace CounterTime.Core
             return TearOutcome.Freed;
         }
 
+        /// §2b v4.3 — releases `holder`'s `holderHand` grip entirely (holding
+        /// tier, target, solid bonus) AND frees the victim's corresponding lock-cap
+        /// slot (§3.2) — the two halves of "letting go" that <see cref="Grab"/>
+        /// sets in the opposite direction. Used when a v4.3 뜯기 attempt fully
+        /// succeeds; distinct from <see cref="ResolveTear"/>'s Lock-state 2-choice
+        /// mechanic (pre-v4.2 §3.2), which this new flow does not use.
+        public void ReleaseHold(FighterId holder, Hand holderHand)
+        {
+            Hand side = _target[(int)holder, Ix(holderHand)];
+            _holding[(int)holder, Ix(holderHand)] = GripKind.None;
+            _target[(int)holder, Ix(holderHand)] = Hand.None;
+            _solid[(int)holder, Ix(holderHand)] = false;
+            if (side != Hand.None)
+                _lockOn[(int)Opp(holder), Ix(side)] = GripLock.Free;
+        }
+
+        /// §2b v4.3 — removes just the 견고화 bonus from `hand` without releasing
+        /// the hold itself (the "50% 비견고화" outcome of a failed Forceful/
+        /// Assisted 뜯기 attempt).
+        public void Unsolidify(FighterId who, Hand hand) => _solid[(int)who, Ix(hand)] = false;
+
         /// §3.2 — matte resets every connection.
         public void OnMatte()
         {
