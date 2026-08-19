@@ -133,5 +133,9 @@ namespace CounterTime.Core
         // 방법 선택 지능은 3차 이월). 둘 다 ⚙, 작업 지시가 준 제안값 그대로.
         public float TearForcefulSuccessChance = 0.5f;
         public float TearFallbackChance = 0.30f;
+        // §2b v4.3 — 뜯긴 존 재잡기 쿨다운(사용자 확정). 뜯기 성공으로 해제된
+        // 존은 "그 교환 + 다음 이 값만큼의 교환" 동안 원래 홀더가 재잡기를
+        // 시도해도 매트릭스보다 우선해 자동 실패한다. MATCH_RULES §2b 뜯기 절.
+        public int TearRegripCooldown = 1;
     }
 }

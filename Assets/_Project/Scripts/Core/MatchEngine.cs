@@ -78,6 +78,14 @@ namespace CounterTime.Core
         /// either fighter individually.
         int _mutualDefenseClashStreak;
 
+        /// §2b v4.3 — 뜯긴 존 재잡기 쿨다운, exchanges remaining. Indexed
+        /// [(int)victim, (int)DefenseZone] — `victim` is the fighter whose body
+        /// zone was freed (same identity <see cref="ZoneOf"/> uses for every other
+        /// zone lookup), not the holder who lost the grip. Live path only
+        /// (GripRevisionGate); ResolveTearV43 sets it, ResolveGripExchangeRevised
+        /// reads and ticks it.
+        readonly int[,] _tearRegripCooldown = new int[2, 6];
+
         public GripSystem Grip { get; }
         public StaminaSystem Stamina { get; }
         public BalanceSystem Balance { get; }
@@ -361,6 +369,7 @@ namespace CounterTime.Core
                 // runner's job once stage 6 wires ResolveOsaekomiExchange in — scripted
                 // mode never reaches this method today.
                 Grip.OnMatte();
+                Array.Clear(_tearRegripCooldown, 0, _tearRegripCooldown.Length);
                 // §S (v4.1, RESOLVED §8) — unlike stamina, Balance gets ITS partial
                 // recovery here too ("§9.4 밸런스는 여기서도 부분 회복 ⚙만 받는다") — this
                 // is a deliberate asymmetry the confirmed rules text calls out
@@ -454,8 +463,14 @@ namespace CounterTime.Core
             HandTarget? targetA = GrabTargetOf(a.Hand);
             HandTarget? targetB = GrabTargetOf(b.Hand);
 
-            bool aSucceeds = targetA.HasValue && !IsZoneDefended(targetA.Value, b);
-            bool bSucceeds = targetB.HasValue && !IsZoneDefended(targetB.Value, a);
+            // §2b v4.3 — 뜯긴 존 재잡기 쿨다운(우선순위: 이 매트릭스 전체보다
+            // 먼저 걸린다). ResolveNonMatrixHandAction(위)이 이미 이번 교환의
+            // 뜯기를 처리해 이 배열에 값을 넣어놓은 뒤라, 같은 교환 내 재잡기
+            // 시도도 여기서 바로 막힌다.
+            bool aSucceeds = targetA.HasValue && !IsZoneDefended(targetA.Value, b)
+                && !IsRegripBlocked(FighterId.B, targetA.Value);
+            bool bSucceeds = targetB.HasValue && !IsZoneDefended(targetB.Value, a)
+                && !IsRegripBlocked(FighterId.A, targetB.Value);
             bool aSolidBonus = false, bSolidBonus = false;
 
             // §2 "가슴깃 노림" — resolved per-attempt off the OPPONENT's Core this
@@ -512,7 +527,28 @@ namespace CounterTime.Core
 
             TickCrossGripTimer(FighterId.A, realA, a.Hand == HandTarget.Setup, ev);
             TickCrossGripTimer(FighterId.B, realB, b.Hand == HandTarget.Setup, ev);
+
+            TickTearRegripCooldowns();
         }
+
+        /// §2b v4.3 — decrements every zone's 뜯긴 존 재잡기 쿨다운 by one exchange,
+        /// floored at 0. Runs once per exchange, AFTER this exchange's grab attempts
+        /// already read the pre-decrement value above — that ordering is what makes
+        /// the tear-exchange itself count as the first blocked exchange (사용자 확정:
+        /// "그 교환 + 다음 1교환").
+        void TickTearRegripCooldowns()
+        {
+            for (int v = 0; v < 2; v++)
+                for (int z = 0; z < 6; z++)
+                    if (_tearRegripCooldown[v, z] > 0) _tearRegripCooldown[v, z]--;
+        }
+
+        /// §2b v4.3 — is `victim`'s zone matching `target` still inside its
+        /// 뜯긴 존 재잡기 쿨다운 window? `victim` is the defender of this grab
+        /// attempt (the fighter whose body zone `target` names), matching
+        /// <see cref="ZoneOf"/>'s existing identity.
+        bool IsRegripBlocked(FighterId victim, HandTarget target) =>
+            _tearRegripCooldown[(int)victim, (int)ZoneOf(target)] > 0;
 
         /// §2 v4.2 — Setup/Tear reuse the OLD ResolveGrip's exact bodies (duplicated,
         /// not shared, so the old method stays provably untouched). Solidify is new —
@@ -595,6 +631,11 @@ namespace CounterTime.Core
                 case TearResult.Success:
                     Grip.ReleaseHold(holder, holderHand.Value);
                     ev.Add(new GripChanged(holder, holderHand.Value, HandTarget.None, GripKind.None));
+                    // §2b v4.3 — 뜯긴 존 재잡기 쿨다운(사용자 확정). +1 은 이번
+                    // 교환 자체를 세는 몫 — TickTearRegripCooldowns가 이 교환
+                    // 끝에 한 번 깎아도 "그 교환 + 다음 TearRegripCooldown교환"
+                    // 이 남도록.
+                    _tearRegripCooldown[(int)who, (int)zone] = 1 + _cfg.TearRegripCooldown;
                     if (method == TearMethod.Assisted)
                     {
                         // (a) 뜯으면서 잡기 — 성립 그립은 정확히 상대의 (방금까지)
@@ -1009,6 +1050,7 @@ namespace CounterTime.Core
         void CallMatte(List<MatchEvent> ev)
         {
             Grip.OnMatte();
+            Array.Clear(_tearRegripCooldown, 0, _tearRegripCooldown.Length);
             Stamina.RecoverMatte(FighterId.A);
             Stamina.RecoverMatte(FighterId.B);
             // §S drain point recovery — partial only (RecoverMattePartial), never a full
